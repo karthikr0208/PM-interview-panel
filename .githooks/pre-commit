@@ -1,0 +1,36 @@
+#!/bin/sh
+# Blocks live credentials from entering git history.
+#
+# Matches each prefix followed by real key material, never the bare prefix.
+# DEV-STATE.md, backend/.env.example, and scripts/check_env.py all name
+# `nvapi-` and `sb_secret_` deliberately and must stay committable — a naive
+# substring scan blocks the very files that document the rule.
+#
+# Scans staged blobs, not the working tree: what is committed is what matters.
+
+PATTERN='(nvapi-[A-Za-z0-9_-]{20,}|sb_secret_[A-Za-z0-9_-]{20,})'
+
+# .env.example ships `nvapi-xxxxxxxx...` as its placeholder, which is
+# indistinguishable from key material by shape alone. Filter the placeholder
+# forms rather than loosening PATTERN. Trade-off: a real key containing eight
+# consecutive x's would slip through. Rejecting that is worth the false
+# positive on every .env.example commit.
+PLACEHOLDER='(x{8,}|X{8,}|PASTE|YOUR_|_HERE|EXAMPLE|REPLACE|<[A-Za-z_]+>)'
+
+hits=$(git diff --cached --name-only --diff-filter=ACM | while read -r f; do
+	if git show ":$f" 2>/dev/null | grep -E "$PATTERN" | grep -qvE "$PLACEHOLDER"; then
+		printf '%s\n' "$f"
+	fi
+done)
+
+if [ -n "$hits" ]; then
+	echo "pre-commit BLOCKED: live credential in staged content."
+	echo
+	echo "$hits" | sed 's/^/  /'
+	echo
+	echo "Filenames only above; the key itself is not printed."
+	echo "Unstage and remove it. Use --no-verify only if this is a false positive."
+	exit 1
+fi
+
+exit 0
