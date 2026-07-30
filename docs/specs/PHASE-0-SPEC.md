@@ -196,8 +196,8 @@ mechanism. Render is unaffected. See DEV-STATE § Decisions 2026-07-30.
 **Acceptance**
 - [x] Backend on Render free tier, **region: Singapore** — not the default. The Supabase project is in `ap-southeast-1`; a mismatched region adds ~100ms to every one of the ~8 database round trips per candidate turn. See DEV-STATE § Decisions. **Vindicated: the deployed checkpoint step measures ~27ms.**
 - [x] `/health` green — `https://pm-interview-panel.onrender.com/health` → `{"status":"ok"}`
-- [ ] Frontend on Netlify; `VITE_API_URL` set at build time
-- [ ] CORS allows the Netlify origin and nothing wider — **currently still the `http://localhost:5173` placeholder; must be updated when Netlify exists**
+- [x] Frontend on Netlify; `VITE_API_URL` set at build time — `https://pmaiinterviewpanel.netlify.app`. **Proven by grepping the deployed bundle for the Render URL**, not by the variable merely being set: Vite only inlines variables that code reads, so this box was vacuous until `HealthCheck.tsx` referenced it
+- [x] CORS allows the Netlify origin and nothing wider — verified both directions. Netlify origin echoed, the previous `localhost:5173` now **refused**, hostile preflight 400
 - [x] Environment variables set in the Render dashboard, not committed
 - [x] **The 0.7 test passes against the deployed URL**, with the two `curl` invocations and their output pasted into `DEV-STATE.md`
 - [x] Cold-start latency measured after 15+ minutes idle and recorded as an actual number — **32.33s** after ~18 minutes idle; warm follow-up 0.13s. See DEV-STATE § 0.8
@@ -233,16 +233,16 @@ is finding out what the real endpoint actually does.
 
 ---
 
-## Phase gate
+## Phase gate — ✅ ALL SIX MET 2026-07-30
 
 Do not start Phase 1 until every box above is ticked and these hold:
 
-1. `make test-api` passes, with output pasted into `DEV-STATE.md`.
-2. Two `curl` calls against the **deployed** Render URL demonstrate interrupt and resume, with output recorded.
-3. Structured-output reliability is a measured number, not an assumption.
-4. The NVIDIA account model question is closed.
-5. Cold-start latency is a measured number.
-6. `DEV-STATE.md` § Environment notes contains real observed values, including the transaction-pooler error text.
+1. [x] `make test-api` passes, with output pasted into `DEV-STATE.md` — **52 passed in 476.05s** live
+2. [x] Two `curl` calls against the **deployed** Render URL demonstrate interrupt and resume, with output recorded
+3. [x] Structured-output reliability is a measured number, not an assumption — `fast` 9-10/10, `deep` 7-9/10 across four N=10 runs
+4. [x] The NVIDIA account model question is closed — 40 RPM, no credits
+5. [x] Cold-start latency is a measured number — **32.33s** after ~18 min idle
+6. [x] `DEV-STATE.md` § Environment notes contains real observed values, including the transaction-pooler error text
 
 ## Handoff
 
@@ -259,12 +259,20 @@ Do not start Phase 1 until every box above is ticked and these hold:
 ### Needs your eyes
 - ~~**The NVIDIA account model.**~~ Resolved 2026-07-29 from the account dashboard: 40 RPM, no credits.
 - ~~**Supabase project setup.**~~ Done — `tnqfqsocoqythakwybsw`, Singapore, connection verified 2026-07-30.
-- **Render project setup** (story 0.8), if you would rather create it yourself than have me do it
-  through the CLI. **Region must be Singapore**, not the default.
-- **A judgement call, if structured output scores below 10/10.** That makes prompt-validate-retry mandatory in every agent rather than defensive, which adds work to every remaining phase. Worth your decision, not mine.
+- ~~**Render project setup**~~ Done 2026-07-30 by Karthik, Singapore confirmed.
+- ~~**A judgement call, if structured output scores below 10/10.**~~ Made 2026-07-30: retry now, revisit the model assignment in Phase 2 against golden cases.
 
-Nothing in this phase is visually assessable — there is no UI yet beyond a Vite scaffold. The
-first genuine design review is the Phase 1 handoff.
+**Still open, carried into later phases:**
+- **Cold start is 32.3s.** Fine for building, wrong for a demo. Mitigation is an external uptime
+  pinger on `/health`, deliberately deferred to Phase 7 or the day before a demo.
+- **`nemotron-3-nano` intermittently leaks reasoning preamble into `content`** — two of three
+  observed. It is the Interviewer's model and the most candidate-visible string in the product.
+  Settle in Phase 3, before building streaming on top of it.
+- **Supabase anonymous sign-in must be wired before the frontend reads any data.** Phase 0 ships
+  RLS with zero policies, so browsers currently get nothing from the database.
+
+Nothing in this phase is visually assessable — there is no UI yet beyond a Vite scaffold plus a
+disposable connectivity check. The first genuine design review is the Phase 1 handoff.
 
 ## Out of scope
 

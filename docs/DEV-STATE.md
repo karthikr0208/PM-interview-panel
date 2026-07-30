@@ -6,21 +6,31 @@
 
 ## Now
 
-**Phase 0 — Walking skeleton.** Stories 0.1 through 0.7 complete and verified. Running FastAPI
-backend with working `/skeleton/start` and `/skeleton/resume`, Vite frontend, full venv,
-secret-blocking pre-commit hook, ten tables live in Supabase (six app + four LangGraph), a working
-Postgres checkpointer, and 52 tests. The structured-output decision gate is resolved:
-**validate-retry is mandatory and enforced in the LLM wrapper.**
+**Phase 0 — Walking skeleton. ✅ COMPLETE 2026-07-30. All eight stories, all six phase-gate
+conditions, deployed and proven end to end.**
 
-**The two risks this phase existed to retire are retired.** The conduct loop's structural
-constraint is proven, by a test shown to fail against a deliberately violating graph. And
-interrupt/resume works across two genuinely separate OS processes, so nothing about an interview
-depends on a server staying alive between a question and its answer.
+```
+frontend  https://pmaiinterviewpanel.netlify.app
+backend   https://pm-interview-panel.onrender.com     (Render, Singapore, free)
+database  tnqfqsocoqythakwybsw                        (Supabase, Singapore, free)
+```
 
-**Only story 0.8 remains: deploy.** Render (**region Singapore, not the default**) plus Netlify,
-then the same two-request proof against the deployed URL with `curl`. 0.8 is also the only chance
-to measure production checkpoint latency and cold-start time; both are currently unmeasured and
-must not be quoted from local numbers.
+**All four risks this phase existed to retire are retired**, each with a measured number rather
+than an assumption:
+
+| Risk | Answer |
+|---|---|
+| Is structured output reliable on the free endpoint? | No, not fully. `deep` 7-9/10 → validate-retry is mandatory, enforced in the wrapper |
+| Does Supabase work from Render at all? | Yes. Session pooler, and a checkpoint step costs **~27ms** in production |
+| Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
+| What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
+
+**Next: Phase 1 — Resume Analyst plus the design foundation.** `docs/specs/PHASE-1-SPEC.md` does
+not exist yet and must be written before it starts.
+
+**Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
+frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
+nothing from the database. See Decisions 2026-07-30.
 
 **Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
 frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
@@ -34,8 +44,8 @@ sign-in plus scoped policies exist. See Decisions 2026-07-30.
 | Phase | Status | Spec | Verified |
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
-| 0 Walking skeleton | 🟡 0.1–0.7 done, 0.8 deploy remains | PHASE-0-SPEC.md | 2026-07-30 — 52 tests pass live, output below |
-| 1 Resume Analyst + design foundation | ⬜ not started | — | — |
+| 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
+| 1 Resume Analyst + design foundation | ⬜ next — **spec not written** | — | — |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -76,10 +86,16 @@ Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 
 ## Last session
 
-**Session 3 — 2026-07-30. Stories 0.6 and 0.7 complete. Phase 0 is one story from done.**
+**Session 3 — 2026-07-30. Stories 0.6, 0.7 and 0.8 complete. PHASE 0 IS DONE, deployed, and
+proven end to end.**
 
 The interrupt/resume machinery the whole product rests on now works and is proven: a graph that
-pauses, and a pause that survives the process dying. 52 tests, all green live.
+pauses, a pause that survives the process dying, and the same cycle driven against the deployed
+URL from the Netlify origin. 52 tests green live, phase gate 6/6.
+
+**Three numbers that were assumptions this morning and are measurements tonight:** production
+checkpoint step ~27ms (not the 298ms local figure), cold start 32.3s, and `VITE_API_URL` proven
+inlined by grepping the deployed bundle rather than trusting that it was set.
 
 **The repo was pushed to GitHub for the first time** —
 `https://github.com/karthikr0208/PM-interview-panel`, `main` tracking `origin/main`. History was
@@ -99,7 +115,18 @@ that the agent's own green test run had not surfaced.
 ```
 7b7f471  0.6 two-node graph with interrupt/resume
 7bc437b  0.7 interrupt/resume across two HTTP requests
+f17706f  docs: correct stale commit hashes
+362c395  pin Python 3.12.10 for the Render build
+ff398ea  0.8 part 1: backend live on Render, phase gate met
+ed1d582  frontend: backend connectivity check
+800f28c  0.8 cold-start latency measured at 32.3s
 ```
+
+**Deployment settings worth not rediscovering.** Render: root dir `backend`, build
+`pip install -r requirements.txt`, start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`,
+region Singapore, `PYTHON_VERSION=3.12.10` plus a committed `backend/.python-version`. Netlify:
+base dir `frontend`, build `npm run build`, publish `frontend/dist`, `NODE_VERSION=22`. Both
+redeploy automatically on push to `main`, and each only rebuilds when its own directory changes.
 
 ### Session 2 — 2026-07-30. Stories 0.1, 0.2, 0.4, 0.5 complete
 
@@ -162,6 +189,47 @@ status=404
 ```
 /health                                          200  {"status":"ok"}
 OPTIONS /skeleton/start  Origin: evil.example.com 400   <- CORS rejects, per the preflight rule
+```
+
+**FRONTEND ON NETLIFY — `https://pmaiinterviewpanel.netlify.app`.** Base dir `frontend`, publish
+`frontend/dist`, `NODE_VERSION=22`.
+
+**`VITE_API_URL` proven baked in at build time, not merely set.** Vite only inlines variables that
+code actually reads, so the box was vacuous until `HealthCheck.tsx` referenced it. Verified by
+grepping the *deployed* bundle:
+
+```
+https://pmaiinterviewpanel.netlify.app        200
+  bundle /assets/index-k5qsSOLI.js  contains  https://pm-interview-panel.onrender.com
+```
+
+The deployed bundle hash differs from the local build's (`index-DjE-cX_-.js`), which independently
+confirms Netlify baked in a different value than the dev machine did.
+
+**CORS, before and after the `ALLOWED_ORIGINS` change — and the before half is the useful half.**
+
+```
+BEFORE (ALLOWED_ORIGINS=http://localhost:5173)
+  Origin: https://pmaiinterviewpanel.netlify.app -> 200, NO access-control-allow-origin
+  Origin: http://localhost:5173                  -> 200, header echoed
+
+AFTER  (ALLOWED_ORIGINS=https://pmaiinterviewpanel.netlify.app)
+  Origin: https://pmaiinterviewpanel.netlify.app -> 200, header echoed
+  Origin: http://localhost:5173                  -> 200, NO header      <- nothing wider
+  OPTIONS Origin: http://evil.example.com        -> 400
+```
+
+**This is the 2026-07-30 CORS decision confirmed in production: the server returns 200 either
+way.** Enforcement is the browser refusing a response whose `access-control-allow-origin` is
+absent. A test asserting non-200 on a simple request would have passed against a wide-open server.
+
+**FULL CHAIN, carrying the Netlify origin — browser to Netlify to Render to Supabase:**
+
+```
+POST /skeleton/start   Origin: https://pmaiinterviewpanel.netlify.app
+  {"session_id":"83a73411-...","interrupt":{"question":"What's one product decision you made..."}}
+POST /skeleton/resume  Origin: https://pmaiinterviewpanel.netlify.app   (separate request)
+  {"session_id":"83a73411-...","turn_count":1}
 ```
 
 **COLD START: 32.3 SECONDS.** Probe left the service genuinely untouched for ~18 minutes, then
@@ -422,42 +490,43 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Start with these two commands (~3 min), then read PHASE-0-SPEC story 0.8.**
+**Phase 0 is closed. The first job of the next session is to WRITE `docs/specs/PHASE-1-SPEC.md`,
+which does not exist.** Do not start building Phase 1 without it — CLAUDE.md § What to update
+requires the next phase spec to be written before it begins.
+
+**Start with these two commands (~3 min), then confirm production is still up.**
 
 ```
 python backend/scripts/check_env.py                        # nothing rotated overnight
 cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 21 passed
+curl -s https://pm-interview-panel.onrender.com/health     # expect {"status":"ok"}, may take ~32s cold
 ```
 
-Everything local works. Remote is `https://github.com/karthikr0208/PM-interview-panel`, `main`
-pushed and tracking (added 2026-07-30).
+**Phase 1 is Resume Analyst plus the design foundation.** Two things must be settled in its spec
+before any code:
 
-**Story 0.8 — deploy. The last story in Phase 0.** Acceptance is in PHASE-0-SPEC.md.
+1. **Supabase anonymous sign-in, wired before the frontend reads any data.** This is the blocker
+   carried from Phase 0. RLS ships with zero policies, so the browser currently gets nothing. The
+   trap is recorded under Decisions 2026-07-30: `anon` already holds table-level grants, so the
+   *first policy added is what opens the door*, and one over-broad policy exposes every
+   candidate's transcript at once. `test_schema.py` asserts empirical denial, so it will fail
+   loudly if a policy is too permissive.
+2. **The design system.** `design-taste-frontend-v1` governs, dials VARIANCE 3 / MOTION 4 /
+   DENSITY 6, Geist + Geist Mono, Phosphor at `strokeWidth 1.5`, accent `#3A63D0` light /
+   `#6E92E8` dark. Consider generating `DESIGN.md` via `stitch-design-taste` rather than
+   hand-writing it. Details in ARCHITECTURE.md §8 and Decisions 2026-07-29.
 
-**Render region must be Singapore, not the default.** Supabase is in `ap-southeast-1`, and a
-mismatch adds ~100ms to each of ~8 database round trips per candidate turn, permanently. This is
-the one setting that cannot be fixed later without redeploying.
+**Delete the Phase 0 scaffolding when the real thing replaces it**, not before:
+`backend/app/graph/skeleton.py`, `backend/tests/test_interrupt.py`, `backend/tests/test_api.py`'s
+skeleton tests, `frontend/src/HealthCheck.tsx`, and the `/skeleton/*` routes in `app/main.py`.
 
-**Start command: plain `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.** No `--reload` in
-production. That is safe on Render specifically because Linux already defaults to the selector
-event loop — do **not** conclude from `make dev-api` working locally that the event-loop guard in
-`app/main.py` is protecting you. It is not. See Decisions 2026-07-30.
+**Two live issues that will bite in Phase 3 if forgotten** — both under Blockers below:
+`nemotron-3-nano` intermittently leaks reasoning preamble into `content` (it is the Interviewer's
+model), and cold start is 32.3s (needs an external pinger before any demo).
 
-**Do not run `init_db.py` or `migrate.py` on startup.** Both are one-shot scripts, already
-applied. Startup must only open the checkpointer via `lifespan`.
-
-**Env vars go in the Render dashboard, never committed.** `config.py` `REQUIRED_VARS` is the
-list; all 11 must be set or the app fails loudly at import, which is the intended behaviour.
-`ALLOWED_ORIGINS` must become the Netlify origin and nothing wider.
-
-**Two numbers this story exists to produce, both currently unmeasured — do not quote local ones:**
-- **Production checkpoint latency**, Render-Singapore to Supabase-Singapore. The 298ms on record
-  is from a Windows dev machine in India and is dominated by home internet.
-- **Cold-start latency after 15+ minutes idle.** Free-tier Render sleeps. This is the number that
-  decides whether a candidate's first request feels broken.
-
-**Then the phase gate**, at the bottom of PHASE-0-SPEC.md. It needs the two `curl` invocations
-against the **deployed** URL pasted here, not a local run.
+**Redeploys are automatic** on push to `main`, for both Render and Netlify. Render only rebuilds
+on changes under `backend/`, Netlify only under `frontend/`, so a docs-only commit deploys
+nothing.
 
 **Run first (~3 min):** `python backend/scripts/check_env.py`. It now checks all three models and
 no longer probes `thinking`.
@@ -1095,9 +1164,13 @@ only, in one sentence." What came back, verbatim:
 ```
 
 Deliberation in the content field, then truncated mid-sentence by the skeleton's
-`max_tokens=120`. **A candidate would have seen all of it.** Two caveats, stated so this is not
-over-read: n=1, and the skeleton prompt is deliberately minimal with no system message and no
-few-shot. Either could explain it.
+`max_tokens=120`. **A candidate would have seen all of it.**
+
+**Update after two more samples from the deployed service: it is INTERMITTENT, which is worse
+than consistent.** Same prompt, same model, three observations — two leaked preamble, one came
+back clean (`"What's one product decision you made that surprised"`). A failure that happens
+sometimes will survive casual testing and appear in front of a candidate. Caveat still stands
+that the skeleton prompt is deliberately minimal, with no system message and no few-shot.
 
 **But do not assume prompt engineering alone fixes it.** The Interviewer's question is the most
 user-visible string in the product, and the streaming mitigation under discussion for the 7-9s
