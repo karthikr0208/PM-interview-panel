@@ -34,3 +34,9 @@ Thumbs.db
 .agents/
 .claude/skills/
 skills-lock.json
+
+# ── Plugin auto-checkpoints, not this project's handoff ───
+# GSD writes empty HANDOFF.json files on a post-tool hook. docs/DEV-STATE.md
+# is the handoff. Tracking these adds churn and invites a future session to
+# open a file named HANDOFF and find nothing in it.
+.planning/

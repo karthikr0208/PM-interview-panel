@@ -4,8 +4,12 @@ Multi-agent PM interview simulator. A candidate uploads a resume, gets levelled,
 45-minute Product Strategy interview conducted by a panel of six cooperating agents, and
 receives an evidence-linked scorecard plus a coaching report.
 
-LangGraph orchestration · `z-ai/glm-5.2` via NVIDIA NIM · FastAPI on Render ·
-React + Vite on Netlify · Supabase for all durable state. Entire stack is free tier.
+LangGraph orchestration · **`nvidia/nemotron-3-nano-30b-a3b` (fast) and
+`nemotron-3-super-120b-a12b` (deep)** via NVIDIA NIM, `openai/gpt-oss-20b` as backup ·
+FastAPI on Render (Singapore) · React + Vite on Netlify · Supabase for all durable state
+(Singapore). Entire stack is free tier.
+
+Not GLM 5.2 — it queues ~230s on the free tier, measured. See DEV-STATE § Decisions 2026-07-29.
 
 ---
 
@@ -19,9 +23,25 @@ React + Vite on Netlify · Supabase for all durable state. Entire stack is free 
    from the original plan in specific places, and **those entries supersede ARCHITECTURE.md
    wherever they conflict.**
 5. State back: the current phase, the next story, and anything blocking it. Then begin.
+6. Before writing code, skim **§ What to update, and when** below, so you know what this
+   story will owe on the way out. Cheaper to know up front than to reconstruct at the end.
 
 **Do not re-derive project state by reading source files.** DEV-STATE.md is maintained
 deliberately and is faster and more accurate than inference.
+
+**`.planning/HANDOFF.json` is not this project's handoff.** It is an auto-generated plugin
+checkpoint, is empty, and is gitignored. **`docs/DEV-STATE.md` is the handoff.** Ignore any
+file that merely sounds authoritative.
+
+## 🔴 End of every session — before the context runs out
+
+Sessions end abruptly. Do this at the last natural stopping point, not when you feel finished:
+
+1. Everything in **§ What to update, and when** for whatever you actually completed.
+2. `git status` clean, or the leftovers named in DEV-STATE § Next session.
+3. **"Next session — start here"** rewritten so a cold session can act on it without asking a
+   question. Name the file paths and the exact command to run first.
+4. Anything you verified but did not record is lost. Record the output, not the claim.
 
 ## 🔴 Updating DEV-STATE — non-negotiable
 
@@ -84,8 +104,10 @@ grepped for it.
 | Question | File |
 |---|---|
 | Where are we? What's next? | `docs/DEV-STATE.md` |
+| **What do I update when I finish a story or phase?** | **CLAUDE.md § What to update, and when** |
+| **Why did this diverge from the plan?** | **`docs/DEV-STATE.md` § Decisions & deviations** — supersedes ARCHITECTURE.md |
 | Why does this product exist? What is the rubric? | `docs/PRD.md` |
-| How does the system fit together? | `docs/ARCHITECTURE.md` |
+| How was it *designed* to fit together? | `docs/ARCHITECTURE.md` — the plan, not always current reality |
 | What is in scope this phase? | `docs/specs/PHASE-<N>-SPEC.md` |
 | What is this agent's contract? | `docs/specs/agents/AGENT-<NAME>-SPEC.md` |
 | Why was it built this way? | `docs/research/` |
