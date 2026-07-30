@@ -69,9 +69,46 @@ Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 
 ## Last session
 
-**Session 2 — 2026-07-30.** Story 0.1 complete. Orchestrated, with the backend and frontend
-scaffolds each built by a delegated agent and every claim re-verified independently before
-being recorded here.
+**Session 2 — 2026-07-30. Stories 0.1, 0.2, 0.4, 0.5 complete.** Phase 0 went from nothing on
+disk to a running backend, a Vite frontend, ten tables live in Supabase, a working Postgres
+checkpointer, and 40 tests. Seven commits, all local — **no git remote is configured and nothing
+has been pushed.**
+
+Orchestrated: scaffolds and test files were built by delegated agents, and **every claim was
+re-verified independently before being recorded here.** That mattered — it caught a false pass
+in my own verification, a regression one agent introduced into another's tests, and two security
+holes.
+
+```
+a52fc9c  0.1 repo scaffold, backend, frontend, secret hook
+89d21fc  docs: close handoff gaps found auditing 0.1
+79ef3cf  docs: per-story and per-phase update checklist
+6ba182b  docs: close the session workflow loop, fix stale model in header
+878c961  0.2 structured-output gate resolved, retry mandatory
+f839f35  0.4 schema migration, RLS, realtime, resumes bucket
+b65e097  0.5 checkpointer, plus RLS on LangGraph's own tables
+```
+
+### 0.5 checkpointer — observed output
+
+```
+init_db.py, run twice:
+  checkpoint_blobs         rls=True      checkpoint_writes        rls=True
+  checkpoint_migrations    rls=True      checkpoints              rls=True
+
+graph ran under RLS    : {'n': 42}
+state reloaded from PG : {'n': 42}
+checkpoint rows written: 3
+  service role  : 3        anon : 0        authenticated : 0
+
+full live suite:  19 passed in 426.55s (0:07:06)
+offline suite  :  21 passed in 2.36s
+```
+
+**Two security holes found and fixed this session**, both the same shape — a table in `public`
+reachable by `anon` because Supabase grants there by default. One in our own migration (fixed by
+shipping zero policies), one in LangGraph's checkpoint tables (fixed in `init_db.py`).
+**Checkpoints were the worse of the two: they hold the entire interview state.**
 
 ### 0.1 acceptance — observed output
 
@@ -209,6 +246,16 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 `probe_models.py`, `probe_candidates.py`, `probe_structured.py`.
 
 ## Next session — start here
+
+**Start with these two commands (~3 min), then read PHASE-0-SPEC story 0.6.**
+
+```
+python backend/scripts/check_env.py                        # nothing rotated overnight
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 21 passed
+```
+
+Everything is installed and the database is live. `git status` was clean at session end and
+there is **no remote** — pushing is a decision Karthik has not made yet.
 
 **Story 0.6 — the two-node skeleton graph with `interrupt()`.** Acceptance is in PHASE-0-SPEC.md.
 This is the story the whole conduct loop depends on.
