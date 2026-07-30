@@ -1201,6 +1201,32 @@ Chan"). Needs a real choice before Phase 3 ships.
 
 Populated during Phase 0 as things are actually verified.
 
+**PRODUCTION — live since 2026-07-30, all free tier, all Singapore.**
+
+| | |
+|---|---|
+| Frontend | `https://pmaiinterviewpanel.netlify.app` — Netlify project `pmaiinterviewpanel` |
+| Backend | `https://pm-interview-panel.onrender.com` — Render service `PM-interview-panel` |
+| Database | Supabase `tnqfqsocoqythakwybsw` |
+| Repo | `https://github.com/karthikr0208/PM-interview-panel` |
+
+**Render:** root dir `backend` · build `pip install -r requirements.txt` · start
+`uvicorn app.main:app --host 0.0.0.0 --port $PORT` · region **Singapore** · `PYTHON_VERSION`
+3.12.10, matching the committed `backend/.python-version`. All 11 `REQUIRED_VARS` set in the
+dashboard, never committed. `ALLOWED_ORIGINS` is the Netlify origin **only** — adding anything
+wider fails story 0.8's acceptance.
+
+**Netlify:** base dir `frontend` · build `npm run build` · publish `frontend/dist` ·
+`NODE_VERSION=22` · `VITE_API_URL` set to the Render URL, plus `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_ANON_KEY` (**publishable key only — never `sb_secret_`, it bypasses RLS and every
+`VITE_` variable ships readable in the browser bundle**).
+
+**Both redeploy automatically on push to `main`**, and each only rebuilds when its own directory
+changes, so a docs-only commit deploys nothing.
+
+**Measured in production, 2026-07-30:** checkpoint step **~27ms** · cold start **32.33s** after
+~18 min idle, warm 0.13s.
+
 **Toolchain, observed 2026-07-30:** Python 3.12.10 · Node 26.1.0 · npm 11.13.0 · git 2.54.0 ·
 GNU Make 4.4.1 (installed this session, see Decisions).
 
@@ -1238,6 +1264,10 @@ recreated. Migrations are written idempotent so re-running is safe. Two separate
   Reproduces only under concurrency — see Decisions.
 - **Windows dev only:** `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())`
   is required before any async psycopg use. Not needed on Render.
+  **But it does NOT rescue `uvicorn app.main:app`** — that path creates its loop before importing
+  the module, so the guard runs too late and startup fails. `make dev-api` works only because
+  `--reload` makes uvicorn fix the policy itself. Corrected 2026-07-30, see Decisions; do not read
+  the guard in `app/main.py` as protecting you.
 - **10 public tables:** six app tables + `checkpoints`, `checkpoint_writes`, `checkpoint_blobs`,
   `checkpoint_migrations`. All ten have RLS enabled, none have policies.
 - **Checkpoint volume:** ~0.58 MB per 20-turn interview, roughly 869 interviews to the 500MB
