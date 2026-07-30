@@ -1,4 +1,9 @@
-"""Graph construction. Module structure only — node wiring is story 0.6.
+"""Graph construction for the REAL interview graph. Module structure only —
+node wiring lands in Phase 1, once agents exist.
+
+Story 0.6's two-node skeleton is deliberately not here: it lives in
+`skeleton.py` so it can be deleted whole when the real graph arrives. This
+file's rule below is what that skeleton exists to prove.
 
 The real graph (parse_resume -> level_candidate -> confirm_level -> ... ->
 coach_report) is built here once the nodes exist. Nothing below builds it yet;
@@ -32,8 +37,8 @@ def build_graph(checkpointer: BaseCheckpointSaver) -> StateGraph:
     the entire class of stateless-HTTP bugs this architecture is built to
     surface. See CLAUDE.md "Rules that must never be broken".
 
-    Node wiring lands in story 0.6 as a two-node skeleton, then grows through
-    Phases 1-5 into the full panel. Left unimplemented here on purpose so this
-    module is import-safe before any node exists.
+    Node wiring grows through Phases 1-5 into the full panel. Left
+    unimplemented here on purpose so this module is import-safe before any
+    node exists. For Phase 0, use `app.graph.skeleton.build_skeleton_graph`.
     """
-    raise NotImplementedError("Node wiring is story 0.6 — not part of the Phase 0.1 scaffold.")
+    raise NotImplementedError("Node wiring is Phase 1 — Phase 0 uses skeleton.build_skeleton_graph.")

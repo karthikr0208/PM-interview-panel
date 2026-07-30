@@ -6,14 +6,17 @@
 
 ## Now
 
-**Phase 0 — Walking skeleton.** Stories 0.1 through 0.5 complete and verified. Running FastAPI
+**Phase 0 — Walking skeleton.** Stories 0.1 through 0.6 complete and verified. Running FastAPI
 backend, Vite frontend, full venv, secret-blocking pre-commit hook, ten tables live in Supabase
-(six app + four LangGraph), a working Postgres checkpointer, and a test suite spanning config,
-LLM, retry, schema, and checkpointer. The structured-output decision gate is resolved:
-**validate-retry is mandatory and enforced in the LLM wrapper.**
+(six app + four LangGraph), a working Postgres checkpointer, a two-node graph that pauses on
+`interrupt()` and resumes from a checkpoint, and 46 tests. The structured-output decision gate is
+resolved: **validate-retry is mandatory and enforced in the LLM wrapper.** The interrupt-resume
+constraint the entire conduct loop rests on is proven, and proven by a test shown to fail against
+a violating graph.
 
-Next is **story 0.6, the two-node graph with `interrupt()`** — the structural constraint the
-entire conduct loop rests on. Then 0.7 (interrupt/resume across HTTP requests) and 0.8 (deploy).
+Next is **story 0.7, interrupt/resume across two separate HTTP requests** — same property as 0.6
+but with the API process restarted in between, which is the part that cannot be faked by process
+memory. Then 0.8 (deploy).
 
 **Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
 frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
@@ -61,8 +64,8 @@ Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.4a ~~Supabase project + connection verified~~ — done: Singapore, session pooler, Postgres 17.6, `check_db.py` connects
 - [x] 0.4 ~~Supabase project + schema migration~~ — done 2026-07-30. Six tables, RLS on all, realtime publication, private `resumes` bucket, constraints proven by failed inserts
 - [x] 0.5 ~~Postgres checkpointer wired via session pooler, `.setup()` run once~~ — done 2026-07-30. Idempotent, no collision, 6543 failure reproduced, **RLS added to LangGraph's tables**
-- [ ] 0.6 Two-node graph with `interrupt()` / `Command(resume=...)`   ← NEXT
-- [ ] 0.7 Interrupt/resume proven across two separate HTTP requests
+- [x] 0.6 ~~Two-node graph with `interrupt()` / `Command(resume=...)`~~ — done 2026-07-30. All five boxes, and **the idempotency assertion was falsified against a deliberately wrong graph before being trusted**
+- [ ] 0.7 Interrupt/resume proven across two separate HTTP requests   ← NEXT
 - [ ] 0.8 Deploy backend to Render, frontend to Netlify, CORS wired, health check green
 
 ---
@@ -88,6 +91,29 @@ a52fc9c  0.1 repo scaffold, backend, frontend, secret hook
 f839f35  0.4 schema migration, RLS, realtime, resumes bucket
 b65e097  0.5 checkpointer, plus RLS on LangGraph's own tables
 ```
+
+### 0.6 interrupt / resume — observed output
+
+`backend/app/graph/skeleton.py` (its own module, not `build.py`, so Phase 1 deletes it whole) and
+`backend/tests/test_interrupt.py`.
+
+```
+tests/test_interrupt.py  6 passed in 17.96s
+  test_graph_compiles_with_the_postgres_checkpointer
+  test_ainvoke_runs_to_the_interrupt_and_returns_its_payload
+  test_command_resume_makes_interrupt_return_the_passed_value
+  test_get_state_next_is_the_paused_node
+  test_checkpoint_rows_land_after_each_node
+  test_llm_call_fires_exactly_once_across_interrupt_and_resume
+
+full live suite:  46 passed in 319.60s (0:05:19)
+offline suite  :  21 passed in 4.20s
+```
+
+The `conn` / `checkpointer` / `thread_ids` fixtures moved from `test_checkpointer.py` into
+`tests/conftest.py`, which now also owns the Windows event-loop policy swap — conftest imports
+before any test module, so the swap is guaranteed to precede psycopg. Moved rather than copied
+because story 0.6 is the second caller, per CLAUDE.md § Style.
 
 ### 0.5 checkpointer — observed output
 
@@ -247,32 +273,39 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Start with these two commands (~3 min), then read PHASE-0-SPEC story 0.6.**
+**Start with these two commands (~3 min), then read PHASE-0-SPEC story 0.7.**
 
 ```
 python backend/scripts/check_env.py                        # nothing rotated overnight
 cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 21 passed
 ```
 
-Everything is installed and the database is live. `git status` was clean at session end and
-there is **no remote** — pushing is a decision Karthik has not made yet.
+Everything is installed, the database is live, and the skeleton graph pauses and resumes
+correctly. Remote is `https://github.com/karthikr0208/PM-interview-panel` (added 2026-07-30).
 
-**Story 0.6 — the two-node skeleton graph with `interrupt()`.** Acceptance is in PHASE-0-SPEC.md.
-This is the story the whole conduct loop depends on.
+**Story 0.7 — interrupt/resume across two separate HTTP requests.** Acceptance is in
+PHASE-0-SPEC.md. Build `POST /skeleton/start` and `POST /skeleton/resume` in `app/main.py` on top
+of `app.graph.skeleton.build_skeleton_graph`, which is done and tested.
 
-**The load-bearing assertion is that the LLM call in `ask_something` fires exactly once across a
-full interrupt-and-resume cycle.** On resume LangGraph re-runs the entire node from the top, not
-from the interrupt line, so anything above an `interrupt()` runs twice. Assert against the call
-log from `app/llm.py`, which already timestamps every call including both attempts of a retry.
+**The real test is the process restart between the two calls**, not that the two endpoints work.
+An in-memory anything passes the happy path and fails this. `tests/test_api.py` must tear the app
+object down and rebuild it between start and resume.
 
-`await_candidate` contains **only** `interrupt()` and its return. No LLM call, no counter, no
-write above that line, ever.
+**You will hit the Windows event loop problem here** — uvicorn selects the proactor loop on
+Windows unless told otherwise, and psycopg's async mode refuses it. `tests/conftest.py` already
+does the swap for tests; `app/main.py` needs its own guarded swap for `make dev-api`.
 
-**You will hit the Windows event loop problem again** the moment the graph is wired into FastAPI
-in 0.7 — uvicorn selects the proactor loop on Windows unless told otherwise. See Decisions.
+**The checkpointer needs a lifespan, not a per-request connection.** `AsyncPostgresSaver.
+from_conn_string` is an async context manager; opening one per request would open a pooler
+connection per request. Open it in FastAPI's `lifespan` and hold it on `app.state`.
 
-**Then 0.7 → 0.8.** 0.8 must re-measure checkpoint latency from the deployed Render service; the
-298ms measured locally is dev-machine-to-Singapore and says nothing about production.
+**CORS test: assert on preflight `OPTIONS`, never on a simple `GET` returning non-200.** A
+disallowed simple GET returns 200 with the header absent. See Decisions 2026-07-30 — the wrong
+assertion here encodes a false pass.
+
+**Then 0.8.** It must re-measure checkpoint latency from the deployed Render service; the 298ms
+measured locally is dev-machine-to-Singapore and says nothing about production. Render region
+must be **Singapore**.
 
 **Run first (~3 min):** `python backend/scripts/check_env.py`. It now checks all three models and
 no longer probes `thinking`.
@@ -309,6 +342,34 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-30 · STORY 0.6: the interrupt rule is real, but the reason written in the spec was
+wrong. Breaking it duplicates SIDE EFFECTS, not state — so no state assertion can detect it.**
+
+The idempotency test was falsified before being trusted. A deliberately wrong graph, with the LLM
+call and the increment above `interrupt()` in one node, was driven through a full pause-and-resume
+against the same `app.llm` call log:
+
+```
+llm calls at pause      : 1
+llm calls after resume  : 2      <- the rule is load-bearing, confirmed
+turn_count after resume : 1      <- NOT 2, which is the surprise
+```
+
+Two calls, so the assertion in `test_interrupt.py` genuinely discriminates rather than passing
+because everything passes. **But `turn_count` stayed at 1.** LangGraph discards the state writes
+of a node that interrupted and applies them only on the run that completes, so the double
+execution is invisible in state.
+
+**This changes what to guard against.** The cost of breaking the rule is not a corrupted counter,
+which is what PHASE-0-SPEC implied and what I would have asserted on. It is duplicated *side
+effects*: a burned LLM call against the 40 RPM ceiling, a doubled row in `transcript_turns`, a
+doubled `agent_events` emission driving the UI's realtime rail, a doubled Supabase write. Those
+all escape the graph, so nothing rolls them back.
+
+**Consequence for Phase 3 and anything writing outside graph state:** a test that checks state
+after a resume proves nothing about this. Assert on the call log or on row counts in the table
+being written. The one-assertion version is what `test_interrupt.py` does.
 
 **2026-07-30 · Story 0.5 broke two of story 0.4's tests, and only running the FULL suite caught
 it. Worth changing how phases are handed over.**

@@ -132,9 +132,10 @@ locally on 6543 sees it work. Full output in DEV-STATE § Decisions.
 
 ---
 
-### 0.6 Two-node graph with interrupt
+### 0.6 Two-node graph with interrupt — ✅ DONE 2026-07-30
 
-Minimal and deliberately not the real graph.
+Minimal and deliberately not the real graph. Lives in `backend/app/graph/skeleton.py`, its own
+module rather than `build.py`, so Phase 1 can delete it whole.
 
 ```python
 class SkeletonState(TypedDict):
@@ -146,14 +147,21 @@ class SkeletonState(TypedDict):
 ```
 
 **Acceptance**
-- [ ] Graph compiles with the Postgres checkpointer attached
-- [ ] `ainvoke` runs to the interrupt and returns a result containing `__interrupt__`
-- [ ] `ainvoke(Command(resume="..."), config)` resumes; `interrupt()` returns the passed value
-- [ ] A checkpoint row exists in Postgres after **each** node — verified by querying the table directly, not inferred
-- [ ] **Idempotency test:** the LLM call in `ask_something` fires exactly once across a full interrupt-and-resume cycle. Assert on the call log from 0.2.
+- [x] Graph compiles with the Postgres checkpointer attached
+- [x] `ainvoke` runs to the interrupt and returns a result containing `__interrupt__`
+- [x] `ainvoke(Command(resume="..."), config)` resumes; `interrupt()` returns the passed value
+- [x] A checkpoint row exists in Postgres after **each** node — verified by querying the table directly, not inferred
+- [x] **Idempotency test:** the LLM call in `ask_something` fires exactly once across a full interrupt-and-resume cycle. Assert on the call log from 0.2.
 
 That last checkbox is the one that matters. It is the structural constraint the whole conduct
 loop depends on, and it is cheaper to prove here than to debug in Phase 3.
+
+**The assertion was falsified before being trusted.** A deliberately wrong graph (LLM call above
+`interrupt()` in one node) was run against the same log counter: **2 calls, not 1**. The test
+discriminates. That run also refuted the reason this spec gave for the box — **`turn_count` stayed
+1 in the broken graph**, because LangGraph discards the state writes of a node that interrupted.
+The damage is duplicated side effects, not corrupted state, so only the call-log assertion can
+catch it. See DEV-STATE § Decisions 2026-07-30.
 
 ---
 

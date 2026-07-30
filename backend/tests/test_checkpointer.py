@@ -7,35 +7,27 @@ every evaluation) leaks or silently vanishes mid-interview.
 Every test here is marked `live` and hits the real Supabase project over the
 session pooler. Deselect with `-m "not live"`.
 
-Two pitfalls already discovered today, both guarded against below:
+Two pitfalls already discovered today, both handled in `conftest.py`, which
+owns the `conn` / `checkpointer` / `thread_ids` fixtures used below:
   1. Windows' default ProactorEventLoop makes psycopg's async mode raise
      `InterfaceError: Psycopg cannot use the 'ProactorEventLoop'`. The policy
      swap must happen before any AsyncPostgresSaver is touched, so it runs at
-     module import time, same as scripts/init_db.py.
+     conftest import time, same as scripts/init_db.py.
   2. AsyncPostgresSaver sets a `dict_row` row factory on its own connection.
-     Every verification query in this file goes through a *separate* plain
-     `psycopg.connect`, which returns normal tuples — the same reason
-     test_schema.py does it, and the same reason cleanup below must bypass
-     RLS through that same plain connection rather than the checkpointer's.
+     Every verification query in this file goes through the `conn` fixture's
+     *separate* plain connection, which returns normal tuples — the same
+     reason test_schema.py does it, and the same reason cleanup must bypass
+     RLS through that plain connection rather than the checkpointer's.
 """
 
 from __future__ import annotations
 
-import asyncio
-import sys
-
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-import uuid
-from typing import AsyncIterator, Callable, Iterator, TypedDict
+from typing import Callable, TypedDict
 
 import psycopg
 import pytest
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, StateGraph
-
-from app.config import settings
 
 pytestmark = pytest.mark.live
 
@@ -65,64 +57,6 @@ def _build_counter_graph(checkpointer: AsyncPostgresSaver):
     graph.add_edge("a", "b")
     graph.add_edge("b", END)
     return graph.compile(checkpointer=checkpointer)
-
-
-@pytest.fixture
-def conn() -> Iterator[psycopg.Connection]:
-    """A plain connection, independent of AsyncPostgresSaver's dict_row row
-    factory. `finally: rollback` mirrors test_schema.py — a safety net on top
-    of each test's own rollback so a test that raises mid-transaction still
-    leaves nothing behind."""
-    connection = psycopg.connect(settings.supabase_db_url, connect_timeout=15)
-    try:
-        yield connection
-    finally:
-        connection.rollback()
-        connection.close()
-
-
-@pytest.fixture
-async def checkpointer() -> AsyncIterator[AsyncPostgresSaver]:
-    async with AsyncPostgresSaver.from_conn_string(settings.supabase_db_url) as saver:
-        yield saver
-
-
-@pytest.fixture
-def thread_ids() -> Iterator[Callable[[], str]]:
-    """Factory for unique thread_ids, all cleaned up in teardown regardless
-    of how many a test minted. uuid4 per test (never a fixed constant) is
-    what lets tests run twice in a row, or concurrently, without colliding.
-
-    Cleanup goes through a plain connection — the role connecting via
-    `supabase_db_url` bypasses RLS (it must, or even the setup step and
-    LangGraph's own writes would be invisible to themselves), which is
-    exactly why the RLS tests below have to prove denial from a *different*
-    role rather than trusting this one.
-
-    Deletes `checkpoint_writes` and `checkpoint_blobs` before `checkpoints`
-    (children before the row they reference) and never touches
-    `checkpoint_migrations` — wiping that would make `.setup()` re-run
-    LangGraph's internal schema migrations.
-    """
-    created: list[str] = []
-
-    def make() -> str:
-        thread_id = str(uuid.uuid4())
-        created.append(thread_id)
-        return thread_id
-
-    yield make
-
-    if not created:
-        return
-    connection = psycopg.connect(settings.supabase_db_url, connect_timeout=15)
-    try:
-        with connection.cursor() as cur:
-            for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints"):
-                cur.execute(f"delete from {table} where thread_id = any(%s)", (created,))
-        connection.commit()
-    finally:
-        connection.close()
 
 
 async def test_setup_is_idempotent_and_creates_all_tables(
