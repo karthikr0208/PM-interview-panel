@@ -6,13 +6,14 @@
 
 ## Now
 
-**Phase 0 — Walking skeleton.** Stories 0.1, 0.2, 0.3, and 0.4 complete and verified. Running
-FastAPI backend, Vite frontend, full venv, secret-blocking pre-commit hook, the six-table schema
-live in Supabase, and a test suite spanning config, LLM, retry, and schema. The structured-output
-decision gate is resolved: **validate-retry is mandatory and enforced in the LLM wrapper.**
+**Phase 0 — Walking skeleton.** Stories 0.1 through 0.5 complete and verified. Running FastAPI
+backend, Vite frontend, full venv, secret-blocking pre-commit hook, ten tables live in Supabase
+(six app + four LangGraph), a working Postgres checkpointer, and a test suite spanning config,
+LLM, retry, schema, and checkpointer. The structured-output decision gate is resolved:
+**validate-retry is mandatory and enforced in the LLM wrapper.**
 
-Next is **story 0.5, the Postgres checkpointer.** Remaining Phase 0 work is checkpointer, graph,
-HTTP interrupt/resume, and deploy. No LLM work left.
+Next is **story 0.6, the two-node graph with `interrupt()`** — the structural constraint the
+entire conduct loop rests on. Then 0.7 (interrupt/resume across HTTP requests) and 0.8 (deploy).
 
 **Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
 frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
@@ -59,8 +60,8 @@ Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.3 ~~Confirm build.nvidia.com account model~~ — done 2026-07-29: 40 RPM, no credits
 - [x] 0.4a ~~Supabase project + connection verified~~ — done: Singapore, session pooler, Postgres 17.6, `check_db.py` connects
 - [x] 0.4 ~~Supabase project + schema migration~~ — done 2026-07-30. Six tables, RLS on all, realtime publication, private `resumes` bucket, constraints proven by failed inserts
-- [ ] 0.5 Postgres checkpointer wired via session pooler, `.setup()` run once   ← NEXT
-- [ ] 0.6 Two-node graph with `interrupt()` / `Command(resume=...)`
+- [x] 0.5 ~~Postgres checkpointer wired via session pooler, `.setup()` run once~~ — done 2026-07-30. Idempotent, no collision, 6543 failure reproduced, **RLS added to LangGraph's tables**
+- [ ] 0.6 Two-node graph with `interrupt()` / `Command(resume=...)`   ← NEXT
 - [ ] 0.7 Interrupt/resume proven across two separate HTTP requests
 - [ ] 0.8 Deploy backend to Render, frontend to Netlify, CORS wired, health check green
 
@@ -209,25 +210,22 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Story 0.5 — the Postgres checkpointer.** Acceptance is in PHASE-0-SPEC.md.
+**Story 0.6 — the two-node skeleton graph with `interrupt()`.** Acceptance is in PHASE-0-SPEC.md.
+This is the story the whole conduct loop depends on.
 
-1. `AsyncPostgresSaver` connects over the session pooler from local development.
-2. `scripts/init_db.py` runs `.setup()` and is **idempotent on a second run.** This is separate
-   from `scripts/migrate.py`, which owns the six app tables. Do not merge them: LangGraph owns
-   its `checkpoints` / `checkpoint_writes` / `checkpoint_blobs` shape and it changes with the
-   library version.
-3. LangGraph's tables coexist with the app tables, no collision.
-4. **Observe and record the transaction-pooler failure.** Connect on port 6543 deliberately and
-   capture the `DuplicatePreparedStatement` text into § Environment notes. Note that `config.py`
-   now rejects 6543 *before* connecting, so that guard has to be bypassed to produce the real
-   error — construct the URL directly rather than going through `settings`.
+**The load-bearing assertion is that the LLM call in `ask_something` fires exactly once across a
+full interrupt-and-resume cycle.** On resume LangGraph re-runs the entire node from the top, not
+from the interrupt line, so anything above an `interrupt()` runs twice. Assert against the call
+log from `app/llm.py`, which already timestamps every call including both attempts of a retry.
 
-Also worth doing here while the checkpointer is fresh: **measure one checkpoint write's latency
-and the bytes per interview.** It settles whether the per-node checkpoint cost is the ~1% of turn
-latency estimated on 2026-07-30, and gives the real interviews-until-500MB ceiling. Both are
-currently estimates, not numbers.
+`await_candidate` contains **only** `interrupt()` and its return. No LLM call, no counter, no
+write above that line, ever.
 
-**Then 0.6 → 0.7 → 0.8** in spec order.
+**You will hit the Windows event loop problem again** the moment the graph is wired into FastAPI
+in 0.7 — uvicorn selects the proactor loop on Windows unless told otherwise. See Decisions.
+
+**Then 0.7 → 0.8.** 0.8 must re-measure checkpoint latency from the deployed Render service; the
+298ms measured locally is dev-machine-to-Singapore and says nothing about production.
 
 **Run first (~3 min):** `python backend/scripts/check_env.py`. It now checks all three models and
 no longer probes `thinking`.
@@ -264,6 +262,129 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-30 · Story 0.5 broke two of story 0.4's tests, and only running the FULL suite caught
+it. Worth changing how phases are handed over.**
+
+`test_schema.py` asserted set equality on `pg_tables where schemaname='public'` against the six
+app tables. Correct in 0.4. Then 0.5 ran `init_db.py`, LangGraph created four tables **in the
+same schema**, and both assertions failed.
+
+**Why it nearly shipped:** each agent verified only the file it wrote. The checkpointer work ran
+`test_checkpointer.py` and `-m "not live"`, both green, and never ran `test_schema.py`. The
+regression sat in a file nobody had reason to re-run.
+
+**Rule, now in CLAUDE.md § What to update:** a story that creates database objects, or changes
+anything shared, must run the **entire** live suite before handover, not just its own file. The
+offline suite is not sufficient — it stayed green at 21 passed throughout.
+
+The fix made the RLS test **stronger** rather than merely accommodating: it now asserts RLS on
+every table in `public`, including tables we did not create, so a future LangGraph version adding
+an unprotected table fails the suite. The table-set test still rejects unexpected tables; it just
+permits the `checkpoint%` family.
+
+**2026-07-30 · Checkpoint cost measured. One earlier claim of mine confirmed, one refuted, and
+the headline latency number is NOT the production one.**
+
+Earlier this session I argued against keeping interview state in Render's memory, and made two
+claims from reasoning rather than measurement. Both are now tested, with a 20-turn graph carrying
+an ~8KB immutable `case_world` plus a transcript that grows every turn.
+
+**Confirmed — LangGraph versions blobs per channel; unchanged channels are not rewritten:**
+
+```
+channel                 rows       bytes
+messages                  40     535,908
+__start__                 20      14,761
+case_world                 1       8,273     <- written ONCE across 20 turns
+```
+
+So withdrawing the proposed `case_world_id`-in-state optimisation was correct: it would have
+added indirection for nothing. **`messages` is the real cost driver** — 40 rows and 536KB from
+roughly 26KB of actual content, because the whole accumulated list is re-serialised each turn.
+Quadratic in turn count, as predicted.
+
+**Total 0.58 MB per 20-turn interview → about 869 interviews before Supabase's 500MB free cap.**
+Comfortable, but not unlimited, and it is the checkpoints that fill it rather than the app tables.
+
+**Refuted, and I want this stated plainly: my "~1% of turn latency" estimate was unverified and
+the measurement does not support it.** Observed **~298ms per checkpoint**, roughly 60x the ~5ms
+I asserted for an intra-region round trip.
+
+**But that number is not the production path either.** It was measured from a Windows dev machine
+in India to Supabase in Singapore, so it is dominated by home-internet latency. Render in
+Singapore to Supabase in Singapore is the real path and remains **unmeasured**. Do not quote
+either 298ms or 1% as fact. **Story 0.8 must re-measure from the deployed service** — that is the
+first time the real number is obtainable.
+
+**2026-07-30 · STORY 0.5 SECURITY: LangGraph creates its checkpoint tables WITHOUT RLS. Fixed
+in `init_db.py`. This was the worst exposure found so far.**
+
+`.setup()` created `checkpoints`, `checkpoint_writes`, `checkpoint_blobs`, and
+`checkpoint_migrations` in `public` with `rowsecurity = false`. Supabase exposes `public` through
+the Data API and grants `anon`/`authenticated` full DML there by default. Measured before the
+fix — `set role anon; select count(*) from checkpoints` **succeeded**, and anon also held
+`INSERT`, `UPDATE`, `DELETE`, and `TRUNCATE`.
+
+**Checkpoints contain the entire interview state**: resume text, full transcript, every
+evaluation. So this was simultaneously a complete read exposure and a route to truncating the
+table and destroying every in-progress interview.
+
+Note the spec says three checkpoint tables. **There are four** — `checkpoint_migrations` is
+LangGraph's internal version tracking. Never delete its rows; that would make `.setup()` replay
+its migrations.
+
+Secured inside `init_db.py` immediately after `.setup()`, not as a migration, because ordering
+would otherwise be a trap: `migrate.py` can run before these tables exist, silently no-op, and
+leave them unprotected forever. The statement pattern-matches `checkpoint%` rather than
+hardcoding names, so a table added by a future LangGraph version is covered instead of quietly
+missed. Verified after the fix — service role sees 3 rows, anon and authenticated see 0, and the
+graph still runs because the pooler role has `rolbypassrls = true`.
+
+**2026-07-30 · The transaction pooler fails ONLY under concurrency, which makes it far more
+dangerous than "it errors".**
+
+Story 0.5 asks for the `DuplicatePreparedStatement` text on record. Getting it took three
+attempts, and the failures are the finding:
+
+```
+sequential, 1 connection, prepare_threshold=1, 60 round trips on 6543
+  -> no error at all
+
+12 concurrent connections x 25 prepared round trips on 6543
+  -> ok=11/12
+  -> psycopg.errors.DuplicatePreparedStatement: prepared statement "_pg3_0" already exists
+
+AsyncPostgresSaver driving a real graph on 6543
+  -> psycopg.errors.DuplicatePreparedStatement: prepared statement "_pg3_0" already exists
+```
+
+**A developer testing locally on 6543 would see it work perfectly.** One connection doing
+sequential transactions never collides, and even under concurrency only 1 of 12 workers failed.
+It breaks in production, intermittently, under load — the worst possible failure shape. The
+port-5432 rule is not superstition inherited from old pgbouncer advice; it is measured here.
+
+`config.py` rejects 6543 before connecting, so reproducing this requires building the URL
+directly rather than going through `settings`.
+
+**2026-07-30 · Windows dev machines need a non-default asyncio event loop. Local only.**
+psycopg's async mode refuses Windows' default ProactorEventLoop:
+
+```
+psycopg.InterfaceError: Psycopg cannot use the 'ProactorEventLoop' to run in async mode.
+```
+
+Fix, guarded by platform, needed anywhere `AsyncPostgresSaver` is used locally:
+
+```python
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+```
+
+**Render runs Linux, where the selector loop is already the default, so this is invisible in
+production.** It is in `init_db.py` and the checkpointer tests. **Stories 0.6 and 0.7 will hit it
+again** when the graph is wired into FastAPI — uvicorn on Windows selects the proactor loop
+unless told otherwise.
 
 **2026-07-30 · STORY 0.4 RLS: the spec's own acceptance box was self-contradictory. Resolved by
 adopting Supabase anonymous sign-in in Phase 1; Phase 0 ships zero policies.**
@@ -669,6 +790,12 @@ the reliability side is fine. But a candidate waits on every one of those calls,
 14.2s. Plain streaming is 0.5s to first token, so **streaming the Interviewer's question is the
 obvious mitigation** and is worth deciding in Phase 3 rather than at the end.
 
+**Production checkpoint latency is unmeasured.** The 298ms observed on 2026-07-30 is from a
+Windows dev machine in India to Supabase in Singapore, dominated by home-internet round trip.
+Render-in-Singapore to Supabase-in-Singapore is the path that matters and cannot be measured
+until 0.8 deploys. **Do not quote 298ms, and do not quote the earlier "~1% of turn latency"
+estimate either** — neither is established.
+
 **`make test-web` has nothing to run.** The frontend has no `test` script and vitest is not
 installed — correct for Phase 0, which has no frontend tests, but `make test` will fail on the
 `test-web` leg until Phase 1 adds vitest. Do not read that failure as a broken scaffold.
@@ -716,11 +843,17 @@ Story 0.8 deploys to Render, and a schema that exists only as dashboard clicks c
 recreated. Migrations are written idempotent so re-running is safe. Two separate concerns:
 `migrate.py` owns the six app tables, `init_db.py` owns LangGraph's checkpoint tables.
 
-- `checkpointer.setup()` to run via `scripts/init_db.py`, once, never on app startup
-- The transaction-pooler `DuplicatePreparedStatement` error text is **still not observed** —
-  story 0.5 requires deliberately triggering it on port 6543 and recording it here. `config.py`
-  currently rejects 6543 before a connection is attempted, so that guard must be bypassed to
-  produce the real error.
+- `checkpointer.setup()` runs via `scripts/init_db.py`, once, never on app startup. It also
+  enables RLS on the checkpoint tables, which LangGraph does not do.
+- **Transaction-pooler error text, observed 2026-07-30:**
+  `psycopg.errors.DuplicatePreparedStatement: prepared statement "_pg3_0" already exists`.
+  Reproduces only under concurrency — see Decisions.
+- **Windows dev only:** `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())`
+  is required before any async psycopg use. Not needed on Render.
+- **10 public tables:** six app tables + `checkpoints`, `checkpoint_writes`, `checkpoint_blobs`,
+  `checkpoint_migrations`. All ten have RLS enabled, none have policies.
+- **Checkpoint volume:** ~0.58 MB per 20-turn interview, roughly 869 interviews to the 500MB
+  free cap. `messages` dominates; `case_world` is stored once.
 - All 13 skills installed at `.agents/skills/` (symlinked for Claude Code).
   **Governing skill for this product: `design-taste-frontend-v1`.** See Decisions.
 - `stitch-design-taste` independently corroborates the v1 dashboard rules — "Serif is always

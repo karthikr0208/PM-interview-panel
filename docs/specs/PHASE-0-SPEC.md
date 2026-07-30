@@ -111,15 +111,24 @@ do that automatically and every read filters by `session_id`.
 
 ### 0.5 Checkpointer
 
-**Acceptance**
-- [ ] `AsyncPostgresSaver` connects over the session pooler from local development
-- [ ] `scripts/init_db.py` runs `.setup()` and is idempotent on a second run
-- [ ] LangGraph's `checkpoints` / `checkpoint_writes` / `checkpoint_blobs` tables exist alongside the app tables with no collision
+**Acceptance** — all met 2026-07-30
 
-**Explicitly verify the failure mode.** Attempt one connection over the **transaction** pooler
-(port 6543) and confirm it produces `DuplicatePreparedStatement`. Record the observed error in
-`DEV-STATE.md` § Environment notes. Knowing the symptom by sight is worth two minutes now and
-saves an hour when it appears in Phase 3 for an unrelated reason.
+- [x] `AsyncPostgresSaver` connects over the session pooler from local development
+- [x] `scripts/init_db.py` runs `.setup()` and is idempotent on a second run
+- [x] LangGraph's checkpoint tables exist alongside the app tables with no collision — 10 tables total, no name overlap. **Note: there are four, not three.** `checkpoint_migrations` is LangGraph's internal version tracking; never delete its rows.
+
+**Added beyond the spec, because `.setup()` leaves a hole:** LangGraph creates its tables
+**without RLS**, in `public`, where `anon` holds default DML grants. Checkpoints hold the whole
+interview state. `init_db.py` now enables RLS on them immediately after `.setup()`. See DEV-STATE
+§ Decisions 2026-07-30.
+
+**The failure mode — verified, and it is subtler than this spec assumed.**
+`DuplicatePreparedStatement: prepared statement "_pg3_0" already exists` **does not reproduce on a
+single sequential connection.** 60 round trips on 6543 with `prepare_threshold=1` ran clean. It
+appears only under concurrency, and then intermittently — 1 of 12 workers. A developer testing
+locally on 6543 sees it work. Full output in DEV-STATE § Decisions.
+
+- [x] Transaction-pooler failure observed and recorded, via concurrent connections and via `AsyncPostgresSaver` driving a real graph
 
 ---
 

@@ -89,6 +89,7 @@ Every entry below is a real failure from this project, not a hypothetical.
 | Add an env var | `backend/.env` · both `.env.example` · `config.py` · Render dashboard (0.8+) |
 | Add or rename a command | `Makefile` **and** the Commands table below — the Makefile's own header says do not rename one without the other |
 | Change an agent prompt | Golden cases must pass **first** |
+| Create database objects, or change anything shared | Run the **entire** live suite, not just the file you wrote. Story 0.5 broke two of 0.4's tests by adding tables to the same schema; the offline suite stayed green at 21 passed throughout and every per-file run passed |
 | Diverge from `ARCHITECTURE.md` | Log it under DEV-STATE § Decisions. **Do not edit ARCHITECTURE.md** — decisions supersede it, and rewriting history there destroys the audit trail |
 
 **The scripts row is the one that bites.** On 2026-07-30, `check_env.py` still required a

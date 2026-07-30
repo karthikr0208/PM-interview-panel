@@ -30,6 +30,16 @@ EXPECTED_TABLES = {
     "agent_events",
 }
 
+# LangGraph's own tables, created by checkpointer.setup() via scripts/init_db.py,
+# not by our migration. There are FOUR, not the three the phase spec names:
+# checkpoint_migrations is LangGraph's internal version tracking.
+#
+# They share the `public` schema with the app tables, so `select ... from
+# pg_tables where schemaname='public'` returns both. An earlier version of this
+# file asserted set equality against EXPECTED_TABLES alone, which passed in
+# story 0.4 and broke the moment story 0.5 ran init_db.py.
+CHECKPOINT_TABLE_PREFIX = "checkpoint"
+
 
 @pytest.fixture
 def conn() -> Iterator[psycopg.Connection]:
@@ -46,19 +56,36 @@ def conn() -> Iterator[psycopg.Connection]:
 
 
 def test_all_six_tables_exist(conn: psycopg.Connection) -> None:
+    """The six app tables are present, and nothing unexpected shares the schema.
+
+    Extras are still checked rather than ignored — a typo'd or orphaned table
+    should fail — but LangGraph's checkpoint tables are legitimately there.
+    """
     with conn.cursor() as cur:
         cur.execute("select tablename from pg_tables where schemaname = 'public'")
         tables = {row[0] for row in cur.fetchall()}
-    assert tables == EXPECTED_TABLES, f"public schema has {tables}, expected {EXPECTED_TABLES}"
+
+    assert EXPECTED_TABLES <= tables, f"missing app tables: {EXPECTED_TABLES - tables}"
+    unexpected = {t for t in tables - EXPECTED_TABLES if not t.startswith(CHECKPOINT_TABLE_PREFIX)}
+    assert not unexpected, f"unexpected tables in public: {unexpected}"
 
 
-def test_rls_enabled_on_every_table(conn: psycopg.Connection) -> None:
+def test_rls_enabled_on_every_table_including_langgraphs(conn: psycopg.Connection) -> None:
+    """EVERY table in `public`, not only ours.
+
+    `public` is exposed through the Data API and anon holds default grants
+    there, so any table without RLS is reachable from a browser. LangGraph
+    creates its checkpoint tables WITHOUT RLS and those hold the entire
+    interview state, so this deliberately covers tables we did not create —
+    including any a future LangGraph version adds.
+    """
     with conn.cursor() as cur:
         cur.execute("select tablename, rowsecurity from pg_tables where schemaname = 'public'")
         rows = dict(cur.fetchall())
-    assert set(rows) == EXPECTED_TABLES
-    for table, enabled in rows.items():
-        assert enabled is True, f"RLS is not enabled on {table}"
+
+    assert EXPECTED_TABLES <= set(rows)
+    unprotected = [t for t, enabled in rows.items() if not enabled]
+    assert not unprotected, f"RLS is not enabled on {unprotected}"
 
 
 def test_rls_denies_anon_and_authenticated_with_no_policies(conn: psycopg.Connection) -> None:
