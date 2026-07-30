@@ -45,7 +45,7 @@ sign-in plus scoped policies exist. See Decisions 2026-07-30.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | ⬜ next — **spec not written** | — | — |
+| 1 Resume Analyst + design foundation | ⬜ next — spec written 2026-07-30 | PHASE-1-SPEC.md | — |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -490,9 +490,7 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Phase 0 is closed. The first job of the next session is to WRITE `docs/specs/PHASE-1-SPEC.md`,
-which does not exist.** Do not start building Phase 1 without it — CLAUDE.md § What to update
-requires the next phase spec to be written before it begins.
+**Phase 0 is closed. `docs/specs/PHASE-1-SPEC.md` is written. Start with story 1.1.**
 
 **Start with these two commands (~3 min), then confirm production is still up.**
 
@@ -502,23 +500,31 @@ cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expe
 curl -s https://pm-interview-panel.onrender.com/health     # expect {"status":"ok"}, may take ~32s cold
 ```
 
-**Phase 1 is Resume Analyst plus the design foundation.** Two things must be settled in its spec
-before any code:
+**Story 1.1 is Supabase anonymous sign-in and scoped RLS policies, and it is deliberately first.**
+Everything on the frontend is blocked on it, and it is the one story in the phase where a mistake
+is silent and serious. The trap, from Decisions 2026-07-30: `anon` **already holds** table-level
+grants on all six tables, so the *first policy added is what opens the door*, and one over-broad
+policy exposes every candidate's transcript at once. Extend `test_schema.py`'s empirical-denial
+assertions rather than writing a parallel test, and prove **cross-session** denial with two real
+anonymous identities — "a policy exists" is not the assertion.
 
-1. **Supabase anonymous sign-in, wired before the frontend reads any data.** This is the blocker
-   carried from Phase 0. RLS ships with zero policies, so the browser currently gets nothing. The
-   trap is recorded under Decisions 2026-07-30: `anon` already holds table-level grants, so the
-   *first policy added is what opens the door*, and one over-broad policy exposes every
-   candidate's transcript at once. `test_schema.py` asserts empirical denial, so it will fail
-   loudly if a policy is too permissive.
-2. **The design system.** `design-taste-frontend-v1` governs, dials VARIANCE 3 / MOTION 4 /
-   DENSITY 6, Geist + Geist Mono, Phosphor at `strokeWidth 1.5`, accent `#3A63D0` light /
-   `#6E92E8` dark. Consider generating `DESIGN.md` via `stitch-design-taste` rather than
-   hand-writing it. Details in ARCHITECTURE.md §8 and Decisions 2026-07-29.
+**Then 1.2 upload → 1.3 the Resume Analyst → 1.4 the first real `interrupt()`.** Story 1.4 is
+where Phase 0's constraint carries a real candidate correction: `confirm_level` contains only
+`interrupt()` and its return, and the single-call assertion goes against the **call log**, never
+against state.
 
-**Delete the Phase 0 scaffolding when the real thing replaces it**, not before:
-`backend/app/graph/skeleton.py`, `backend/tests/test_interrupt.py`, `backend/tests/test_api.py`'s
-skeleton tests, `frontend/src/HealthCheck.tsx`, and the `/skeleton/*` routes in `app/main.py`.
+**Design foundation is story 1.5** and governs every phase after it: `design-taste-frontend-v1`,
+dials VARIANCE 3 / MOTION 4 / DENSITY 6, Geist + Geist Mono, Phosphor at `strokeWidth 1.5`, accent
+`#3A63D0` light / `#6E92E8` dark. Consider generating `DESIGN.md` via `stitch-design-taste` rather
+than hand-writing it. Details in ARCHITECTURE.md §8 and Decisions 2026-07-29.
+
+**Delete the Phase 0 scaffolding when the real thing replaces it**, not before — that is story 1.7,
+and the full list is there: `backend/app/graph/skeleton.py`, `backend/tests/test_interrupt.py`,
+`test_api.py`'s skeleton tests, `frontend/src/HealthCheck.tsx`, and the `/skeleton/*` routes.
+
+**`make test-web` still has nothing to run** — the frontend has no `test` script and vitest is not
+installed. Phase 1 installs it (story 1.6). Until then `make test` fails on the `test-web` leg;
+that is not a broken scaffold.
 
 **Two live issues that will bite in Phase 3 if forgotten** — both under Blockers below:
 `nemotron-3-nano` intermittently leaks reasoning preamble into `content` (it is the Interviewer's
