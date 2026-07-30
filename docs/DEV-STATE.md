@@ -97,7 +97,8 @@ myself. Independent re-verification also caught test residue accumulating in the
 that the agent's own green test run had not surfaced.
 
 ```
-11dca0f  0.6 two-node graph with interrupt/resume
+7b7f471  0.6 two-node graph with interrupt/resume
+7bc437b  0.7 interrupt/resume across two HTTP requests
 ```
 
 ### Session 2 — 2026-07-30. Stories 0.1, 0.2, 0.4, 0.5 complete
