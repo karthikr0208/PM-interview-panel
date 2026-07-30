@@ -123,6 +123,68 @@ f839f35  0.4 schema migration, RLS, realtime, resumes bucket
 b65e097  0.5 checkpointer, plus RLS on LangGraph's own tables
 ```
 
+### 0.8 backend deployed to Render — observed output
+
+**`https://pm-interview-panel.onrender.com`** · Singapore · free tier · root dir `backend` ·
+start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT` (no `--reload`, correct on Linux)
+· Python pinned to 3.12.10 via `backend/.python-version` plus `PYTHON_VERSION`.
+
+The line that mattered in the deploy log is `Application startup complete` — that is the
+`lifespan` opening `AsyncPostgresSaver` against Supabase from inside Render. The session pooler
+works from Render, which was the second of the four risks this phase existed to retire.
+
+```
+==> Running 'uvicorn app.main:app --host 0.0.0.0 --port $PORT'
+INFO:     Started server process [62]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:10000
+==> Your service is live
+```
+
+**THE PHASE GATE — two curl calls against the deployed URL.**
+
+```
+=== CALL 1 — POST /skeleton/start ===
+{"session_id":"23caf429-7674-4372-8b1d-a3393352b07e","interrupt":{"question":"..."}}
+[status=200  total=1.819343s]
+
+=== CALL 2 — POST /skeleton/resume (a separate HTTP request) ===
+{"session_id":"23caf429-7674-4372-8b1d-a3393352b07e","turn_count":1}
+[status=200  total=0.213757s]
+
+=== same session again, already finished ===
+status=404
+```
+
+`turn_count: 1` is the 0.6 idempotency property holding in production, not just in tests.
+
+```
+/health                                          200  {"status":"ok"}
+OPTIONS /skeleton/start  Origin: evil.example.com 400   <- CORS rejects, per the preflight rule
+```
+
+**PRODUCTION CHECKPOINT LATENCY — measured at last, and it is nothing like the local number.**
+
+Measured by difference against `/health`, which does no database work, so the client-side
+India→Singapore round trip cancels out. All medians of 10 samples, seconds:
+
+```
+/health                        (no DB)                     0.1162
+/skeleton/resume on a FINISHED session (1 read, then 404)  0.1167   -> read  ~0.5ms, unmeasurable
+/skeleton/resume on a PAUSED  session (read + writes)      0.1434   -> write path ~27ms
+```
+
+**One checkpoint read is not distinguishable from noise. A full resume step — one read plus the
+node's checkpoint writes — costs about 27ms.** Against ~298ms per checkpoint from the Windows dev
+machine, which was dominated by home internet.
+
+**This retires the open question and settles both earlier claims.** My original "~1% of turn
+latency" guess was unverified and I was right to refuse it after measuring 298ms locally. In
+production it is roughly 27ms against a 7-9s turn, so about 0.3%. The guess was directionally
+right for the wrong reasons, and only the deployed measurement could tell the difference.
+**It also vindicates the Singapore region decision**: co-location is what makes this ~27ms.
+
 ### 0.7 interrupt / resume across two HTTP requests — observed output
 
 `backend/app/main.py` (lifespan-held checkpointer, `/skeleton/start`, `/skeleton/resume`) and
@@ -1026,11 +1088,10 @@ constraining the output shape, structured output for the question (already manda
 nano is 10/10 there), or `reasoning_effort` — the enum is known, and `none`/`minimal` exist. Test
 in Phase 3 before choosing.
 
-**Production checkpoint latency is unmeasured.** The 298ms observed on 2026-07-30 is from a
-Windows dev machine in India to Supabase in Singapore, dominated by home-internet round trip.
-Render-in-Singapore to Supabase-in-Singapore is the path that matters and cannot be measured
-until 0.8 deploys. **Do not quote 298ms, and do not quote the earlier "~1% of turn latency"
-estimate either** — neither is established.
+~~Production checkpoint latency is unmeasured.~~ — **RESOLVED 2026-07-30 by the deploy.**
+A full resume step (one checkpoint read plus the node's writes) costs **~27ms** from
+Render-Singapore to Supabase-Singapore; a single read is not distinguishable from noise. The
+298ms figure was a dev-machine artefact. Output under § 0.8. **Quote 27ms, not 298ms.**
 
 **`make test-web` has nothing to run.** The frontend has no `test` script and vitest is not
 installed — correct for Phase 0, which has no frontend tests, but `make test` will fail on the

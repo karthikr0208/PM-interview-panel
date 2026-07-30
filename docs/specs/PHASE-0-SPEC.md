@@ -194,13 +194,17 @@ mechanism. Render is unaffected. See DEV-STATE § Decisions 2026-07-30.
 ### 0.8 Deploy
 
 **Acceptance**
-- [ ] Backend on Render free tier, **region: Singapore** — not the default. The Supabase project is in `ap-southeast-1`; a mismatched region adds ~100ms to every one of the ~8 database round trips per candidate turn. See DEV-STATE § Decisions.
-- [ ] `/health` green
+- [x] Backend on Render free tier, **region: Singapore** — not the default. The Supabase project is in `ap-southeast-1`; a mismatched region adds ~100ms to every one of the ~8 database round trips per candidate turn. See DEV-STATE § Decisions. **Vindicated: the deployed checkpoint step measures ~27ms.**
+- [x] `/health` green — `https://pm-interview-panel.onrender.com/health` → `{"status":"ok"}`
 - [ ] Frontend on Netlify; `VITE_API_URL` set at build time
-- [ ] CORS allows the Netlify origin and nothing wider
-- [ ] Environment variables set in the Render dashboard, not committed
-- [ ] **The 0.7 test passes against the deployed URL**, with the two `curl` invocations and their output pasted into `DEV-STATE.md`
-- [ ] Cold-start latency measured after 15+ minutes idle and recorded as an actual number
+- [ ] CORS allows the Netlify origin and nothing wider — **currently still the `http://localhost:5173` placeholder; must be updated when Netlify exists**
+- [x] Environment variables set in the Render dashboard, not committed
+- [x] **The 0.7 test passes against the deployed URL**, with the two `curl` invocations and their output pasted into `DEV-STATE.md`
+- [ ] Cold-start latency measured after 15+ minutes idle and recorded as an actual number — probe armed 2026-07-30
+
+**Also delivered:** Python pinned to 3.12.10 (`backend/.python-version` + `PYTHON_VERSION`) so
+Render builds on the interpreter the 52 tests ran on, and **production checkpoint latency measured
+at last** — ~27ms per resume step, against ~298ms from the dev machine. See DEV-STATE § 0.8.
 
 ---
 
