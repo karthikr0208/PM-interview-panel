@@ -58,15 +58,24 @@ Settled: GLM 5.2 queues ~230s on the free tier and is out. `nemotron-3-nano-30b-
 GLM-only and does not exist on Nemotron. Catalog listing does not imply availability. Full data
 in `DEV-STATE.md` § Decisions.
 
-**Remaining**
-- [ ] Same structured-output check through **`ChatNVIDIA`**, not the raw OpenAI client — the probes used raw HTTP. `with_structured_output()` must return a valid Pydantic instance 10/10.
-- [ ] Streaming through `ChatNVIDIA` yields incremental chunks
-- [ ] Re-measure latency **at a different time of day**. All measurements so far are from one ~23:00 IST window; contention is time-varying and the whole model decision rests on it.
-- [ ] **Rate-limit logging starts here** — every LLM call timestamped from the first call written, not retrofitted.
+**Remaining** — all resolved 2026-07-30
 
-**Decision gate.** If `ChatNVIDIA` cannot pass `response_format: json_schema` through, either use
-`with_structured_output()` (which routes via tool calling) or drop to the raw OpenAI client for
-structured calls. Record whichever, because it changes every agent's implementation.
+- [x] Structured-output check through **`ChatNVIDIA`**. **Did not reach 10/10.** `nano` 10/10, `super` **7/10**. See the decision gate below.
+- [x] Streaming through `ChatNVIDIA` yields incremental chunks — 128 chunks, first at 0.50s, 3.4s total
+- [x] Re-measure latency **at a different time of day** — done ~07:30 IST vs the previous ~23:00. Model choice holds.
+- [x] **Rate-limit logging** — `app/llm.py` logs ts, role, model, elapsed_ms, outcome on every call, including structured calls and both attempts of a retry
+
+**Decision gate — RESOLVED 2026-07-30.** Three methods measured head to head, N=10 per cell.
+`with_structured_output()` chosen: more reliable than `bind(response_format=...)` on both models
+and it keeps automatic Pydantic parsing. Raw OpenAI client rejected — no better, and it would
+force hand-parsing in every agent.
+
+**The gate failed the 10/10 bar, so the judgement call the Handoff reserved for Karthik was
+made: validate-retry is mandatory in every agent.** It is enforced inside
+`_LoggedStructured.invoke`, not left to each agent to remember, so an agent cannot skip it. One
+retry with the failure appended, then `StructuredOutputError` — matching the uniform failure
+behaviour ARCHITECTURE.md §4 already specified. Full data and reasoning in `DEV-STATE.md`
+§ Decisions 2026-07-30.
 
 ---
 

@@ -6,10 +6,13 @@
 
 ## Now
 
-**Phase 0 — Walking skeleton.** Story 0.1 complete and verified. Repo now has a running
-FastAPI backend, a Vite frontend, a venv with every dependency installed, and a secret-blocking
-pre-commit hook. Next is closing story 0.2's decision gate, which is unblocked now that
-`langchain-nvidia-ai-endpoints` is actually installed.
+**Phase 0 — Walking skeleton.** Stories 0.1, 0.2, and 0.3 complete and verified. Running
+FastAPI backend, Vite frontend, full venv, secret-blocking pre-commit hook, and a 28-test suite
+(21 offline, 7 live). The structured-output decision gate is resolved: **validate-retry is
+mandatory and enforced in the LLM wrapper.**
+
+Next is **story 0.4, the Supabase schema migration.** No LLM work remains in Phase 0 — everything
+from here is database, checkpointer, graph, and deploy.
 
 ---
 
@@ -47,10 +50,10 @@ Specs are written at the top of the phase that builds each agent, not up front.
 Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 
 - [x] 0.1 ~~Repo scaffold, `.env` handling, `requirements.txt`, Vite app, secret-prefix pre-commit hook~~ — done 2026-07-30, all four acceptance boxes verified with output below
-- [~] 0.2 NVIDIA smoke test — off-peak re-measure done 2026-07-30, model choice holds. Still need `ChatNVIDIA` structured output 10/10 + streaming   ← NEXT
+- [x] 0.2 ~~NVIDIA smoke test~~ — done 2026-07-30. Gate resolved: **not 10/10** (`deep` 7-9/10), so validate-retry is mandatory. Streaming, rate-limit logging, and the off-peak re-measure all done
 - [x] 0.3 ~~Confirm build.nvidia.com account model~~ — done 2026-07-29: 40 RPM, no credits
 - [x] 0.4a ~~Supabase project + connection verified~~ — done: Singapore, session pooler, Postgres 17.6, `check_db.py` connects
-- [ ] 0.4 Supabase project + schema migration
+- [ ] 0.4 Supabase project + schema migration   ← NEXT
 - [ ] 0.5 Postgres checkpointer wired via session pooler, `.setup()` run once
 - [ ] 0.6 Two-node graph with `interrupt()` / `Command(resume=...)`
 - [ ] 0.7 Interrupt/resume proven across two separate HTTP requests
@@ -99,6 +102,41 @@ Pre-commit hook, five cases: fake `nvapi-` blocked · fake `sb_secret_` blocked 
 blocked · **live `backend/.env` blocked even when force-added past gitignore** · docs naming the
 bare prefixes commit fine.
 
+### 0.2 test suite — observed output
+
+`make test-api` equivalent, live tests included. 5m35s, dominated by the 20 structured calls.
+
+```
+tests/test_llm.py::test_completion_returns_text PASSED
+tests/test_llm.py::test_streaming_yields_multiple_chunks PASSED
+tests/test_llm.py::test_structured_output_raw_pass_rate[fast]
+  fast (nemotron-3-nano-30b-a3b) raw structured output: 10/10  median 7.2s  failures=none
+PASSED
+tests/test_llm.py::test_structured_output_raw_pass_rate[deep]
+  deep (nemotron-3-super-120b-a12b) raw structured output: 9/10  median 9.2s
+  failures=['#10 returned NoneType']
+PASSED
+tests/test_llm.py::test_retry_wrapper_converges PASSED
+tests/test_llm.py::test_every_call_is_logged_with_a_timestamp PASSED
+tests/test_llm.py::test_structured_calls_are_logged_too PASSED
+
+7 passed, 13 deselected in 335.27s (0:05:35)
+```
+
+Non-live suite, `-m "not live"` — 21 tests, 0.6s:
+
+```
+tests/test_config.py .............   13 passed  (parametrized over all 11 REQUIRED_VARS)
+tests/test_llm_retry.py ........      8 passed
+```
+
+`test_llm_retry.py` is deterministic and hits no network. It exists because
+`test_retry_wrapper_converges` only exercises the retry branch when the first attempt happens to
+fail — on `fast` that is almost never, so without these the retry logic was effectively untested.
+It covers: `None` then valid · `None` twice raises · success does not retry · the instruction is
+appended to both string and message-list inputs · **transport errors are re-raised, not
+retried** · both attempts are logged.
+
 ### Off-peak latency re-measure — model choice holds
 
 Taken 2026-07-30 ~07:30 IST, against the single ~23:00 window everything previously rested on.
@@ -135,24 +173,31 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Story 0.2 — close the structured-output decision gate.** Everything is installed now, so this
-is unblocked. Two things, both through `ChatNVIDIA` rather than the raw OpenAI client:
+**Story 0.4 — the Supabase schema migration.** No LLM work remains in Phase 0. Acceptance is in
+PHASE-0-SPEC.md; the six tables are in ARCHITECTURE.md §5.
 
-1. `with_structured_output()` returns a valid Pydantic instance **10 consecutive times**. Record
-   the pass rate as a number. Below 10/10 makes prompt-validate-retry mandatory in every agent
-   rather than defensive, which adds work to every remaining phase — that is Karthik's call, not
-   the agent's.
-2. Streaming yields more than one incremental chunk.
+Do not hand-run SQL in the dashboard — the spec requires a **checked-in migration**, because
+0.8 deploys to Render and an unversioned schema cannot be recreated. Watch these, each of which
+is an acceptance box rather than a nicety:
 
-**Also resolve while there:** structured-output calls measured **11–14s** on 2026-07-30 against
-the 2–4s recorded on 2026-07-29. Probably a heavier prompt rather than a regression, since plain
-chat on the same models was 0.4s in the same run, but it is unexplained and the Interviewer sits
-on the candidate's critical path. The 10-run test gives a real distribution — use it.
+1. RLS enabled on **every** table with `session_id`-scoped policies.
+2. `agent_events`, `answer_evaluations`, `transcript_turns` added to the `supabase_realtime`
+   publication. The three-column UI reads these live; without the publication the middle column
+   is permanently empty and it will look like an agent bug.
+3. The `check (length(evidence_quote) > 0)` constraint **verified by attempting an empty
+   insert** — it enforces the PRD guarantee that no score ships without evidence.
+4. Storage bucket `resumes` created.
 
-**Then 0.4 → 0.5 → 0.6 → 0.7 → 0.8** in spec order.
+**Then 0.5 → 0.6 → 0.7 → 0.8** in spec order. 0.5 is where the transaction-pooler
+`DuplicatePreparedStatement` error text finally gets observed and recorded — note that
+`config.py` now rejects port 6543 before connecting, so that guard has to be bypassed
+deliberately to produce the real error.
 
 **Run first (~3 min):** `python backend/scripts/check_env.py`. It now checks all three models and
 no longer probes `thinking`.
+
+**Live tests cost about 5m35s and real rate budget.** Use `-m "not live"` (21 tests, 0.6s) while
+iterating; run the full suite before handing anything over.
 
 **Before touching agent code, remember the venv:** `backend/.venv/Scripts/python.exe`, or use the
 `make` targets. The global interpreter has different versions of fastapi, pydantic, and openai
@@ -183,6 +228,101 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-30 · STORY 0.2 DECISION GATE: structured output is 7/10 on `deep`. Validate-retry is
+now mandatory, and it is enforced in the wrapper rather than left to each agent.**
+
+Measured through `ChatNVIDIA`, N=10 per cell, same schema and prompt throughout:
+
+| Model | `with_structured_output` | `bind(response_format=json_schema)` |
+|---|---|---|
+| `nemotron-3-nano` (fast) | **10/10** · median 7.4s · p90 14.2s | 9/10 · median 5.6s · p90 7.5s |
+| `nemotron-3-super` (deep) | **7/10** · median 20.4s · max 41.6s | **4/10** · median 9.1s |
+
+**Four runs of `with_structured_output`, all on 2026-07-30 within about ninety minutes.**
+Recorded in full because the spread matters more than any single row:
+
+| Run | `fast` | `deep` |
+|---|---|---|
+| probe 1 | 9/10 · median 12.8s | 8/10 · median 19.7s |
+| head-to-head | 10/10 · median 9.5s | 8/10 · median 12.6s |
+| clean rerun | 10/10 · median 7.4s | 7/10 · median 20.4s |
+| live test suite | 10/10 · median 7.2s | 9/10 · median 9.2s |
+
+`fast` 9–10/10. `deep` 7–9/10, **never 10/10**, with its median moving between 9.2s and 20.4s
+inside an hour. The decision below rests on the aggregate, not on the worst run.
+
+**Chosen: `with_structured_output()`.** More reliable than `bind` on both models, and it keeps
+automatic Pydantic parsing. It is slower, and that was accepted deliberately.
+
+**The reliability problem is the model, not the method.** `nano` is near-perfect at structured
+output; `super` fails 3–6 times in 10 whichever way it is called. Its `with_structured_output`
+failures return **`None`** rather than raising, which is why `llm.py` now logs `outcome=empty` —
+otherwise the failure is completely silent.
+
+**Karthik's call (2026-07-30): retry now, revisit the model assignment in Phase 2.** The
+alternative was moving the Case Architect, Planner, and Evaluator from `super` to `nano`
+immediately, which buys 10/10 and cuts the median from 20.4s to 7.4s. Rejected for now because
+`super` was chosen for reasoning quality and **no quality comparison has been measured** —
+reassigning would trade an unmeasured property for a measured one. Phase 2's golden cases are
+the first real quality signal. Revisit there, with data.
+
+**This is worth flagging for whoever picks up Phase 2:** ARCHITECTURE.md §4 assigns `deep` to
+three of the four structured-output agents and `fast` only to the Interviewer. On reliability
+grounds that assignment is backwards. It is deliberately left alone for now, not overlooked.
+
+**No deviation from ARCHITECTURE.md.** Its §4 already specifies "schema validation failure
+re-prompts once with the validation error appended, then fails the node." The implementation
+matches exactly. What changed is status, not design: that behaviour was written as defence in
+depth and the measurement makes it load-bearing.
+
+Two things retry deliberately does **not** do. It does not retry transport failures — a 429,
+503, or timeout needs backoff per ARCHITECTURE §9, and an immediate second call would double
+load exactly when the endpoint is refusing it. And it does not swallow a double failure into
+`None`; it raises `StructuredOutputError`, because an unparseable value entering graph state
+surfaces as a confusing error several nodes downstream.
+
+**Correction to an earlier hypothesis in this file, recorded so it is not repeated.** The 2–4s
+structured-output figure from 2026-07-29 came from raw HTTP with a simpler schema. I predicted
+LangChain's tool-calling path was the slow one and the raw `json_schema` path the fast one. The
+first head-to-head showed the opposite. It also scored raw `json_schema` at 6/10 on `deep`, but
+**three of those four failures were a bug in my probe**: the Pydantic model declared
+`confidence` with `ge=0.0, le=1.0` while the hand-written JSON Schema said only
+`{"type": "number"}`, so the model returned a percentage and Pydantic rejected a response the
+endpoint was never told to bound. Corrected in the clean rerun above. Run-to-run noise on the
+same model and method was 9/10 vs 10/10, comparable to the gap between methods — **treat any
+single N=10 run here as one sample.**
+
+**2026-07-30 · `reasoning_effort` enum resolved — the last LLM-side unknown is closed.**
+Nemotron accepts it (unlike `thinking`, which it rejects with HTTP 400). Sending a deliberately
+invalid value made the validator enumerate the whole set:
+
+```
+reasoning_effort=xyzzy -> HTTP 400
+  unknown variant `xyzzy`, expected one of
+  `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`
+```
+
+`low`, `medium`, `high`, `max`, and `none` each returned HTTP 200 on `nemotron-3-super`.
+**`high` exists, so ARCHITECTURE.md's assumption for the Evaluator holds** and needs no change.
+
+Two notes for whoever uses this. Latency showed no clear ordering across levels at n=1 (0.4–0.7s,
+except `none` at 5.8s, which is almost certainly contention rather than signal) — **do not treat
+the level as a latency lever without measuring it properly.** And the technique generalises:
+when an enum is undocumented, send a junk value and read it off the validator rather than
+guessing one at a time.
+
+**2026-07-30 · Streaming through `ChatNVIDIA` confirmed working.** 128 chunks, first at 0.50s,
+3.4s total for a 212-character answer. Worth holding next to the structured-output numbers:
+first token in half a second means the models are not slow. Structured output specifically is.
+
+**2026-07-30 · `with_structured_output()` bypassed the logging wrapper — real bug, fixed.**
+The scaffold returned `self._client.with_structured_output(...)`, a runnable wired straight to
+the underlying client. Every structured call skipped `LoggingChatNVIDIA` entirely. Since agents
+use structured output almost exclusively, **nearly the whole application would have been
+invisible to the rate-limit log while appearing to work** — against CLAUDE.md's "every LLM call
+is logged with a timestamp", and the free tier's 40 RPM ceiling is the first thing that breaks
+under a demo. `tests/test_llm.py::test_structured_calls_are_logged_too` is the regression guard.
 
 **2026-07-30 · `openai==1.59.0` was never published. Pin corrected to `1.59.2`.**
 PyPI's release train goes `1.58.1 → 1.59.2`; there is no `1.59.0`. `pip install -r
@@ -439,17 +579,22 @@ evidence.
 
 ## Blockers & open questions
 
-**`reasoning_effort` enum unknown.** Only `"max"` appears in any NVIDIA or Z.ai example found.
-The full set of valid values is undocumented. Probe empirically in story 0.2 — the
-architecture assumes a `"high"` level exists for the Evaluator. **This is now the only
-remaining unknown from the LLM side.**
+~~`reasoning_effort` enum unknown~~ — **RESOLVED 2026-07-30. See Decisions.** Full set is
+`none · minimal · low · medium · high · xhigh · max`. `high` exists, so the architecture's
+assumption for the Evaluator holds. **No LLM-side unknowns remain.**
 
 ~~NVIDIA account model~~ — resolved 2026-07-29 from the account dashboard. See Decisions.
 
-**Structured-output latency, 11–14s vs the 2–4s on record.** Measured 2026-07-30 while plain
-chat on the same models was 0.4s in the same run. Most likely a heavier probe prompt rather than
-a regression, but it is unexplained, and the Interviewer runs a structured call every turn while
-a candidate waits. Story 0.2's 10-run `ChatNVIDIA` test resolves it with a distribution.
+~~Structured-output latency 11–14s vs 2–4s~~ — **RESOLVED 2026-07-30.** Explained by two things:
+the 2–4s figure came from a simpler schema over raw HTTP, and free-tier contention swings widely
+(the same model and method moved between 9.2s and 20.4s median inside one hour). Four N=10 runs
+are tabled under Decisions.
+
+**Still open, and it is a product question rather than a bug: is 7–9s acceptable per
+Interviewer turn?** `fast` is 10/10 at a ~7.2s median, which is what the Interviewer uses, so
+the reliability side is fine. But a candidate waits on every one of those calls, and the p90 was
+14.2s. Plain streaming is 0.5s to first token, so **streaming the Interviewer's question is the
+obvious mitigation** and is worth deciding in Phase 3 rather than at the end.
 
 **`make test-web` has nothing to run.** The frontend has no `test` script and vitest is not
 installed — correct for Phase 0, which has no frontend tests, but `make test` will fail on the

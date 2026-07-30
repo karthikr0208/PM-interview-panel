@@ -18,6 +18,7 @@ import time
 from typing import Any, AsyncIterator, Iterator, Literal
 
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from pydantic import ValidationError
 
 from app.config import settings
 
@@ -105,12 +106,127 @@ class LoggingChatNVIDIA:
         else:
             _log_call(self.role, self.model, started, "ok")
 
-    def with_structured_output(self, *args: Any, **kwargs: Any) -> Any:
-        """Delegates to the underlying client. The structured-output pass-rate
-        measurement (story 0.2's remaining item — 10 consecutive calls through
-        `ChatNVIDIA`, not raw HTTP) is application logic and belongs in
-        `tests/test_llm.py`, not in this scaffold."""
-        return self._client.with_structured_output(*args, **kwargs)
+    def with_structured_output(self, *args: Any, **kwargs: Any) -> "_LoggedStructured":
+        """Returns a *logged* runnable, not the client's raw one.
+
+        Returning `self._client.with_structured_output(...)` directly would
+        hand back a runnable wired straight to the underlying client, so every
+        call through it would skip this wrapper. Agents use structured output
+        almost exclusively, which would have left nearly the whole application
+        invisible to the rate-limit log while appearing to work.
+        """
+        return _LoggedStructured(
+            role=self.role,
+            model=self.model,
+            runnable=self._client.with_structured_output(*args, **kwargs),
+        )
+
+
+class StructuredOutputError(RuntimeError):
+    """Structured output failed on both the first attempt and the retry."""
+
+
+_RETRY_INSTRUCTION = (
+    "Your previous response could not be parsed into the required schema"
+    " ({error}). Respond again with only a JSON object matching the schema"
+    " exactly. No preamble, no explanation, no markdown fence."
+)
+
+
+def _append_retry_instruction(model_input: Any, error: str) -> Any:
+    """Appends the failure to the prompt, whatever shape it arrived in.
+
+    Agents pass either a plain string or a list of messages, so both are
+    handled here rather than at every call site.
+    """
+    instruction = _RETRY_INSTRUCTION.format(error=error)
+    if isinstance(model_input, str):
+        return f"{model_input}\n\n{instruction}"
+    if isinstance(model_input, list):
+        return [*model_input, ("human", instruction)]
+    return model_input
+
+
+class _LoggedStructured:
+    """Logging + validate-retry wrapper for what `with_structured_output` returns.
+
+    **Retry is on by default, deliberately.** Measured 2026-07-30 through
+    `ChatNVIDIA`: `nemotron-3-nano` 10/10, `nemotron-3-super` **7/10**, the
+    three failures returning `None` rather than raising. Karthik's call on that
+    gate was retry now and revisit the model assignment in Phase 2 against
+    golden cases. Making retry the default here rather than something each
+    agent opts into is what makes "mandatory in every agent" structural — an
+    agent cannot forget it.
+
+    Retries **schema failures only**: a `None` return or a `ValidationError`.
+    Transport failures (429, 503, timeout) are a different concern with a
+    different fix — exponential backoff per ARCHITECTURE.md §9 — and are
+    re-raised untouched so they are not silently retried at the wrong layer.
+
+    One retry, then fail, matching ARCHITECTURE.md's uniform failure behaviour.
+    Logs `outcome=empty` for the silent `None` case so it is visible in the
+    rate-limit log instead of vanishing.
+    """
+
+    def __init__(self, role: Role, model: str, runnable: Any) -> None:
+        self.role = role
+        self.model = model
+        self._runnable = runnable
+
+    def _outcome(self, result: Any) -> str:
+        return "ok" if result is not None else "empty"
+
+    def invoke(self, model_input: Any, *args: Any, **kwargs: Any) -> Any:
+        result, error = self._attempt(model_input, *args, **kwargs)
+        if result is not None:
+            return result
+        retried, retry_error = self._attempt(
+            _append_retry_instruction(model_input, error), *args, **kwargs
+        )
+        if retried is not None:
+            return retried
+        raise StructuredOutputError(
+            f"{self.model} failed schema validation twice: {retry_error or error}"
+        )
+
+    def _attempt(self, model_input: Any, *args: Any, **kwargs: Any) -> tuple[Any, str]:
+        started = time.perf_counter()
+        try:
+            result = self._runnable.invoke(model_input, *args, **kwargs)
+        except ValidationError as exc:
+            _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+            return None, str(exc)[:200]
+        except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
+            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            raise
+        _log_call(self.role, self.model, started, self._outcome(result))
+        return result, "" if result is not None else "the response was empty"
+
+    async def ainvoke(self, model_input: Any, *args: Any, **kwargs: Any) -> Any:
+        result, error = await self._aattempt(model_input, *args, **kwargs)
+        if result is not None:
+            return result
+        retried, retry_error = await self._aattempt(
+            _append_retry_instruction(model_input, error), *args, **kwargs
+        )
+        if retried is not None:
+            return retried
+        raise StructuredOutputError(
+            f"{self.model} failed schema validation twice: {retry_error or error}"
+        )
+
+    async def _aattempt(self, model_input: Any, *args: Any, **kwargs: Any) -> tuple[Any, str]:
+        started = time.perf_counter()
+        try:
+            result = await self._runnable.ainvoke(model_input, *args, **kwargs)
+        except ValidationError as exc:
+            _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+            return None, str(exc)[:200]
+        except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
+            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            raise
+        _log_call(self.role, self.model, started, self._outcome(result))
+        return result, "" if result is not None else "the response was empty"
 
 
 def get_llm(role: Role) -> LoggingChatNVIDIA:
