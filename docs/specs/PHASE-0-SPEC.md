@@ -17,9 +17,13 @@ two `curl` invocations and their output.
 
 ## Stories
 
-### 0.1 Repo scaffold
+### 0.1 Repo scaffold — ✅ DONE 2026-07-30
 
 Backend and frontend skeletons, environment handling, no application logic.
+
+Observed output for every box is in `DEV-STATE.md` § Last session. Delivered beyond the boxes:
+`config.py` also rejects the 6543 transaction pooler and the IPv6-only direct-connection host,
+and the pre-commit hook lives in tracked `.githooks/` via `core.hooksPath` so it survives a clone.
 
 ```
 backend/
@@ -37,10 +41,10 @@ Makefile
 ```
 
 **Acceptance**
-- [ ] `make dev-api` serves `GET /health` returning `{"status":"ok"}`
-- [ ] `make dev-web` serves the Vite dev server
-- [ ] `.env.example` lists every required variable; `config.py` raises a clear error naming any that is missing
-- [ ] Secrets are gitignored; `.env` is never committed
+- [x] `make dev-api` serves `GET /health` returning `{"status":"ok"}`
+- [x] `make dev-web` serves the Vite dev server
+- [x] `.env.example` lists every required variable; `config.py` raises a clear error naming any that is missing
+- [x] Secrets are gitignored; `.env` is never committed
 
 ---
 
@@ -197,13 +201,17 @@ Do not start Phase 1 until every box above is ticked and these hold:
 - `make test-api` output
 - Two `curl` invocations against the deployed URL and their responses
 - Structured-output pass rate (n/10)
-- Latency numbers for the three `thinking` configurations
+- Latency per model — `thinking` does not exist on Nemotron, so the lever is model choice
+  (nano / super / backup), not a request parameter. Two samples recorded: 2026-07-29 ~23:00
+  and 2026-07-30 ~07:30.
 - Cold-start latency after 15+ minutes idle
 - The observed `DuplicatePreparedStatement` error text
 
 ### Needs your eyes
-- **The NVIDIA account model.** Only you can log into build.nvidia.com. Story 0.3 is genuinely blocked on you.
-- **Supabase and Render project setup**, if you would rather create them yourself than have me do it through the CLI.
+- ~~**The NVIDIA account model.**~~ Resolved 2026-07-29 from the account dashboard: 40 RPM, no credits.
+- ~~**Supabase project setup.**~~ Done — `tnqfqsocoqythakwybsw`, Singapore, connection verified 2026-07-30.
+- **Render project setup** (story 0.8), if you would rather create it yourself than have me do it
+  through the CLI. **Region must be Singapore**, not the default.
 - **A judgement call, if structured output scores below 10/10.** That makes prompt-validate-retry mandatory in every agent rather than defensive, which adds work to every remaining phase. Worth your decision, not mine.
 
 Nothing in this phase is visually assessable — there is no UI yet beyond a Vite scaffold. The

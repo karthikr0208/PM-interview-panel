@@ -44,7 +44,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 ## Current phase — story detail
 
-Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`. Nothing started yet.
+Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 
 - [x] 0.1 ~~Repo scaffold, `.env` handling, `requirements.txt`, Vite app, secret-prefix pre-commit hook~~ — done 2026-07-30, all four acceptance boxes verified with output below
 - [~] 0.2 NVIDIA smoke test — off-peak re-measure done 2026-07-30, model choice holds. Still need `ChatNVIDIA` structured output 10/10 + streaming   ← NEXT
@@ -162,8 +162,11 @@ and does not have langgraph at all.
 Retest opportunistically. **Correction 2026-07-30: `probe_candidates.py` does *not* test GLM** —
 verified by grep; GLM appears only in `probe_models.py` and `probe_nvidia.py`. The retest policy
 below therefore had nothing implementing it. Use `probe_models.py`, or add GLM to
-`probe_candidates.py`'s model list. But treat one fast sample as one sample, not as a reversal. The product runs interviews at unpredictable hours, so a model
-that is 3s at 09:00 and 230s at 23:00 is unshippable — the 23:00 session is a broken product.
+`probe_candidates.py`'s model list.
+
+But treat one fast sample as one sample, not as a reversal. The product runs interviews at
+unpredictable hours, so a model that is 3s at 09:00 and 230s at 23:00 is unshippable — the
+23:00 session is a broken product.
 
 Switch back **only if** GLM is fast across several checks spread through a full day **and**
 passes the same 3/3 strict structured-output test Nemotron already passes. Nemotron currently

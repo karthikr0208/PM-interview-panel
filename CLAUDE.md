@@ -108,6 +108,11 @@ it is not handed over.
 
 ## Commands
 
+**Use the venv, not the global interpreter.** `backend/.venv/Scripts/python.exe` on Windows,
+`backend/.venv/bin/python` elsewhere. The global one has no langgraph and different versions of
+fastapi, pydantic, and openai. The `make` targets already point at the venv; the bare `python`
+lines below are the ones to watch.
+
 ```
 python backend/scripts/check_env.py        # all credentials present AND working
 python backend/scripts/check_db.py         # DB connects; diagnoses the 3 failure modes
@@ -120,7 +125,9 @@ make test-api                 # pytest only
 make test-web                 # vitest only
 make golden                   # all agent golden cases
 make golden AGENT=evaluator   # one agent
-python scripts/init_db.py     # checkpointer .setup() — run ONCE, never on app startup
+backend/.venv/Scripts/python.exe backend/scripts/init_db.py   # checkpointer .setup()
+                              # run ONCE, never on app startup. Needs the venv: it imports
+                              # langgraph, which the global interpreter does not have.
 ```
 
 ---
