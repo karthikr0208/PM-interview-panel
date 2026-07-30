@@ -2,6 +2,7 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
+import HealthCheck from './HealthCheck'
 import './App.css'
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
   return (
     <>
       <section id="center">
+        <HealthCheck />
         <div className="hero">
           <img src={heroImg} className="base" width="170" height="179" alt="" />
           <img src={reactLogo} className="framework" alt="React logo" />
