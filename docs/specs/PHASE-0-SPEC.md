@@ -200,7 +200,7 @@ mechanism. Render is unaffected. See DEV-STATE § Decisions 2026-07-30.
 - [ ] CORS allows the Netlify origin and nothing wider — **currently still the `http://localhost:5173` placeholder; must be updated when Netlify exists**
 - [x] Environment variables set in the Render dashboard, not committed
 - [x] **The 0.7 test passes against the deployed URL**, with the two `curl` invocations and their output pasted into `DEV-STATE.md`
-- [ ] Cold-start latency measured after 15+ minutes idle and recorded as an actual number — probe armed 2026-07-30
+- [x] Cold-start latency measured after 15+ minutes idle and recorded as an actual number — **32.33s** after ~18 minutes idle; warm follow-up 0.13s. See DEV-STATE § 0.8
 
 **Also delivered:** Python pinned to 3.12.10 (`backend/.python-version` + `PYTHON_VERSION`) so
 Render builds on the interpreter the 52 tests ran on, and **production checkpoint latency measured

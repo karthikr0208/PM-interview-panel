@@ -164,6 +164,24 @@ status=404
 OPTIONS /skeleton/start  Origin: evil.example.com 400   <- CORS rejects, per the preflight rule
 ```
 
+**COLD START: 32.3 SECONDS.** Probe left the service genuinely untouched for ~18 minutes, then
+hit `/health` once cold and once warm:
+
+```
+idle since:      13:57:51Z
+cold_start    = 32.33s   status=200
+warm_followup =  0.13s   status=200
+```
+
+Better than Render's own "50 seconds or more" banner, and still a product problem rather than a
+curiosity. **The first request a candidate makes would hang for half a minute**, on a tool whose
+first interaction is uploading a resume. The warm follow-up at 0.13s confirms it is entirely
+spin-up, not the app.
+
+**Mitigation, when it matters and not before:** an external uptime pinger on `/health` every ~10
+minutes. Cheap, external to the codebase, and reversible. Do not solve this by paying for Render
+or by adding a self-ping inside the app. Decide it in Phase 7, or the day before a demo.
+
 **PRODUCTION CHECKPOINT LATENCY — measured at last, and it is nothing like the local number.**
 
 Measured by difference against `/health`, which does no database work, so the client-side
