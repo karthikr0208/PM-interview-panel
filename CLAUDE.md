@@ -187,9 +187,15 @@ make test-api                 # pytest only
 make test-web                 # vitest only
 make golden                   # all agent golden cases
 make golden AGENT=evaluator   # one agent
+backend/.venv/Scripts/python.exe backend/scripts/migrate.py   # apply backend/migrations/*.sql
+                              # Idempotent, safe to re-run. The ONLY way to change the schema —
+                              # never the Supabase dashboard, or Render cannot recreate it.
+                              # --dry-run lists what would apply.
+
 backend/.venv/Scripts/python.exe backend/scripts/init_db.py   # checkpointer .setup()
                               # run ONCE, never on app startup. Needs the venv: it imports
                               # langgraph, which the global interpreter does not have.
+                              # Separate from migrate.py: LangGraph owns its own table shapes.
 ```
 
 ---

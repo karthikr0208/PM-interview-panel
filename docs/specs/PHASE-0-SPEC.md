@@ -94,13 +94,18 @@ that failure mode structural rather than a matter of care.
 
 ### 0.4 Supabase project and schema
 
-**Acceptance**
-- [ ] Project created; **session pooler** connection string (port 5432) recorded in `.env`
-- [ ] All six tables from `ARCHITECTURE.md` §5 created via a checked-in migration
-- [ ] RLS enabled on every table with permissive `session_id`-scoped policies
-- [ ] `agent_events`, `answer_evaluations`, `transcript_turns` added to the `supabase_realtime` publication
-- [ ] Storage bucket `resumes` created
-- [ ] The `check (length(evidence_quote) > 0)` constraint is present and verified by attempting an empty insert
+**Acceptance** — all met 2026-07-30
+
+- [x] Project created; **session pooler** connection string (port 5432) recorded in `.env`
+- [x] All six tables from `ARCHITECTURE.md` §5 created via a checked-in migration — `backend/migrations/0001_initial_schema.sql`, applied by `scripts/migrate.py`, idempotent on re-run
+- [x] RLS enabled on every table — **with zero policies, not "permissive `session_id`-scoped" ones.** That wording was self-contradictory: scoping by `session_id` needs an auth claim, and V1 has no login. Zero policies denies every non-bypass role, which is the correct Phase 0 posture. Phase 1 adds anonymous sign-in and real policies. See DEV-STATE § Decisions 2026-07-30.
+- [x] `agent_events`, `answer_evaluations`, `transcript_turns` added to the `supabase_realtime` publication
+- [x] Storage bucket `resumes` created — private, not public
+- [x] The `check (length(evidence_quote) > 0)` constraint is present and verified by attempting an empty insert — `CheckViolation`, output in DEV-STATE
+
+**Beyond the boxes:** the `score between 1 and 4` check, the `unique (session_id, idx)` constraint,
+and cascade delete were each verified the same way. Foreign keys are indexed — Postgres does not
+do that automatically and every read filters by `session_id`.
 
 ---
 

@@ -6,13 +6,18 @@
 
 ## Now
 
-**Phase 0 — Walking skeleton.** Stories 0.1, 0.2, and 0.3 complete and verified. Running
-FastAPI backend, Vite frontend, full venv, secret-blocking pre-commit hook, and a 28-test suite
-(21 offline, 7 live). The structured-output decision gate is resolved: **validate-retry is
-mandatory and enforced in the LLM wrapper.**
+**Phase 0 — Walking skeleton.** Stories 0.1, 0.2, 0.3, and 0.4 complete and verified. Running
+FastAPI backend, Vite frontend, full venv, secret-blocking pre-commit hook, the six-table schema
+live in Supabase, and a test suite spanning config, LLM, retry, and schema. The structured-output
+decision gate is resolved: **validate-retry is mandatory and enforced in the LLM wrapper.**
 
-Next is **story 0.4, the Supabase schema migration.** No LLM work remains in Phase 0 — everything
-from here is database, checkpointer, graph, and deploy.
+Next is **story 0.5, the Postgres checkpointer.** Remaining Phase 0 work is checkpointer, graph,
+HTTP interrupt/resume, and deploy. No LLM work left.
+
+**Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
+frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
+nothing — correct now, but it means the three-column UI will show an empty middle column until
+sign-in plus scoped policies exist. See Decisions 2026-07-30.
 
 ---
 
@@ -53,8 +58,8 @@ Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.2 ~~NVIDIA smoke test~~ — done 2026-07-30. Gate resolved: **not 10/10** (`deep` 7-9/10), so validate-retry is mandatory. Streaming, rate-limit logging, and the off-peak re-measure all done
 - [x] 0.3 ~~Confirm build.nvidia.com account model~~ — done 2026-07-29: 40 RPM, no credits
 - [x] 0.4a ~~Supabase project + connection verified~~ — done: Singapore, session pooler, Postgres 17.6, `check_db.py` connects
-- [ ] 0.4 Supabase project + schema migration   ← NEXT
-- [ ] 0.5 Postgres checkpointer wired via session pooler, `.setup()` run once
+- [x] 0.4 ~~Supabase project + schema migration~~ — done 2026-07-30. Six tables, RLS on all, realtime publication, private `resumes` bucket, constraints proven by failed inserts
+- [ ] 0.5 Postgres checkpointer wired via session pooler, `.setup()` run once   ← NEXT
 - [ ] 0.6 Two-node graph with `interrupt()` / `Command(resume=...)`
 - [ ] 0.7 Interrupt/resume proven across two separate HTTP requests
 - [ ] 0.8 Deploy backend to Render, frontend to Netlify, CORS wired, health check green
@@ -137,6 +142,37 @@ It covers: `None` then valid · `None` twice raises · success does not retry ·
 appended to both string and message-list inputs · **transport errors are re-raised, not
 retried** · both attempts are logged.
 
+### 0.4 schema — observed output
+
+Applied with `python backend/scripts/migrate.py`, then re-run to prove idempotency (`ok` both
+times). Migration is `backend/migrations/0001_initial_schema.sql`, checked in.
+
+```
+tables + RLS:
+   agent_events         rls=True      sessions           rls=True
+   answer_evaluations   rls=True      transcript_turns   rls=True
+   case_worlds          rls=True      resumes            rls=True
+   -> all six present: True   missing=None  extra=None
+
+policies:          0  (deliberate — see Decisions)
+realtime members:  ['agent_events', 'answer_evaluations', 'transcript_turns']
+storage buckets:   [('resumes', False)]        <- private
+
+as service role : 1 row(s) visible
+as anon         : 0 row(s) visible
+as authenticated: 0 row(s) visible
+
+  empty evidence_quote         rejected: CheckViolation
+  score out of range 1-4       rejected: CheckViolation
+  duplicate (session_id,idx)   rejected: UniqueViolation
+
+cascade delete  : 0 transcript rows remain after deleting the session
+```
+
+The empty-`evidence_quote` rejection is the PRD's "no score without evidence" guarantee enforced
+in the database rather than in prompt text. An agent that stops quoting fails loudly here instead
+of producing a confident scorecard with nothing behind it.
+
 ### Off-peak latency re-measure — model choice holds
 
 Taken 2026-07-30 ~07:30 IST, against the single ~23:00 window everything previously rested on.
@@ -173,25 +209,25 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Story 0.4 — the Supabase schema migration.** No LLM work remains in Phase 0. Acceptance is in
-PHASE-0-SPEC.md; the six tables are in ARCHITECTURE.md §5.
+**Story 0.5 — the Postgres checkpointer.** Acceptance is in PHASE-0-SPEC.md.
 
-Do not hand-run SQL in the dashboard — the spec requires a **checked-in migration**, because
-0.8 deploys to Render and an unversioned schema cannot be recreated. Watch these, each of which
-is an acceptance box rather than a nicety:
+1. `AsyncPostgresSaver` connects over the session pooler from local development.
+2. `scripts/init_db.py` runs `.setup()` and is **idempotent on a second run.** This is separate
+   from `scripts/migrate.py`, which owns the six app tables. Do not merge them: LangGraph owns
+   its `checkpoints` / `checkpoint_writes` / `checkpoint_blobs` shape and it changes with the
+   library version.
+3. LangGraph's tables coexist with the app tables, no collision.
+4. **Observe and record the transaction-pooler failure.** Connect on port 6543 deliberately and
+   capture the `DuplicatePreparedStatement` text into § Environment notes. Note that `config.py`
+   now rejects 6543 *before* connecting, so that guard has to be bypassed to produce the real
+   error — construct the URL directly rather than going through `settings`.
 
-1. RLS enabled on **every** table with `session_id`-scoped policies.
-2. `agent_events`, `answer_evaluations`, `transcript_turns` added to the `supabase_realtime`
-   publication. The three-column UI reads these live; without the publication the middle column
-   is permanently empty and it will look like an agent bug.
-3. The `check (length(evidence_quote) > 0)` constraint **verified by attempting an empty
-   insert** — it enforces the PRD guarantee that no score ships without evidence.
-4. Storage bucket `resumes` created.
+Also worth doing here while the checkpointer is fresh: **measure one checkpoint write's latency
+and the bytes per interview.** It settles whether the per-node checkpoint cost is the ~1% of turn
+latency estimated on 2026-07-30, and gives the real interviews-until-500MB ceiling. Both are
+currently estimates, not numbers.
 
-**Then 0.5 → 0.6 → 0.7 → 0.8** in spec order. 0.5 is where the transaction-pooler
-`DuplicatePreparedStatement` error text finally gets observed and recorded — note that
-`config.py` now rejects port 6543 before connecting, so that guard has to be bypassed
-deliberately to produce the real error.
+**Then 0.6 → 0.7 → 0.8** in spec order.
 
 **Run first (~3 min):** `python backend/scripts/check_env.py`. It now checks all three models and
 no longer probes `thinking`.
@@ -228,6 +264,43 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-30 · STORY 0.4 RLS: the spec's own acceptance box was self-contradictory. Resolved by
+adopting Supabase anonymous sign-in in Phase 1; Phase 0 ships zero policies.**
+
+PHASE-0-SPEC asked for "RLS enabled on every table with permissive `session_id`-scoped
+policies." **Those two halves cannot both be true.** Scoping rows by `session_id` requires the
+database to know which session the caller owns, which comes from an auth token. V1 has no login,
+`sessions.user_id` is nullable, so there is no claim to scope by. The only literal reading is
+`using (true)` for `anon` — and the publishable key ships inside the browser bundle by design,
+so that makes **every candidate's transcript and scores readable by anyone who opens devtools**.
+Not obscurity: no UUID guessing needed, the whole table is selectable.
+
+**Karthik's call: Supabase anonymous sign-in, wired in Phase 1.** The browser silently obtains a
+real identity token, no signup screen, the candidate notices nothing, and `auth.uid()` then makes
+genuinely scoped policies possible. `sessions.user_id` already exists and is nullable, so the
+schema needs no change to support it.
+
+**Phase 0 therefore ships RLS enabled with ZERO policies, deliberately.** RLS with no policies
+denies every role that does not bypass it. The backend uses the service key and is unaffected;
+browsers get nothing. Correct posture while the frontend is still a Vite placeholder.
+
+**A trap worth recording, because reasoning about it gives the wrong answer.** `anon` and
+`authenticated` **do** hold table-level `SELECT`/`INSERT`/`UPDATE`/`DELETE` grants on all six
+tables — Supabase adds those by default in `public`. Grants control whether the table is
+*reachable*; RLS controls which *rows* come back. I initially recorded "browsers can reach
+nothing" from the grant query, which was wrong. Verified empirically instead:
+
+```
+as service role : 1 row(s) visible
+as anon         : 0 row(s) visible   <- RLS denies despite the SELECT grant
+as authenticated: 0 row(s) visible
+```
+
+The consequence for Phase 1: adding a policy is what opens the door, and the grants are already
+open behind it. A single over-broad policy exposes everything immediately. `test_schema.py`
+asserts the empirical denial rather than merely that `rowsecurity = true`, so an accidentally
+permissive policy fails the suite.
 
 **2026-07-30 · STORY 0.2 DECISION GATE: structured output is 7/10 on `deep`. Validate-retry is
 now mandatory, and it is enforced in the wrapper rather than left to each agent.**
@@ -634,8 +707,14 @@ proven to actually compile, not merely install, by grepping the built CSS for em
 `lucide-react` anywhere, per the Phosphor decision.
 
 **Supabase connection: session pooler, port 5432 — verified working 2026-07-30.**
-`aws-0-ap-southeast-1.pooler.supabase.com:5432`, PostgreSQL 17.6, 0 public tables (correct
-before story 0.4). `check_db.py` connects clean.
+`aws-0-ap-southeast-1.pooler.supabase.com:5432`, PostgreSQL 17.6. `check_db.py` connects clean.
+**Six app tables now live** (story 0.4). `check_db.py` reports "public tables: 0" only before
+that migration — after it, expect 6.
+
+**Schema is managed by `backend/migrations/*.sql` + `scripts/migrate.py`. Never the dashboard.**
+Story 0.8 deploys to Render, and a schema that exists only as dashboard clicks cannot be
+recreated. Migrations are written idempotent so re-running is safe. Two separate concerns:
+`migrate.py` owns the six app tables, `init_db.py` owns LangGraph's checkpoint tables.
 
 - `checkpointer.setup()` to run via `scripts/init_db.py`, once, never on app startup
 - The transaction-pooler `DuplicatePreparedStatement` error text is **still not observed** —
