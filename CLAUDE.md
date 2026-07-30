@@ -37,6 +37,46 @@ At a natural stopping point, also write:
 
 A stale DEV-STATE is worse than none. It produces confident wrong assumptions.
 
+## 🔴 What to update, and when
+
+### End of every story — same commit as the code
+
+| File | What changes |
+|---|---|
+| `docs/DEV-STATE.md` | Tick the story, move `← NEXT`, **paste observed output**, add any decision |
+| `docs/specs/PHASE-<N>-SPEC.md` | Tick that story's acceptance boxes; add `— ✅ DONE <date>` to its heading |
+
+Two boxes and a paste. If it takes longer than that, the story was too big.
+
+### End of every phase — additionally
+
+| File | What changes |
+|---|---|
+| `docs/DEV-STATE.md` | Phase status table row · "Last session" · "Next session — start here" · Environment notes with real observed values |
+| `docs/specs/PHASE-<N>-SPEC.md` | Handoff section: move items from *needs your eyes* to *verified*, strike what is resolved |
+| `docs/specs/PHASE-<N+1>-SPEC.md` | Write it before starting it |
+| `docs/specs/agents/AGENT-<NAME>-SPEC.md` | If the phase built an agent |
+| `docs/DEV-STATE.md` agent table | Spec link, golden-case count, last prompt change |
+
+### Triggered updates — these are the ones that rot silently
+
+Every entry below is a real failure from this project, not a hypothetical.
+
+| When you… | Also update |
+|---|---|
+| Rename an env var, or drop an API parameter | **grep `backend/scripts/`** · `app/config.py` `REQUIRED_VARS` · both `.env.example` · `CLAUDE.md` |
+| Add a dependency | `requirements.txt` or `package.json` · DEV-STATE Environment notes |
+| Add an env var | `backend/.env` · both `.env.example` · `config.py` · Render dashboard (0.8+) |
+| Add or rename a command | `Makefile` **and** the Commands table below — the Makefile's own header says do not rename one without the other |
+| Change an agent prompt | Golden cases must pass **first** |
+| Diverge from `ARCHITECTURE.md` | Log it under DEV-STATE § Decisions. **Do not edit ARCHITECTURE.md** — decisions supersede it, and rewriting history there destroys the audit trail |
+
+**The scripts row is the one that bites.** On 2026-07-30, `check_env.py` still required a
+variable deleted on 2026-07-29 and still probed a parameter recorded as rejected on the same
+day. The decision was written down correctly; the tooling was never updated. Docs get re-read,
+scripts do not — so a decision that touches a name or a parameter is not done until you have
+grepped for it.
+
 ---
 
 ## Which file answers which question
