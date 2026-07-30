@@ -1,22 +1,26 @@
 # Development State
 
-**Last updated:** 2026-07-30 · Session 2
+**Last updated:** 2026-07-30 · Session 3
 
 ---
 
 ## Now
 
-**Phase 0 — Walking skeleton.** Stories 0.1 through 0.6 complete and verified. Running FastAPI
-backend, Vite frontend, full venv, secret-blocking pre-commit hook, ten tables live in Supabase
-(six app + four LangGraph), a working Postgres checkpointer, a two-node graph that pauses on
-`interrupt()` and resumes from a checkpoint, and 46 tests. The structured-output decision gate is
-resolved: **validate-retry is mandatory and enforced in the LLM wrapper.** The interrupt-resume
-constraint the entire conduct loop rests on is proven, and proven by a test shown to fail against
-a violating graph.
+**Phase 0 — Walking skeleton.** Stories 0.1 through 0.7 complete and verified. Running FastAPI
+backend with working `/skeleton/start` and `/skeleton/resume`, Vite frontend, full venv,
+secret-blocking pre-commit hook, ten tables live in Supabase (six app + four LangGraph), a working
+Postgres checkpointer, and 52 tests. The structured-output decision gate is resolved:
+**validate-retry is mandatory and enforced in the LLM wrapper.**
 
-Next is **story 0.7, interrupt/resume across two separate HTTP requests** — same property as 0.6
-but with the API process restarted in between, which is the part that cannot be faked by process
-memory. Then 0.8 (deploy).
+**The two risks this phase existed to retire are retired.** The conduct loop's structural
+constraint is proven, by a test shown to fail against a deliberately violating graph. And
+interrupt/resume works across two genuinely separate OS processes, so nothing about an interview
+depends on a server staying alive between a question and its answer.
+
+**Only story 0.8 remains: deploy.** Render (**region Singapore, not the default**) plus Netlify,
+then the same two-request proof against the deployed URL with `curl`. 0.8 is also the only chance
+to measure production checkpoint latency and cold-start time; both are currently unmeasured and
+must not be quoted from local numbers.
 
 **Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
 frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
@@ -30,7 +34,7 @@ sign-in plus scoped policies exist. See Decisions 2026-07-30.
 | Phase | Status | Spec | Verified |
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
-| 0 Walking skeleton | 🟡 in progress | PHASE-0-SPEC.md | 2026-07-30 — 0.1 verified, output below |
+| 0 Walking skeleton | 🟡 0.1–0.7 done, 0.8 deploy remains | PHASE-0-SPEC.md | 2026-07-30 — 52 tests pass live, output below |
 | 1 Resume Analyst + design foundation | ⬜ not started | — | — |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
@@ -65,14 +69,40 @@ Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.4 ~~Supabase project + schema migration~~ — done 2026-07-30. Six tables, RLS on all, realtime publication, private `resumes` bucket, constraints proven by failed inserts
 - [x] 0.5 ~~Postgres checkpointer wired via session pooler, `.setup()` run once~~ — done 2026-07-30. Idempotent, no collision, 6543 failure reproduced, **RLS added to LangGraph's tables**
 - [x] 0.6 ~~Two-node graph with `interrupt()` / `Command(resume=...)`~~ — done 2026-07-30. All five boxes, and **the idempotency assertion was falsified against a deliberately wrong graph before being trusted**
-- [ ] 0.7 Interrupt/resume proven across two separate HTTP requests   ← NEXT
-- [ ] 0.8 Deploy backend to Render, frontend to Netlify, CORS wired, health check green
+- [x] 0.7 ~~Interrupt/resume proven across two separate HTTP requests~~ — done 2026-07-30. Restart proven with **two separate uvicorn subprocesses**, not a rebuilt TestClient
+- [ ] 0.8 Deploy backend to Render, frontend to Netlify, CORS wired, health check green   ← NEXT
 
 ---
 
 ## Last session
 
-**Session 2 — 2026-07-30. Stories 0.1, 0.2, 0.4, 0.5 complete.** Phase 0 went from nothing on
+**Session 3 — 2026-07-30. Stories 0.6 and 0.7 complete. Phase 0 is one story from done.**
+
+The interrupt/resume machinery the whole product rests on now works and is proven: a graph that
+pauses, and a pause that survives the process dying. 52 tests, all green live.
+
+**The repo was pushed to GitHub for the first time** —
+`https://github.com/karthikr0208/PM-interview-panel`, `main` tracking `origin/main`. History was
+scanned before pushing: `.env` was never tracked at any commit, and the only credential-shaped
+strings in the entire history are fake test fixtures (`pw`, `abcdefgh`). Note `gh` is not
+installed on this machine, so **repo visibility was not confirmed.**
+
+**Working mode changed at Karthik's request: implementation is delegated to Sonnet subagents;
+this session's role is planner, orchestrator, and verifier.** Now written into CLAUDE.md § How
+work is done so it does not need restating each session. Story 0.7 was built that way.
+
+**It paid for itself immediately.** The agent contradicted its own briefing on the Windows
+event-loop fix and was right to — the fix I specified does not work, which I then reproduced
+myself. Independent re-verification also caught test residue accumulating in the live database
+that the agent's own green test run had not surfaced.
+
+```
+11dca0f  0.6 two-node graph with interrupt/resume
+```
+
+### Session 2 — 2026-07-30. Stories 0.1, 0.2, 0.4, 0.5 complete
+
+Phase 0 went from nothing on
 disk to a running backend, a Vite frontend, ten tables live in Supabase, a working Postgres
 checkpointer, and 40 tests. Seven commits, all local — **no git remote is configured and nothing
 has been pushed.**
@@ -90,6 +120,44 @@ a52fc9c  0.1 repo scaffold, backend, frontend, secret hook
 878c961  0.2 structured-output gate resolved, retry mandatory
 f839f35  0.4 schema migration, RLS, realtime, resumes bucket
 b65e097  0.5 checkpointer, plus RLS on LangGraph's own tables
+```
+
+### 0.7 interrupt / resume across two HTTP requests — observed output
+
+`backend/app/main.py` (lifespan-held checkpointer, `/skeleton/start`, `/skeleton/resume`) and
+`backend/tests/test_api.py`.
+
+```
+tests/test_api.py  6 passed in 48.83s
+  test_health_returns_ok
+  test_start_returns_session_id_and_interrupt_payload
+  test_resume_continues_after_the_process_is_torn_down_and_rebuilt
+  test_get_state_next_reflects_pause_then_completion
+  test_resume_404s_for_an_unknown_session_id
+  test_cors_preflight_rejects_unlisted_origin_and_allows_the_configured_one
+
+full live suite:  52 passed in 476.05s (0:07:56)
+offline suite  :  21 passed, 31 deselected in 3.87s
+```
+
+`make dev-api` driven by hand against the real endpoint, which is what proved the Windows
+event-loop finding below:
+
+```
+GET  /health          -> {"status":"ok"}
+POST /skeleton/start  -> 200 OK
+  {"session_id":"d8e7b0b9-b46d-441e-9c98-f43e0774c152","interrupt":{"question":"..."}}
+```
+
+**Test residue fixed.** `test_api.py` was the only test file not cleaning up after itself, and
+13 orphan thread_ids / 47 checkpoint rows had accumulated in the live database. It now registers
+each server-minted `session_id` and deletes it in teardown. Verified by counting either side of
+a full-suite run:
+
+```
+select count(distinct thread_id), count(*) from checkpoints
+  before full suite : (0, 0)
+  after full suite  : (0, 0)      <- 52 tests, several creating sessions
 ```
 
 ### 0.6 interrupt / resume — observed output
@@ -273,39 +341,42 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Start with these two commands (~3 min), then read PHASE-0-SPEC story 0.7.**
+**Start with these two commands (~3 min), then read PHASE-0-SPEC story 0.8.**
 
 ```
 python backend/scripts/check_env.py                        # nothing rotated overnight
 cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 21 passed
 ```
 
-Everything is installed, the database is live, and the skeleton graph pauses and resumes
-correctly. Remote is `https://github.com/karthikr0208/PM-interview-panel` (added 2026-07-30).
+Everything local works. Remote is `https://github.com/karthikr0208/PM-interview-panel`, `main`
+pushed and tracking (added 2026-07-30).
 
-**Story 0.7 — interrupt/resume across two separate HTTP requests.** Acceptance is in
-PHASE-0-SPEC.md. Build `POST /skeleton/start` and `POST /skeleton/resume` in `app/main.py` on top
-of `app.graph.skeleton.build_skeleton_graph`, which is done and tested.
+**Story 0.8 — deploy. The last story in Phase 0.** Acceptance is in PHASE-0-SPEC.md.
 
-**The real test is the process restart between the two calls**, not that the two endpoints work.
-An in-memory anything passes the happy path and fails this. `tests/test_api.py` must tear the app
-object down and rebuild it between start and resume.
+**Render region must be Singapore, not the default.** Supabase is in `ap-southeast-1`, and a
+mismatch adds ~100ms to each of ~8 database round trips per candidate turn, permanently. This is
+the one setting that cannot be fixed later without redeploying.
 
-**You will hit the Windows event loop problem here** — uvicorn selects the proactor loop on
-Windows unless told otherwise, and psycopg's async mode refuses it. `tests/conftest.py` already
-does the swap for tests; `app/main.py` needs its own guarded swap for `make dev-api`.
+**Start command: plain `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.** No `--reload` in
+production. That is safe on Render specifically because Linux already defaults to the selector
+event loop — do **not** conclude from `make dev-api` working locally that the event-loop guard in
+`app/main.py` is protecting you. It is not. See Decisions 2026-07-30.
 
-**The checkpointer needs a lifespan, not a per-request connection.** `AsyncPostgresSaver.
-from_conn_string` is an async context manager; opening one per request would open a pooler
-connection per request. Open it in FastAPI's `lifespan` and hold it on `app.state`.
+**Do not run `init_db.py` or `migrate.py` on startup.** Both are one-shot scripts, already
+applied. Startup must only open the checkpointer via `lifespan`.
 
-**CORS test: assert on preflight `OPTIONS`, never on a simple `GET` returning non-200.** A
-disallowed simple GET returns 200 with the header absent. See Decisions 2026-07-30 — the wrong
-assertion here encodes a false pass.
+**Env vars go in the Render dashboard, never committed.** `config.py` `REQUIRED_VARS` is the
+list; all 11 must be set or the app fails loudly at import, which is the intended behaviour.
+`ALLOWED_ORIGINS` must become the Netlify origin and nothing wider.
 
-**Then 0.8.** It must re-measure checkpoint latency from the deployed Render service; the 298ms
-measured locally is dev-machine-to-Singapore and says nothing about production. Render region
-must be **Singapore**.
+**Two numbers this story exists to produce, both currently unmeasured — do not quote local ones:**
+- **Production checkpoint latency**, Render-Singapore to Supabase-Singapore. The 298ms on record
+  is from a Windows dev machine in India and is dominated by home internet.
+- **Cold-start latency after 15+ minutes idle.** Free-tier Render sleeps. This is the number that
+  decides whether a candidate's first request feels broken.
+
+**Then the phase gate**, at the bottom of PHASE-0-SPEC.md. It needs the two `curl` invocations
+against the **deployed** URL pasted here, not a local run.
 
 **Run first (~3 min):** `python backend/scripts/check_env.py`. It now checks all three models and
 no longer probes `thinking`.
@@ -342,6 +413,38 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-30 · STORY 0.7: the Windows event-loop guard in `app/main.py` does NOT do what the
+2026-07-30 entry below implies. `--reload` is what makes `make dev-api` work.**
+
+The earlier entry says the swap is "needed anywhere `AsyncPostgresSaver` is used locally" and that
+stories 0.6 and 0.7 would hit it "when the graph is wired into FastAPI". Both true. What was
+wrong was the implied fix: a guarded swap at the top of `app/main.py` does not rescue
+`uvicorn app.main:app`. Reproduced directly:
+
+```
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8011
+  psycopg.InterfaceError: Psycopg cannot use the 'ProactorEventLoop' to run in async mode.
+  ERROR:    Application startup failed. Exiting.
+
+make dev-api  (uvicorn app.main:app --reload)
+  POST /skeleton/start HTTP/1.1" 200 OK
+```
+
+**Why:** uvicorn's `Server.run()` calls `asyncio.run()`, which creates the loop under whatever
+policy is active **before `app.main` is imported**. The guard therefore executes inside a
+coroutine on a loop that already exists — too late. `--reload` works by a different mechanism
+entirely: it spawns a child process and runs uvicorn's own `asyncio_setup()` there, before the
+child's `asyncio.run()`. Nothing in `app/main.py` participates.
+
+**The guard is kept** because `app.main` is also imported directly, outside uvicorn's CLI, where
+it runs before any loop exists — and it is harmless otherwise. **It is not load-bearing, and the
+comment above it now says so.** `tests/test_api.py` launches its subprocesses as
+`python -c "<set policy>; import uvicorn; uvicorn.run(...)"` for the same reason.
+
+**Production is unaffected:** Render is Linux, where the selector loop is already the default, so
+a plain `uvicorn app.main:app` start command in story 0.8 is fine. The trap is local only, and it
+is the *developer* who hits it.
 
 **2026-07-30 · STORY 0.6: the interrupt rule is real, but the reason written in the spec was
 wrong. Breaking it duplicates SIDE EFFECTS, not state — so no state assertion can detect it.**
@@ -897,6 +1000,30 @@ Interviewer turn?** `fast` is 10/10 at a ~7.2s median, which is what the Intervi
 the reliability side is fine. But a candidate waits on every one of those calls, and the p90 was
 14.2s. Plain streaming is 0.5s to first token, so **streaming the Interviewer's question is the
 obvious mitigation** and is worth deciding in Phase 3 rather than at the end.
+
+**`nemotron-3-nano` leaked reasoning preamble into `content` — observed once, in story 0.7's
+live `/skeleton/start` response. Worth closing before Phase 3, because nano is the Interviewer.**
+
+Prompt was "Ask a product manager one short opening interview question. Reply with the question
+only, in one sentence." What came back, verbatim:
+
+```
+"We are to ask a short opening interview question for a product manager, and reply with only
+ the question in one sentence.\n The question should be concise and serve as an opening...\n
+ Example: \"Can you walk me through a product you've launched that you're most"
+```
+
+Deliberation in the content field, then truncated mid-sentence by the skeleton's
+`max_tokens=120`. **A candidate would have seen all of it.** Two caveats, stated so this is not
+over-read: n=1, and the skeleton prompt is deliberately minimal with no system message and no
+few-shot. Either could explain it.
+
+**But do not assume prompt engineering alone fixes it.** The Interviewer's question is the most
+user-visible string in the product, and the streaming mitigation under discussion for the 7-9s
+latency would stream this preamble token by token. Options if it persists: a system message
+constraining the output shape, structured output for the question (already mandatory-retry, and
+nano is 10/10 there), or `reasoning_effort` — the enum is known, and `none`/`minimal` exist. Test
+in Phase 3 before choosing.
 
 **Production checkpoint latency is unmeasured.** The 298ms observed on 2026-07-30 is from a
 Windows dev machine in India to Supabase in Singapore, dominated by home-internet round trip.

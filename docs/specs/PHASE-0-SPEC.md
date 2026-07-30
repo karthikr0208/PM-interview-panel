@@ -165,15 +165,29 @@ catch it. See DEV-STATE § Decisions 2026-07-30.
 
 ---
 
-### 0.7 Interrupt/resume across separate HTTP requests
+### 0.7 Interrupt/resume across separate HTTP requests — ✅ DONE 2026-07-30
 
 Local, before deployment.
 
 **Acceptance**
-- [ ] `POST /skeleton/start` returns the interrupt payload and a `session_id`
-- [ ] `POST /skeleton/resume` with that `session_id` continues the graph
-- [ ] **The API process is restarted between the two calls** and resume still works — this is the actual test. Nothing may live in process memory.
-- [ ] `graph.get_state(config)` returns the correct `.next` for a paused session
+- [x] `POST /skeleton/start` returns the interrupt payload and a `session_id`
+- [x] `POST /skeleton/resume` with that `session_id` continues the graph
+- [x] **The API process is restarted between the two calls** and resume still works — this is the actual test. Nothing may live in process memory.
+- [x] `graph.get_state(config)` returns the correct `.next` for a paused session
+
+**How the restart is done, because a weaker version of this test proves nothing.** `test_api.py`
+launches `app.main:app` under a real `uvicorn` **subprocess**, terminates it and waits for it to
+die, then spawns a second independent process to handle the resume. A rebuilt `TestClient` over
+the same imported `app` object would not have worked: the checkpointer connection and all module
+state survive in-process either way. With `MemorySaver` the second process would 404.
+
+**Beyond the boxes:** a 404 branch for unknown or already-finished sessions (`.next` is empty in
+both cases), the checkpointer opened once in `lifespan` rather than per request, and CORS
+preflight asserted per the 2026-07-30 decision — reject on `OPTIONS`, never on a simple request.
+
+**The event-loop guard in `app/main.py` is not load-bearing.** Plain `uvicorn app.main:app` fails
+on Windows regardless of it; `--reload` is what makes `make dev-api` work, by a different
+mechanism. Render is unaffected. See DEV-STATE § Decisions 2026-07-30.
 
 ---
 

@@ -33,6 +33,32 @@ deliberately and is faster and more accurate than inference.
 checkpoint, is empty, and is gitignored. **`docs/DEV-STATE.md` is the handoff.** Ignore any
 file that merely sounds authoritative.
 
+## 🔴 How work is done — orchestrate, delegate, verify
+
+**Delegate implementation to Sonnet subagents. You plan, orchestrate, and verify.** Karthik is
+paying for the reasoning that catches false passes and decides what evidence actually shows, not
+for mechanical file-writing a cheaper model does equally well.
+
+Per story: spawn a Sonnet agent with a precise brief — the files, the acceptance boxes, and the
+**named traps from DEV-STATE § Decisions** that apply. A brief without the traps is how the same
+bug gets rediscovered twice.
+
+Three rules the brief must carry, every time:
+
+| The agent must not | Because |
+|---|---|
+| Commit | The commit is the verification record; it is written from confirmed evidence |
+| Edit `docs/` | DEV-STATE is load-bearing. A stale or optimistic entry is worse than none |
+| Claim a pass it did not run | "Compiles" and "should pass" are not evidence in this project |
+
+Ask it to report **verbatim terminal output**, not a summary, plus anything that contradicted the
+brief — the contradictions are the most valuable thing it returns.
+
+**Then re-verify independently before recording anything.** This is not ceremony. On 2026-07-30
+independent re-verification caught a false pass in my own verification, a regression one agent
+introduced into another agent's tests, and two security holes. An agent verifies the file it
+wrote; only the orchestrator runs the whole suite.
+
 ## 🔴 End of every session — before the context runs out
 
 Sessions end abruptly. Do this at the last natural stopping point, not when you feel finished:
