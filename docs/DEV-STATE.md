@@ -946,6 +946,64 @@ Phase 5.
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
 
+**2026-07-31 · 🔴 PHASE-AFFECTING: `with_structured_output()` RETURNS `None` ONCE THE SYSTEM PROMPT
+PASSES ROUGHLY 1500-2800 CHARACTERS. All three models. The schema is innocent. This invalidates the
+"long detailed prompt + structured output" shape that ALL SIX agents are specified around.**
+
+Story 1.3b's agent was correct and its golden run still failed every case with
+`StructuredOutputError: ... failed schema validation twice: the response was empty`. Diagnosed by
+isolating one variable at a time rather than by tuning the prompt:
+
+```
+CONTROL   Simple 2-field schema  + short prompt          -> OK      endpoint is healthy
+          ResumeAnalysis (11 fields, nested) + short     -> OK      SCHEMA IS INNOCENT
+          Simple 2-field schema  + full 5671-char prompt -> None    TRIVIAL schema still fails
+          ResumeAnalysis + full prompt as ONE STRING     -> None    not the message format
+          ResumeAnalysis + short system (repeat)         -> OK      stable, not a coin flip
+```
+
+**The bisect, which is the number to design against:**
+
+```
+system prompt @ 1500 chars -> OK
+system prompt @ 2800 chars -> None
+system prompt @ 4000 chars -> None
+system prompt @ 5671 chars -> None      <- the real prompt
+```
+
+**Not model-specific.** `deep` and `fast` both fail, and `fast` measured **10/10** on structured
+output in story 0.2 with a short prompt. The `backup` model (`openai/gpt-oss-20b`) fails too, twice,
+on the full prompt. So this is the tool-calling path degrading as the instruction block grows, not a
+Nemotron quality problem. It is consistent with this file's existing finding that nano leaks
+reasoning preamble into `content`: a long instruction block appears to push the model into prose
+instead of a tool call, and no tool call means LangChain returns `None`.
+
+**The tension, stated plainly, because it is the actual problem:** the instruction budget this agent
+needs in order to behave correctly is LARGER than the instruction budget structured output tolerates.
+Shortening the prompt makes the call succeed and the output worthless. Measured on fixture 01, which
+has one correct answer, with a 312-char prompt and every constraint moved into
+`Field(description=...)`:
+
+```
+run 1  level=APM         scope_evidence PARAPHRASED, not verbatim
+run 2  level=Senior PM   rationale is word salad: "the senior/responsibilities_resume and
+                         autonomy_resume signals indicate..."
+run 3  level=Senior PM   low_confidence_fields = ['leveling : 5', 'seniority : 4',
+                         'promotion potential : high']    <- not schema field names at all
+```
+
+**Same input, three runs, two different levels.** For a levelling tool whose output shapes the whole
+interview, that instability is disqualifying on its own, separately from the constraint violations.
+
+Moving constraints into `Field(description=...)` **does** restore the call (the description travels
+in the tool definition, not the instruction block) but did not restore adherence. It is a necessary
+part of any fix, not a sufficient one.
+
+**Consequence beyond story 1.3.** ARCHITECTURE §4 specifies the Case Architect, the Planner and the
+Evaluator the same way: a long, rule-dense prompt returning a validated schema. **Every one of them
+will hit this.** Whatever is chosen here should be chosen as the project's agent-call pattern, not
+as a patch for the Resume Analyst. See Blockers for the open decision.
+
 **2026-07-31 · STORY 1.3 SPLIT IN TWO so the golden suite cannot be tuned to the prompt. 1.3a
 writes the fixtures and assertions blind; 1.3b must make them pass without editing either.**
 
@@ -1775,6 +1833,35 @@ evidence.
 ---
 
 ## Blockers & open questions
+
+**🔴 2026-07-31 · BLOCKS STORY 1.3b, AND THE ANSWER BECOMES THE PROJECT'S AGENT-CALL PATTERN.
+Structured output dies above a ~1500-2800 character system prompt, on all three models. Needs
+Karthik's call.** Full evidence under § Decisions, same date. Four options, with what each costs:
+
+| Option | What it is | Cost / risk |
+|---|---|---|
+| **A. Two-step call** *(recommended)* | Call 1: full rubric prompt, **free-form prose** analysis, no schema. Call 2: short prompt, `Field`-described schema, "extract this into the schema". | **2 calls per resume** (16 per golden run) against 40 RPM. Each call does one job, so the rubric survives in full. Golden cases need no change |
+| B. One call, constraints in `Field(description=...)` | Everything moves out of the prompt into the schema | Cheapest, and **measured unstable**: APM / Senior PM / Senior PM on one fixture, paraphrased quotes, junk in `low_confidence_fields` |
+| ~~C. Raw `json_schema` via `bind()`~~ | ~~Different code path entirely~~ | **RULED OUT 2026-07-31 by probe.** Both models: `JSONDecodeError: Expecting value: line 1 column 1 (char 0)`. Non-JSON from the first character, on the full prompt |
+| D. Split the rubric across several small structured calls | One call per decision (level, then evidence, then confidence) | Most calls, most latency, but each prompt stays small. Closest to how the panel already works |
+
+**Recommendation: A.** It keeps the rubric that makes levelling correct, keeps the retry wrapper,
+keeps the golden cases unchanged, and the extra call is affordable at single-candidate scale. B is
+already measured and fails on the property the product depends on most.
+
+**Option C was probed and is dead**, which also confirms the mechanism rather than merely inferring
+it. `JSONDecodeError` at **character 0** means the response is not truncated or malformed JSON, it
+is not JSON at all from the very first character. The model is answering in prose. That is the same
+behaviour as the recorded nano reasoning-preamble leak, and it explains every `None` above: the
+tool-calling path returns `None` for exactly the same reason the raw path returns prose. **No tool
+call is ever emitted, so there is nothing for LangChain to parse.**
+
+This is why shortening the prompt fixes the *call*: it is not a token budget being exceeded, it is
+the model deciding to deliberate instead of answering. **Which is also why A is the right shape** —
+it stops fighting that tendency and gives the deliberation its own call, where prose is the intended
+output rather than a failure.
+
+
 
 ~~**2026-07-31 · BLOCKS STORY 1.1: anonymous sign-in is disabled.**~~ — **RESOLVED 2026-07-31.**
 Karthik enabled it (Authentication → Sign In / Providers → Allow anonymous sign-ins). Verified
