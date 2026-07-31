@@ -1,4 +1,4 @@
-"""ChatNVIDIA client factory with per-call timestamped logging.
+"""Chat client factory with per-call timestamped logging.
 
 Logging is written now, not retrofitted later: the free tier ceiling is 40
 requests/minute and rate-limit logging has to exist before the first call is
@@ -17,7 +17,7 @@ import logging
 import time
 from typing import Any, AsyncIterator, Iterator, Literal
 
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 
 from app.config import settings
@@ -27,9 +27,9 @@ logger = logging.getLogger("app.llm")
 Role = Literal["fast", "deep", "backup"]
 
 _MODEL_BY_ROLE: dict[Role, str] = {
-    "fast": settings.nvidia_model_fast,
-    "deep": settings.nvidia_model_deep,
-    "backup": settings.nvidia_model_backup,
+    "fast": settings.groq_model_fast,
+    "deep": settings.groq_model_deep,
+    "backup": settings.groq_model_backup,
 }
 
 
@@ -48,18 +48,18 @@ def _log_call(role: Role, model: str, started: float, outcome: str, error: str =
         )
 
 
-class LoggingChatNVIDIA:
-    """Wraps a `ChatNVIDIA` client so every `invoke` / `ainvoke` is logged with
+class LoggingChatClient:
+    """Wraps the chat client so every `invoke` / `ainvoke` is logged with
     a timestamp, model id, elapsed ms, and outcome — before anything is built
     on top of it, not after a rate-limit incident makes it necessary.
 
-    Wraps rather than subclasses: `ChatNVIDIA` is a pydantic model with its
+    Wraps rather than subclasses: the client is a pydantic model with its
     own field validation, and invoke/ainvoke/stream/astream are the only entry
     points a graph node needs. Wrapping keeps every call site's logging in one
     place regardless of which entry point a node uses.
     """
 
-    def __init__(self, role: Role, client: ChatNVIDIA) -> None:
+    def __init__(self, role: Role, client: ChatOpenAI) -> None:
         self.role = role
         self.model = _MODEL_BY_ROLE[role]
         self._client = client
@@ -229,16 +229,29 @@ class _LoggedStructured:
         return result, "" if result is not None else "the response was empty"
 
 
-def get_llm(role: Role) -> LoggingChatNVIDIA:
-    """Factory: 'fast' | 'deep' | 'backup' -> a logged ChatNVIDIA client.
+def get_llm(role: Role) -> LoggingChatClient:
+    """Factory: 'fast' | 'deep' | 'backup' -> a logged chat client.
 
     fast   = nemotron-3-nano-30b-a3b   — latency-critical turns (Interviewer)
     deep   = nemotron-3-super-120b-a12b — quality-critical turns (everything else)
     backup = gpt-oss-20b                — fallback if the primary 429s or 503s
     """
-    client = ChatNVIDIA(
+    # max_tokens is explicit because the default truncates mid-JSON on nested
+    # schemas. Groq reports that as a 400 `json_validate_failed` with
+    # "max completion tokens reached before generating a valid document" —
+    # which reads like a prompt problem and is not one. Observed 2026-07-31 on
+    # the Resume Analyst's largest golden fixture. See DEV-STATE § Decisions.
+    # temperature=0 because the golden cases are a REGRESSION suite. At the
+    # client default, case 02 passed one run and failed the next on identical
+    # input (observed 2026-07-31), which makes every future prompt change
+    # unfalsifiable: a red case cannot be distinguished from a bad sample.
+    # The Interviewer may want sampling later for prose variety; that is a
+    # per-role override, not a reason to leave the graders non-deterministic.
+    client = ChatOpenAI(
         model=_MODEL_BY_ROLE[role],
-        api_key=settings.nvidia_api_key,
-        base_url=settings.nvidia_base_url,
+        api_key=settings.groq_api_key,
+        base_url=settings.groq_base_url,
+        max_tokens=4096,
+        temperature=0,
     )
-    return LoggingChatNVIDIA(role=role, client=client)
+    return LoggingChatClient(role=role, client=client)

@@ -1834,6 +1834,78 @@ evidence.
 
 ## Blockers & open questions
 
+**2026-07-31 · GROQ MIGRATION GATE PASSED, AND THE GOLDEN SUITE IS GREEN-ISH FOR THE FIRST TIME.
+0/8 on NVIDIA became 4/8 on Groq, with the failures now being real quality signals instead of the
+whole suite dying at the call.**
+
+The gate was the exact case that killed 1.3b: full 5671-char prompt, real schema, fixture 01.
+
+```
+openai/gpt-oss-20b    OK  2.7s  level=APM  correct  verbatim  low_confidence_fields empty
+openai/gpt-oss-120b   OK  4.4s  level=APM  correct  verbatim  lcf=['company_contexts','product_types']
+```
+
+**The finding that settles the diagnosis beyond argument: `openai/gpt-oss-20b` is the SAME MODEL as
+NVIDIA's `backup`, which fails there.** Same model id, same prompt, same schema, opposite result.
+This was never model quality. It is the serving stack.
+
+**Only `openai/gpt-oss-*` accept strict `json_schema` on Groq.** Measured against the live catalog:
+`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `qwen/qwen3.6-27b` and `groq/compound` all return
+`400 This model does not support response format`. That is what pins `fast` and `deep` to the two
+gpt-oss models, and it is why the Interviewer gets `llama-3.3-70b` instead: it needs prose, not a
+schema, and it is the product's biggest token consumer.
+
+**Rate limits, read from `x-ratelimit-*` headers rather than documentation:**
+
+```
+openai/gpt-oss-20b / 120b   1000 requests/day    8000 tokens/minute
+llama-3.3-70b-versatile     1000 requests/day   12000 tokens/minute
+```
+
+Requests are per DAY, derived rather than assumed: 2 requests consumed showed `2m52.8s` to
+replenish, and 172.8 / 2 = 86.4s, which is exactly 86400 / 1000. **Each model has its own bucket**,
+so spreading roles across three models triples the daily budget. **Tokens per minute is the binding
+constraint, not requests** — a Resume Analyst call is roughly 2500 tokens, so ~3 fit in a minute.
+
+**Three infrastructure fixes the migration forced, each found by a failing case, not by reading:**
+
+| Fix | Why | Symptom if missing |
+|---|---|---|
+| `max_tokens=4096` | Default truncates mid-JSON on nested schemas | Groq 400 `json_validate_failed`, "max completion tokens reached", which reads like a prompt bug and is not one |
+| **`temperature=0`** | Golden cases are a REGRESSION suite | **Case 02 passed one run and failed the next on identical input.** A red case could not be distinguished from a bad sample, making every future prompt change unfalsifiable |
+| 30s pacing between golden cases | 8000 TPM | 429 partway through the suite. Changes no assertion; a busy endpoint must not be recorded as a wrong prompt |
+
+**GOLDEN RESULTS, temperature 0, both models, same eight cases:**
+
+```
+deep  (gpt-oss-120b)  4/8   4m41s   PASS 01 03 04 07   FAIL 02 05 06 08   retries fired: 0
+fast  (gpt-oss-20b)   4/8   5m03s   PASS 01 02 03 07   FAIL 05 06         + 04 08 lost to 429
+```
+
+**On the model question ARCHITECTURE §4 left open: `fast` is at least as good as `deep` here, and
+cheaper and quicker.** It passed 02, which `deep` failed, and its only two genuine failures (05, 06)
+are also `deep`'s failures. Two of its cases were lost to rate limiting and are unmeasured, so this
+is **not yet a verdict** — but nothing so far supports paying `deep`'s latency for this agent.
+
+**Retries fired ZERO times across a full run.** That is the claim nobody in this project has been
+able to make, and it closes the spec's "observe a retry, do not assume it" box with a real
+observation. **It also means the retry wrapper is now near-dead code**: it exists because Nemotron
+returned `None` instead of raising, and Groq's strict schema does not do that. Do not delete it yet
+(one run is one sample), but its justification no longer holds and should be revisited in Phase 2.
+
+**The remaining four failures are genuine prompt work, and one is exactly what the suite is for:**
+
+```
+02  got "Senior PM", expected "PM"                              (deep only)
+05  flagged company_contexts / years_pm_experience, not assessed_level
+06  FABRICATED a scope_evidence quote: 'started a direct-t...'  <- not in the resume
+08  flagged company_contexts, expected years_pm_experience
+```
+
+**Case 06 caught a real fabrication on real output.** That is the assertion the agent spec calls the
+single most important one in the file, and the vacuity floor added earlier today is what stops an
+agent dodging it by quoting nothing. The suite is doing its job.
+
 **2026-07-31 · KARTHIK'S CALL: MOVE TO GROQ. The structured-output ceiling is being treated as
 evidence the NVIDIA free tier cannot support this product's core pattern, not as something to work
 around.** His initial exploration indicates Groq resolves both the latency and the structured-output

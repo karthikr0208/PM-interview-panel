@@ -17,13 +17,23 @@ langgraph==1.2.9
 langgraph-checkpoint-postgres==3.1.0
 psycopg[binary,pool]==3.2.3
 
-# LLM
+# LLM — Groq via its OpenAI-compatible endpoint, since 2026-07-31.
+#
+# ChatOpenAI(base_url=...) rather than a vendor package, deliberately: that is
+# what keeps the NEXT provider swap a one-line change. NVIDIA NIM was dropped
+# because with_structured_output returns None there once the system prompt
+# passes roughly 1500-2800 characters, on all three of its models, which is the
+# shape every agent in this product uses. See DEV-STATE § Decisions 2026-07-31.
+langchain-openai==1.1.2
+# Pulled up from 1.59.2 by langchain-openai 1.1.2. The old pin comment about
+# 1.59.0 never being published is kept in DEV-STATE rather than here; what
+# matters now is that the probe scripts under backend/scripts/ still import the
+# raw client and have NOT been re-verified against openai 2.x.
+openai==2.51.0
+
+# Retained only so the archived NVIDIA probe scripts still import. Nothing in
+# backend/app/ imports it as of 2026-07-31. Drop it once those are ported.
 langchain-nvidia-ai-endpoints==1.4.3
-# 1.59.0 was never published — PyPI goes 1.58.1 -> 1.59.2. Not a dependency of
-# langchain-nvidia-ai-endpoints, which needs no openai at all; kept because
-# story 0.2's decision gate allows dropping to the raw client for structured
-# output, and the probe scripts already use it.
-openai==1.59.2
 
 # Resume parsing
 pypdf==5.1.0

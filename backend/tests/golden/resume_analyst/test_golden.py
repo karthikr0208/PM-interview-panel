@@ -30,6 +30,7 @@ requests/minute ceiling for no benefit within a single invocation.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -56,6 +57,23 @@ def analyse_resume():
     from app.agents.resume_analyst import analyse_resume as fn
 
     return fn
+
+
+# Groq's binding limit is TOKENS per minute, not requests: 8000 TPM on the
+# gpt-oss models, measured from x-ratelimit-* headers 2026-07-31. One case is
+# roughly 2500 tokens, so eight fired back-to-back reliably 429s partway
+# through -- case 05 died that way on the first full run.
+#
+# This paces the suite and changes NO assertion. A 429 here is a property of
+# the free tier, not of the agent, and letting it fail a case would encode
+# "the endpoint was busy" as "the prompt is wrong".
+_PACE_SECONDS = 30
+
+
+@pytest.fixture(autouse=True)
+async def _pace_for_tokens_per_minute():
+    yield
+    await asyncio.sleep(_PACE_SECONDS)
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda c: c.id)

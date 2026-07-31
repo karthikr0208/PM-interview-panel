@@ -28,11 +28,15 @@ load_dotenv(ENV_PATH, override=False)
 # choice is the latency-vs-quality lever instead of a request parameter.
 # See DEV-STATE.md 2026-07-29.
 REQUIRED_VARS = [
-    "NVIDIA_API_KEY",
-    "NVIDIA_BASE_URL",
-    "NVIDIA_MODEL_FAST",
-    "NVIDIA_MODEL_DEEP",
-    "NVIDIA_MODEL_BACKUP",
+    # Groq replaced NVIDIA NIM on 2026-07-31. NVIDIA's endpoint returns None
+    # from with_structured_output once the system prompt passes roughly
+    # 1500-2800 characters, on all three of its models, which is the shape
+    # every agent in this product uses. See DEV-STATE § Decisions 2026-07-31.
+    "GROQ_API_KEY",
+    "GROQ_BASE_URL",
+    "GROQ_MODEL_FAST",
+    "GROQ_MODEL_DEEP",
+    "GROQ_MODEL_BACKUP",
     "SUPABASE_DB_URL",
     "SUPABASE_URL",
     "SUPABASE_ANON_KEY",
@@ -88,11 +92,11 @@ def _check_db_url(db_url: str) -> None:
 
 @dataclass(frozen=True)
 class Settings:
-    nvidia_api_key: str
-    nvidia_base_url: str
-    nvidia_model_fast: str
-    nvidia_model_deep: str
-    nvidia_model_backup: str
+    groq_api_key: str
+    groq_base_url: str
+    groq_model_fast: str
+    groq_model_deep: str
+    groq_model_backup: str
     supabase_db_url: str
     supabase_url: str
     supabase_anon_key: str
@@ -111,11 +115,11 @@ def load_settings() -> Settings:
     if not origins:
         raise ConfigError("ALLOWED_ORIGINS is set but contains no usable origin.")
     return Settings(
-        nvidia_api_key=values["NVIDIA_API_KEY"],
-        nvidia_base_url=values["NVIDIA_BASE_URL"],
-        nvidia_model_fast=values["NVIDIA_MODEL_FAST"],
-        nvidia_model_deep=values["NVIDIA_MODEL_DEEP"],
-        nvidia_model_backup=values["NVIDIA_MODEL_BACKUP"],
+        groq_api_key=values["GROQ_API_KEY"],
+        groq_base_url=values["GROQ_BASE_URL"],
+        groq_model_fast=values["GROQ_MODEL_FAST"],
+        groq_model_deep=values["GROQ_MODEL_DEEP"],
+        groq_model_backup=values["GROQ_MODEL_BACKUP"],
         supabase_db_url=values["SUPABASE_DB_URL"],
         supabase_url=values["SUPABASE_URL"],
         supabase_anon_key=values["SUPABASE_ANON_KEY"],
