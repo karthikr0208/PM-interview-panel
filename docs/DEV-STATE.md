@@ -48,7 +48,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5 done**; 1.3, 1.4, 1.6, 1.7 remain | PHASE-1-SPEC.md | 2026-07-31 — 85 live tests, 30 offline, 25 vitest |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a done**; 1.3b, 1.4, 1.6b, 1.7 remain | PHASE-1-SPEC.md | 2026-07-31 — 85 live tests, **53 offline, 33 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -78,11 +78,15 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 - [x] 1.1 ~~Anonymous sign-in and scoped RLS policies~~ — done 2026-07-31. Cross-session denial proven on all six tables with real JWTs through PostgREST, re-proven independently. Output below
 - [x] 1.2 ~~Resume upload and text extraction~~ — done 2026-07-31. 18 tests. **Deviates from ARCHITECTURE §1 deliberately** (backend-proxied upload, reasoning in Decisions) and **shipped three em-dashes into candidate-facing copy**, now fixed and guarded
-- [ ] 1.3 Resume Analyst agent
+- [ ] 1.3 Resume Analyst agent — **split in two, see Decisions 2026-07-31**
+  - [x] 1.3a ~~golden fixtures + assertion harness~~ — done 2026-07-31. 8 fixtures, 23 offline tests, suite deliberately RED. **Independent probe found the spec's most important assertion passing vacuously on all eight cases; fixed and re-falsified.** Output below
+  - [ ] 1.3b the agent itself — `app/agents/resume_analyst.py`, prompt, golden run on both models
 - [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
 - [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
-- [ ] 1.6 Upload and confirmation UI
-- [ ] 1.7 Delete the Phase 0 scaffolding
+- [ ] 1.6 Upload and confirmation UI — **split in two**
+  - [x] 1.6a ~~shell, anonymous sign-in, upload surface~~ — done 2026-07-31. 33 vitest tests. Env vars proven inlined into the bundle. **One defect found in review, deferred to 1.6b with the reason recorded**. Output below
+  - [ ] 1.6b confirmation screen, orchestration column states, Realtime on `agent_events`
+- [ ] 1.7 Delete the Phase 0 scaffolding — **one item struck early, see Decisions 2026-07-31**
 
 ### Phase 0 stories — all complete, kept for the record
 
@@ -99,6 +103,101 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.3a golden fixtures and assertion harness — observed output
+
+`backend/tests/golden/resume_analyst/` (8 `.txt` fixtures, `cases.py`, `assertions.py`,
+`test_golden.py`, `test_assertions.py`) plus `backend/tests/test_resume_analyst.py`.
+
+**The suite is deliberately RED and must stay red until 1.3b lands.** It was written before and
+blind to the prompt, so 1.3b cannot tune a fixture until its prompt passes.
+
+```
+offline suite     53 passed, 67 deselected in 2.44s      (30 -> 48 from the story, -> 53 with my fix)
+golden suite      23 passed, 8 errors in 0.20s
+  every error: ModuleNotFoundError: No module named 'app.agents'   <- the only reason, by design
+fixtures          263-304 words each, all eight
+em/en dash in fixtures: none
+```
+
+Collection stays clean because the import is lazy, inside a session-scoped fixture. A module-level
+import would make `pytest tests -m "not live"` **error during collection** — deselection happens
+after collection — breaking the project's fastest feedback loop for every file, not just this one.
+Deliberately not `pytest.importorskip`, which would silently skip forever once the module exists
+but is misnamed.
+
+**INDEPENDENT PROBE — the spec's single most important assertion was passing vacuously on all
+eight cases.** Found with a probe written from scratch, not by re-running the agent's tests:
+
+```
+PROBE 1 - the lazy agent: scope_evidence=[] notable_outcomes=[]
+  universal assertions -> PASS          <- quoting NOTHING passed
+PROBE 2 - the fabricating agent: invents a quote   (positive control)
+  universal assertions -> FAIL fabricated scope    <- the check DOES discriminate
+PROBE 3 - the lazy shape against all eight cases
+  01..08  ->  PASS PASS PASS PASS PASS PASS PASS PASS
+```
+
+`missing_verbatim_quotes([])` returns `[]`, so **silence beat effort.** This is story 1.1's
+`A/own = 1` column in different clothes: a denial assertion with no positive control passes when
+the mechanism under test is dead. Probe 2 is what makes the finding meaningful — the check itself
+was correct, it just had no floor.
+
+Fixed with `empty_quote_lists()` and re-falsified in both directions, because a fix that makes
+everything fail is not a fix:
+
+```
+AFTER — lazy shape       01..08  ->  FAIL empty ['scope_evidence', 'notable_outcomes']  (x8)
+AFTER — honest shape     01..08  ->  PASS PASS PASS PASS PASS PASS PASS PASS
+```
+
+`scope_evidence` has no exception; `notable_outcomes` is relaxed only for fixture 07, which states
+zero results and where empty is the honest answer. A `test_exactly_one_case_expects_no_outcomes`
+guard stops a future edit relaxing it everywhere and silently ending the gate.
+
+**Second defect, in the brief rather than the agent's work: retry detection missed half the
+retries.** `_LoggedStructured` logs `outcome=empty` for `deep` returning `None` **and
+`outcome=invalid` for a `ValidationError`** — both trigger a retry. My brief named only the first,
+so the file would have recorded "retry never fired" while retries were firing, against the one
+acceptance box that exists to stop that being assumed.
+
+```
+outcome=empty    retries=True  detected=True  OK
+outcome=invalid  retries=True  detected=True  OK      <- was False before the fix
+outcome=ok       retries=False detected=False OK
+```
+
+### 1.6a shell, anonymous sign-in, upload surface — observed output
+
+`frontend/src/lib/supabase.ts`, `lib/api.ts`, `components/{AppShell,UploadSurface,
+OrchestrationColumn,EvaluationColumn}.tsx`, two test files, `App.tsx`, `vite.config.ts`.
+
+```
+npm test      33 passed (33)        (25 -> 33; the 25 from story 1.5 still green)
+npm run build ✓ built in 783ms      dist/assets/index-B97giJQ4.js  419.21 kB │ gzip: 119.43 kB
+npx oxlint    exit=0
+```
+
+**Env vars proven inlined into the built bundle, not merely referenced** — the story 0.8 / 1.5
+lesson, since Vite only inlines what code actually reads:
+
+```
+dist/assets/index-B97giJQ4.js   supabase project ref occurrences: 1
+                                API URL occurrences:              2
+```
+
+**Design rules verified by grep rather than by claim**, across all of `frontend/src`: zero
+em-dashes and en-dashes outside story 1.5's comments (which the rule exempts), zero bare
+`duration-standard`, zero `lucide`, and **no `console.*` anywhere** — so the JWT is never logged.
+It appears only in two `Authorization: Bearer` headers.
+
+**The frontend/backend contract checked against `app/main.py` directly**, not assumed: form field
+`file`, `POST /session` → `{session_id}`, `POST /session/{id}/resume` → `{resume_id, storage_path}`,
+errors as `{"detail": ...}`. All four match.
+
+**`XMLHttpRequest` instead of `fetch`, and the reasoning is correct.** Only XHR's `upload` progress
+event distinguishes "bytes still on the wire" from "bytes arrived, server is extracting text" —
+that is the uploading/parsing boundary the story requires, and `fetch` has no equivalent signal.
 
 ### 1.2 resume upload and text extraction — observed output
 
@@ -769,6 +868,49 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-31 · STORY 1.3 SPLIT IN TWO so the golden suite cannot be tuned to the prompt. 1.3a
+writes the fixtures and assertions blind; 1.3b must make them pass without editing either.**
+
+The hazard is specific, not theoretical: an agent writing both the fixtures and the prompt in one
+pass can adjust a fixture whenever the prompt misses, and the golden suite stops being falsifiable
+at the exact moment it is supposed to start gating. Since these eight cases gate **every future
+prompt change to this agent**, a suite tuned to the first prompt is worse than no suite.
+
+So 1.3a delivered a suite that is **red on purpose** — it imports `app.agents.resume_analyst`,
+which does not exist — and 1.3b's brief forbids editing a fixture or an assertion. If 1.3b believes
+one is wrong it must stop and report, not weaken it. Same reasoning as holding story 1.1 until
+anonymous sign-in was enabled: an agent facing a failing assertion tends to weaken it until green.
+
+Cost of the split is one extra agent. It bought the vacuity finding above, which a single combined
+agent would have had every incentive not to look for.
+
+**2026-07-31 · STORY 1.6a: a new session row is created on EVERY upload attempt. Real defect,
+deliberately deferred to 1.6b rather than patched here.**
+
+`UploadSurface.handleFile` calls `createSession()` each time a file is chosen. A candidate who
+uploads a resume the backend rejects (a scanned PDF, the most likely real rejection) and then
+retries leaves an orphan `sessions` row behind, with no resume and no graph thread. Repeat retries,
+repeat rows.
+
+**Deferred, not ignored, because the fix belongs where the session lifecycle is actually decided.**
+Story 1.4 gives a session a graph thread and 1.6b builds the confirmation screen on top of one
+session id, so hoisting session creation now would be guessing at an interface that lands two
+stories from now. Written into the 1.6b brief explicitly.
+
+**Worth taking seriously despite being small**, because this project already has a recorded case of
+orphan rows nobody collects: story 1.1 found 8 orphan checkpoint threads in production from story
+0.8's manual curl probes, and the lesson there was that **test teardown cleans what tests create,
+and nothing cleans what real usage leaves behind.** This is that same shape, reachable by a
+candidate rather than by a developer.
+
+**2026-07-31 · STORY 1.6a struck one of story 1.7's punch-list items early, and this is correct.**
+
+1.7 lists "the Vite starter content in `App.tsx`" for deletion. Mounting the real shell is
+incompatible with leaving the starter JSX in place, so 1.6a replaced it. The agent flagged this
+rather than doing it silently. **`HealthCheck.tsx` is still mounted and still must not be deleted
+until 1.6 is verified** — that is the item 1.7's ordering rule actually protects, since it is the
+working reference for backend connectivity.
 
 **2026-07-31 · LLM PORTABILITY, assessed against the code rather than assumed. A model swap is an
 env var; a provider swap is about six lines in one file. Do NOT build a provider abstraction.**
@@ -1721,6 +1863,17 @@ proven to actually compile, not merely install, by grepping the built CSS for em
 Supabase Auth, PostgREST and Storage over raw HTTP. **No Supabase Python client was added** — that
 would have pulled five transitive packages in for one upload call. **No new environment variables**;
 everything needed was already in `REQUIRED_VARS`.
+
+**Added in story 1.6a (2026-07-31):** `@supabase/supabase-js` 2.111.0 (dependency) ·
+`@testing-library/react` 16.3.2 and `jsdom` 30.0.1 (devDependencies). `vite.config.ts`'s test
+`environment` moved **`node` → `jsdom`**, which component tests need; story 1.5's 25 tests were
+re-run under the new environment and all still pass. **No new environment variables** —
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` already existed in both `.env` files and are now
+read by code for the first time, which is what gets them inlined into the bundle.
+
+There is no global vitest setup file, so `@testing-library/react` does not auto-clean the DOM
+between tests; the test files call `afterEach(cleanup)` themselves. Worth knowing before adding a
+third test file that assumes otherwise.
 
 **Added in story 1.5 (2026-07-31):** `@phosphor-icons/react` 2.1.10 (dependency) · `vitest` 4.1.10
 (devDependency) · Geist + Geist Mono variable `woff2` vendored into `frontend/src/assets/fonts/`

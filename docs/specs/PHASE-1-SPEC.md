@@ -94,7 +94,7 @@ they show.**
 Writes `candidate_profile`, `assessed_level`, `level_rationale`, `low_confidence_fields`.
 
 **Acceptance**
-- [ ] `AGENT-RESUME-ANALYST-SPEC.md` exists and defines the output schema, the level rubric, and the golden cases
+- [x] `AGENT-RESUME-ANALYST-SPEC.md` exists and defines the output schema, the level rubric, and the golden cases — written 2026-07-31, before the prompt
 - [ ] `assessed_level` is one of `APM | PM | Senior PM | GPM`, enforced by the schema, not by prompt text
 - [ ] `level_rationale` cites specific resume content, not generic praise
 - [ ] `low_confidence_fields` names fields the model was unsure about; these drive the confirmation UI in 1.6
@@ -157,15 +157,15 @@ The first real screens. Three-column shell from ARCHITECTURE §8, but only the p
 feeds: the orchestration column has one agent in it, and the right column is empty.
 
 **Acceptance**
-- [ ] Upload surface with **the full state cycle: idle, uploading, parsing, error**. Skeletal loaders matching the final layout, never circular spinners (v1 §3 Rule 5)
+- [x] Upload surface with **the full state cycle: idle, uploading, parsing, error**. Skeletal loaders matching the final layout, never circular spinners (v1 §3 Rule 5) — done 2026-07-31 in 1.6a. Plus a fifth `done` state, since the flow has to acknowledge completion before 1.6b's confirmation screen exists. `uploading` → `parsing` is driven by XHR's upload-progress event; `fetch` cannot detect that boundary
 - [ ] Orchestration column shows the Resume Analyst with the four states distinguished **by shape as well as colour**: `○` waiting, `◉` active and pulsing, `●` done, `⚠` error
 - [ ] Agent activity reads as plain language ("read your resume and assessed a level"), **never raw JSON**
 - [ ] Live updates arrive via Supabase Realtime on `agent_events`, not by polling
 - [ ] Confirmation screen shows the profile, the level, and the rationale, and lets the candidate correct the level
 - [ ] **Fields in `low_confidence_fields` are visually marked as uncertain**, so the candidate knows what to check rather than being asked to verify everything equally
-- [ ] Errors read as plain language with a details disclosure, not a stack trace
-- [ ] Labels sit above inputs. No placeholder-as-label
-- [ ] Works at ≥1280px, the design target; below that it collapses to single-column without breaking
+- [x] Errors read as plain language with a details disclosure, not a stack trace — done 2026-07-31 in 1.6a. The backend's own `detail` string is surfaced verbatim, because those strings are already written for the candidate
+- [x] Labels sit above inputs. No placeholder-as-label — done 2026-07-31 in 1.6a
+- [x] Works at ≥1280px, the design target; below that it collapses to single-column without breaking — done 2026-07-31 in 1.6a. Three columns at `xl`, stacking to one below it with the conversation first
 
 **A decision this story forces:** ARCHITECTURE's wireframes use **"Maya Chen"** as the interviewer
 persona, which sits in exactly the register v1 §7 bans. If the persona header ships in this phase,
