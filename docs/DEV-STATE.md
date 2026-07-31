@@ -72,7 +72,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 **Phase 1 stories are defined in `docs/specs/PHASE-1-SPEC.md`.** Wave plan set 2026-07-31:
 1.1 + 1.5 in parallel, then 1.2 + 1.3, then 1.4, then 1.6, then 1.7 inline.
 
-- [ ] 1.1 Anonymous sign-in and scoped RLS policies   ← NEXT, blocked on the dashboard toggle
+- [x] 1.1 ~~Anonymous sign-in and scoped RLS policies~~ — done 2026-07-31. Cross-session denial proven on all six tables with real JWTs through PostgREST, re-proven independently. Output below
 - [ ] 1.2 Resume upload and text extraction
 - [ ] 1.3 Resume Analyst agent
 - [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
@@ -95,6 +95,52 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.1 scoped RLS policies — observed output
+
+`backend/migrations/0002_rls_policies.sql` and `backend/tests/test_rls_policies.py` (15 tests),
+plus a deliberate rework of `test_schema.py`'s denial test.
+
+**The policy inventory, queried straight from `pg_policies` rather than read off the migration:**
+
+```
+table                cmd     roles              policy
+agent_events         SELECT  {authenticated}    own session agent_events
+answer_evaluations   SELECT  {authenticated}    own session answer_evaluations
+case_worlds          SELECT  {authenticated}    own session case_worlds
+resumes              SELECT  {authenticated}    own session resumes
+sessions             INSERT  {authenticated}    own session insert
+sessions             SELECT  {authenticated}    own session select
+transcript_turns     SELECT  {authenticated}    own session transcript_turns
+
+policies on checkpoint% tables: 0    policies granting anon: 0
+public tables without RLS:      0    resumes bucket public:  False
+```
+
+**CROSS-SESSION DENIAL — re-proven independently, with a probe written from scratch rather than
+by running the agent's tests.** Two fresh anonymous identities, real JWTs, real PostgREST calls:
+
+```
+table                   A/own   A/Bs  B/own   B/As   verdict
+sessions                    1      0      1      0   PASS
+resumes                     1      0      1      0   PASS
+case_worlds                 1      0      1      0   PASS
+transcript_turns            1      0      1      0   PASS
+answer_evaluations          1      0      1      0   PASS
+agent_events                1      0      1      0   PASS
+```
+
+**The `A/own = 1` column is the one that makes the test mean anything.** Had the token been
+malformed, every cell would read 0 and the denial columns would pass vacuously. Also probed the
+unfiltered `select=*` a curious candidate would actually type — one row on every table, never two.
+Raw `anon` key with no user token: 200 with 0 rows, on every table.
+
+```
+full live suite : 67 passed in 382.61s (0:06:22)     <- run independently, 52 -> 67
+offline suite   : 21 passed, 46 deselected in 2.00s
+migrate.py      : ok on both files, twice            <- idempotency
+residue after   : auth.users 0 · sessions 0 · resumes 0 · transcript_turns 0 · agent_events 0
+```
 
 ### 1.5 design foundation — observed output
 
@@ -615,6 +661,44 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-31 · STORY 1.1: an unauthorised UPDATE or DELETE through PostgREST returns HTTP 200, not
+403. Assert on the DATABASE, never on the status code.** This is the CORS trap of 2026-07-30
+wearing different clothes, and it will silently encode a false pass in Phase 3 if forgotten.
+
+With no UPDATE/DELETE policy, RLS makes the `USING` clause match zero rows, so the statement
+succeeds against nothing. PostgREST reports that as success. Observed, with ground truth read back
+through the service role after each call:
+
+```
+A PATCH  Bs session   -> status 200, body=[]
+  GROUND TRUTH -> session=ORIGINAL  turns=1
+A DELETE Bs turns     -> status 200, body=[]
+  GROUND TRUTH -> session=ORIGINAL  turns=1
+A DELETE Bs session   -> status 200, body=[]
+  GROUND TRUTH -> session=ORIGINAL  turns=1
+```
+
+**B survived completely unchanged.** The empty `body=[]` is the real signal, since `Prefer:
+return=representation` returns the affected rows and there were none. A test asserting
+`status != 200` on these would fail against correct code and invite someone to "fix" working
+security. Two calls DO return 403 and are worth knowing as the contrast: inserting into a table
+with no INSERT policy, and creating a session owned by another uid (`42501`, the `with check`
+firing).
+
+**2026-07-31 · STORY 1.1: 8 orphan checkpoint threads / 32 rows found in production. NOT a test
+regression — they are story 0.8's manual curl probes, and nothing was ever going to clean them.**
+
+Found while checking residue after the full suite. Story 0.7 recorded `(0, 0)` before and after a
+full run, so this looked like a regression at first. It is not: **two of the eight thread_ids
+appear verbatim in this file's own story 0.8 output** — `23caf429-...` was the phase-gate curl and
+`83a73411-...` was the full-chain probe, both driven by hand against the deployed Render URL. The
+0.7 measurement predates them.
+
+**The gap is structural, not a bug: test teardown cleans what tests create, and manual production
+probes are not tests.** Cleared (32 checkpoints, 32 blobs, 80 writes), `checkpoint_migrations` left
+intact as always. Worth remembering before any demo — hand-driving the deployed service leaves
+state that nothing collects.
 
 **2026-07-31 · STORY 1.5: `strokeWidth 1.5` is NOT implementable in Phosphor. It has no such prop.
 CLAUDE.md and ARCHITECTURE §8 both specify something the mandated library cannot do.**
@@ -1260,8 +1344,34 @@ evidence.
 
 ## Blockers & open questions
 
-**2026-07-31 · BLOCKS STORY 1.1: anonymous sign-in is disabled on the Supabase project. Measured,
-not assumed.** `POST {SUPABASE_URL}/auth/v1/signup` with an empty body and the publishable key:
+~~**2026-07-31 · BLOCKS STORY 1.1: anonymous sign-in is disabled.**~~ — **RESOLVED 2026-07-31.**
+Karthik enabled it (Authentication → Sign In / Providers → Allow anonymous sign-ins). Verified
+against the live endpoint rather than trusting the toggle, and two distinct identities were minted
+end to end:
+
+```
+identity A: status 200 | is_anonymous=True | role=authenticated | id=4cfedd11-...
+identity B: status 200 | is_anonymous=True | role=authenticated | id=28b2d874-...
+two DISTINCT identities: True
+A token claims -> role: authenticated | sub: 4cfedd11-... | is_anonymous: True
+```
+
+**THE FINDING THAT CHANGES STORY 1.1: anonymous users carry the `authenticated` role, not `anon`.**
+Supabase's own dashboard warns about this in an amber callout. So every policy must be written
+`to authenticated` — and `authenticated` is exactly the role that already holds default table-level
+grants on all six tables. A policy written `to anon` does nothing at all, and a test that probes
+the `anon` role passes while the real browser path stays open. Both mistakes are silent.
+
+Probe users deleted immediately afterwards with the admin API; `auth.users` confirmed back to
+**0 rows**. Anonymous users are never garbage-collected by Supabase, so anything that mints them
+must delete them.
+
+**Deferred, deliberately, to Phase 7:** Supabase recommends CAPTCHA on anonymous sign-ins, since
+the endpoint creates a database row without authentication and can be abused to bloat MAU. Correct
+call for a project with no public traffic, but it is a real hole and it is recorded here rather
+than left unnoticed.
+
+The original blocking evidence, kept because it explains why the story was held:
 
 ```
 status 422

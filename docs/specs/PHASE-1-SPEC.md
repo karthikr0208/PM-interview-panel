@@ -28,7 +28,7 @@ that is then persisted — with session A provably unable to read session B's da
 Ordered by dependency. 1.1 blocks everything on the frontend; 1.7 must not start before 1.6 is
 verified.
 
-### 1.1 Anonymous sign-in and scoped RLS policies
+### 1.1 Anonymous sign-in and scoped RLS policies — ✅ DONE 2026-07-31
 
 **The security story. Do it first and do it carefully.** This is the only story in the phase where
 a mistake is silent and serious.
@@ -44,13 +44,13 @@ transcript and scores at once.
 `sessions.user_id` is nullable and already exists, so no schema change is needed to support this.
 
 **Acceptance**
-- [ ] Supabase anonymous sign-in enabled; the browser obtains a token with no signup screen and no visible step
-- [ ] `sessions.user_id` populated with `auth.uid()` on creation
-- [ ] Policies on all six app tables scope rows to the owning session's `user_id`, via a join to `sessions` rather than repeating the claim on every table
-- [ ] **Cross-session denial proven empirically:** two anonymous identities created, each with a session; identity A's token returns 0 rows for every one of B's rows, on every table
-- [ ] The service role still bypasses everything, so the backend is unaffected
-- [ ] **LangGraph's four `checkpoint%` tables keep zero policies.** They hold entire interview states and nothing in the browser should ever read them
-- [ ] `resumes` storage bucket stays private; the browser never gets a public URL
+- [x] Supabase anonymous sign-in enabled; the browser obtains a token with no signup screen and no visible step. **Anonymous users carry the `authenticated` role, not `anon`** — every policy targets `authenticated`
+- [x] `sessions.user_id` populated with `auth.uid()` on creation — enforced at the database by the INSERT policy's `with check`; a session owned by another uid is rejected `42501`. **Route-level wiring lands in 1.2**
+- [x] Policies on all six app tables scope rows to the owning session's `user_id`, via a join to `sessions` rather than repeating the claim on every table
+- [x] **Cross-session denial proven empirically**, on all six tables, with real JWTs through PostgREST — and re-proven independently with a from-scratch probe. `A/own = 1` asserted alongside, so the denial cannot pass vacuously
+- [x] The service role still bypasses everything, so the backend is unaffected
+- [x] **LangGraph's four `checkpoint%` tables keep zero policies.** Confirmed by direct `pg_policies` query, independently of the test
+- [x] `resumes` storage bucket stays private; the browser never gets a public URL
 
 **The assertion that matters is cross-session denial, not "a policy exists."** `test_schema.py`
 already asserts empirical denial rather than `rowsecurity = true`, and it will fail loudly if a

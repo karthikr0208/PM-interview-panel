@@ -88,15 +88,29 @@ def test_rls_enabled_on_every_table_including_langgraphs(conn: psycopg.Connectio
     assert not unprotected, f"RLS is not enabled on {unprotected}"
 
 
-def test_rls_denies_anon_and_authenticated_with_no_policies(conn: psycopg.Connection) -> None:
-    """`rowsecurity = true` alone does not prove the data is hidden — this
-    test proves it empirically.
+def test_rls_denies_anon_and_authenticated_without_jwt_claims(conn: psycopg.Connection) -> None:
+    """Revisited in story 1.1: 0002_rls_policies.sql gave `authenticated` real
+    policies on transcript_turns, so this test's original name and premise
+    ("with no policies") are no longer true. Reworked rather than deleted or
+    weakened — see reasoning below and the story 1.1 report.
 
-    `anon` and `authenticated` hold table-level SELECT grants (Supabase adds
-    these by default), so the table is reachable by both roles. It is RLS
-    enabled with zero policies that denies every row. Asserting "RLS is
-    enabled" alone (the test above) would not catch a policy accidentally
-    opening the table back up later; this test would.
+    `anon` still has zero policies targeting it (0002 only ever writes
+    `to authenticated` — anonymous sign-in issues the `authenticated` role,
+    not `anon`, per DEV-STATE 2026-07-31), so the anon half of this test is
+    unchanged: RLS enabled, no matching policy, deny-all.
+
+    The `authenticated` half changed *why* it denies, not *whether* it denies.
+    `set local role authenticated` here sets the Postgres role only — it never
+    sets `request.jwt.claims`, so `auth.uid()` evaluates to NULL in this
+    session, exactly as a malformed or missing JWT would leave it. The new
+    policy is `session_id in (select id from sessions where user_id =
+    (select auth.uid()))`. With auth.uid() NULL, `user_id = NULL` is NULL
+    (never TRUE) for every row — including rows whose own user_id is NULL,
+    since NULL = NULL is not TRUE in SQL — so the inner select returns zero
+    rows and the outer `in (...)` is false for everything. Denial holds, but
+    now as a consequence of the scoping policy correctly treating "no
+    identity" as "no rows," not because the door was never built.
+    This is asserted directly below, not just inferred.
     """
     with conn.cursor() as cur:
         cur.execute("insert into sessions (status) values ('created') returning id")
@@ -112,11 +126,19 @@ def test_rls_denies_anon_and_authenticated_with_no_policies(conn: psycopg.Connec
 
         cur.execute("set local role anon")
         cur.execute("select count(*) from transcript_turns where session_id = %s", (session_id,))
-        assert cur.fetchone()[0] == 0, "anon can read a row RLS with no policies should hide"
+        assert cur.fetchone()[0] == 0, "anon can read a row with no anon-targeted policy"
 
         cur.execute("set local role authenticated")
+        cur.execute("select auth.uid()")
+        assert cur.fetchone()[0] is None, (
+            "auth.uid() should be NULL when no request.jwt.claims are set — "
+            "the scoping policy's NULL-safety depends on this"
+        )
         cur.execute("select count(*) from transcript_turns where session_id = %s", (session_id,))
-        assert cur.fetchone()[0] == 0, "authenticated can read a row RLS with no policies should hide"
+        assert cur.fetchone()[0] == 0, (
+            "authenticated with no JWT claims (auth.uid() IS NULL) can read a row "
+            "the scoping policy should hide"
+        )
 
         cur.execute("reset role")
 
