@@ -1834,7 +1834,37 @@ evidence.
 
 ## Blockers & open questions
 
-**🔴 2026-07-31 · BLOCKS STORY 1.3b, AND THE ANSWER BECOMES THE PROJECT'S AGENT-CALL PATTERN.
+**2026-07-31 · KARTHIK'S CALL: MOVE TO GROQ. The structured-output ceiling is being treated as
+evidence the NVIDIA free tier cannot support this product's core pattern, not as something to work
+around.** His initial exploration indicates Groq resolves both the latency and the structured-output
+problems. Options A, B and D below were all declined in favour of this.
+
+**The right moment for it.** One agent exists, its golden suite is written and independent of any
+provider, and the portability finding measured the swap at one constructor in one file because every
+agent calls `get_llm(role)`. That cost only goes up as five more agents land.
+
+**The gate before migrating, and it is this project's own standard rather than doubt about Groq:**
+reproduce the exact failing case first. Same 5671-char system prompt, same `ResumeAnalysis` schema,
+fixture 01. A valid parse is the evidence; "seems to indicate" is not. **Needs `GROQ_API_KEY`, which
+is a credential only Karthik can supply** — nothing in the repo can proceed past this point without it.
+
+**What the swap triggers, per CLAUDE.md's triggered-updates table**, none of it optional:
+`llm.py`'s constructor · **grep `backend/scripts/`** (the row that bites: `check_env.py` has drifted
+twice already) · `config.py` `REQUIRED_VARS` · both `.env.example` · `backend/.env` · the Render
+dashboard · `CLAUDE.md`'s header and Commands table · `requirements.txt`.
+
+**What must be RE-MEASURED rather than carried over.** Every one of these is a recorded NVIDIA
+measurement that does not transfer, and quoting any of them post-swap would be stating a number for
+a system that no longer exists:
+- story 0.2's structured-output pass rates (`fast` 10/10, `deep` 7-9/10) and every latency median
+- **the retry wrapper's entire justification** — it exists because `deep` returns `None` instead of
+  raising. A provider with working strict schema could make it near-dead code
+- the **40 RPM** ceiling and the "no credits, nothing exhaustible" account model
+- the nano reasoning-preamble leak, and the ~1500-2800 char prompt ceiling itself
+- the 6-to-63-minute contention swing
+
+**🔴 2026-07-31 · SUPERSEDED BY THE GROQ DECISION ABOVE, kept because it is the evidence for it.
+BLOCKED STORY 1.3b, AND THE ANSWER BECOMES THE PROJECT'S AGENT-CALL PATTERN.
 Structured output dies above a ~1500-2800 character system prompt, on all three models. Needs
 Karthik's call.** Full evidence under § Decisions, same date. Four options, with what each costs:
 
