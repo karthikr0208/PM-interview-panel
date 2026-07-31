@@ -25,8 +25,12 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**Next: Phase 1 — Resume Analyst plus the design foundation.** `docs/specs/PHASE-1-SPEC.md` does
-not exist yet and must be written before it starts.
+**Phase 1 is IN PROGRESS as of 2026-07-31. Stories 1.1, 1.2 and 1.5 are done and committed.
+Next is story 1.3, the Resume Analyst — see § Next session, start here.**
+
+The database is no longer wide open: cross-session denial is proven on all six tables with real
+JWTs. Resumes upload, extract, and reject a scanned PDF loudly. The design foundation governs every
+later phase, and `make test-web` runs for the first time in the project.
 
 **Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
 frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
@@ -44,7 +48,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | ⬜ next — spec written 2026-07-30 | PHASE-1-SPEC.md | — |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5 done**; 1.3, 1.4, 1.6, 1.7 remain | PHASE-1-SPEC.md | 2026-07-31 — 85 live tests, 30 offline, 25 vitest |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -217,6 +221,43 @@ So the `var()` indirection works, opacity modifiers work, and one utility silent
 See the Decisions entry below.
 
 ## Last session
+
+**Session 4 — 2026-07-31. Stories 1.1, 1.5 and 1.2 complete. Three of Phase 1's seven stories, plus
+the Resume Analyst contract written before its prompt.**
+
+Delegated all three to Sonnet agents and re-verified every one independently. **That re-verification
+found something real in all three cases**, which is the strongest evidence yet that the orchestrate/
+delegate/verify split earns its cost:
+
+- **1.5** — the agent proved the accent hex reached `dist/`, which would be true even if Tailwind's
+  `@theme` layer did nothing. Probing what story 1.6 actually depends on, utility generation through
+  a `var()` indirection, found `duration-standard` silently generates no class at all.
+- **1.1** — cross-session denial re-proven with a from-scratch probe. Turned up that an unauthorised
+  UPDATE/DELETE returns **200, not 403**, which would have encoded a false pass in any future test.
+- **1.2** — three em-dashes had shipped into candidate-facing error copy, in a function whose own
+  docstring says the message is for the candidate. No test caught it. Now `test_user_facing_copy.py`.
+
+**Two agents contradicted their briefs and were right both times.** `strokeWidth 1.5` does not exist
+in Phosphor (verified: zero occurrences in the package, icons are filled geometry). And ARCHITECTURE
+§1's direct-to-Storage upload does not survive this phase's own scanned-PDF requirement. Both are
+logged under Decisions; **CLAUDE.md was corrected for the first**, ARCHITECTURE left alone per the
+decisions-supersede-it rule.
+
+**Karthik enabled Supabase anonymous sign-in**, which unblocked 1.1. The probe that confirmed it also
+surfaced the fact that reshaped the whole story: **anonymous users carry the `authenticated` role,
+not `anon`.**
+
+```
+dea296a  Story 1.5: design foundation, plus vitest and the first make test-web run
+1804af6  Story 1.1: scoped RLS policies, cross-session denial proven
+232e70a  Story 1.2: resume upload, extraction, and the em-dash ban as a test
+```
+
+**Test counts moved 52 → 85 live, 21 → 30 offline, and `make test-web` runs for the first time in
+the project (25 passed).**
+
+**Not done, and deliberately not started:** story 1.3. It is the heaviest LLM story in the phase and
+was left for a fresh session rather than begun at 75% context.
 
 **Session 3 — 2026-07-30. Stories 0.6, 0.7 and 0.8 complete. PHASE 0 IS DONE, deployed, and
 proven end to end.**
@@ -622,41 +663,68 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Phase 0 is closed. `docs/specs/PHASE-1-SPEC.md` is written. Start with story 1.1.**
+**Stories 1.1, 1.2 and 1.5 are DONE and committed. START WITH STORY 1.3, the Resume Analyst.**
+Remaining: **1.3 → 1.4 → 1.6 → 1.7**, in that order. 1.7 must not start until 1.6 is verified.
 
-**Start with these two commands (~3 min), then confirm production is still up.**
+**Run these three first (~1 min), before anything else:**
 
 ```
-python backend/scripts/check_env.py                        # nothing rotated overnight
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 21 passed
-curl -s https://pm-interview-panel.onrender.com/health     # expect {"status":"ok"}, may take ~32s cold
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 30 passed, 58 deselected
+cd frontend && npm test                                                   # expect 25 passed
+curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, ~32s if cold
 ```
 
-**Story 1.1 is Supabase anonymous sign-in and scoped RLS policies, and it is deliberately first.**
-Everything on the frontend is blocked on it, and it is the one story in the phase where a mistake
-is silent and serious. The trap, from Decisions 2026-07-30: `anon` **already holds** table-level
-grants on all six tables, so the *first policy added is what opens the door*, and one over-broad
-policy exposes every candidate's transcript at once. Extend `test_schema.py`'s empirical-denial
-assertions rather than writing a parallel test, and prove **cross-session** denial with two real
-anonymous identities — "a policy exists" is not the assertion.
+Do **not** run the full live suite to warm up. It is 6-63 minutes depending on NVIDIA contention
+(see Decisions 2026-07-31) and it costs real rate budget. Run it before handover, not before work.
 
-**Then 1.2 upload → 1.3 the Resume Analyst → 1.4 the first real `interrupt()`.** Story 1.4 is
-where Phase 0's constraint carries a real candidate correction: `confirm_level` contains only
-`interrupt()` and its return, and the single-call assertion goes against the **call log**, never
-against state.
+**Story 1.3 is the Resume Analyst, and its contract is already written:**
+`docs/specs/agents/AGENT-RESUME-ANALYST-SPEC.md`. **That spec is the authority** — output schema,
+the four-level rubric, all eight golden cases, and the assertions each must make. Do not redesign
+it; implement it. Read it before writing a line of prompt.
 
-**Design foundation is story 1.5** and governs every phase after it: `design-taste-frontend-v1`,
-dials VARIANCE 3 / MOTION 4 / DENSITY 6, Geist + Geist Mono, Phosphor at `strokeWidth 1.5`, accent
-`#3A63D0` light / `#6E92E8` dark. Consider generating `DESIGN.md` via `stitch-design-taste` rather
-than hand-writing it. Details in ARCHITECTURE.md §8 and Decisions 2026-07-29.
+**The three things in that spec that matter most, because they are what make it falsifiable:**
 
-**Delete the Phase 0 scaffolding when the real thing replaces it**, not before — that is story 1.7,
-and the full list is there: `backend/app/graph/skeleton.py`, `backend/tests/test_interrupt.py`,
-`test_api.py`'s skeleton tests, `frontend/src/HealthCheck.tsx`, and the `/skeleton/*` routes.
+1. **Every entry in `scope_evidence` and `notable_outcomes` must appear verbatim in the input
+   resume.** A fabricated quote fails the case. This is the single most important assertion.
+2. **`level_rationale` must contain a verbatim substring of 8+ words from the input.** That is how
+   "cites specific resume content, not generic praise" stops being a matter of opinion.
+3. **Golden cases 5-8 are the ones with teeth** (title/scope mismatch, founder, duties-without-
+   outcomes, engineer in transition). An agent that nails the four clear levels and is confidently
+   wrong on every ambiguous one is the exact failure this product cannot afford. Ambiguous cases
+   assert a *set* of acceptable levels plus a populated `low_confidence_fields`, never one level.
 
-**`make test-web` still has nothing to run** — the frontend has no `test` script and vitest is not
-installed. Phase 1 installs it (story 1.6). Until then `make test` fails on the `test-web` leg;
-that is not a broken scaffold.
+**Budget the time. 1.3 is the heaviest LLM story in the phase.** Eight cases across two models is
+16+ structured calls per run, and the spec requires running enough times to observe a retry
+actually fire. At the bad end of the contention range that is hours. **Run golden cases as their
+own `make golden AGENT=resume_analyst` target, never inside the full suite.**
+
+**The spec asks 1.3 to settle an open question, so do not skip it:** run the golden set against
+BOTH `deep` and `fast` and record both. ARCHITECTURE §4 assigns `deep`, but `fast` is 10/10 on
+structured output where `deep` is 7-9/10 and up to 3x slower. Nobody has ever measured *quality*.
+If `fast` matches `deep` on cases 5-8, change the assignment and let Phase 2 inherit the finding.
+
+**Story 1.4 next:** `level_candidate` → `confirm_level`, the first real `interrupt()`.
+`confirm_level` contains **only `interrupt()` and its return** — no LLM call, no counter, no write
+above that line. The single-call assertion goes against **`app/llm.py`'s call log**, never against
+state; LangGraph discards the state writes of a node that interrupted, so a doubled call leaves
+counters looking correct. See Decisions 2026-07-30.
+
+**Story 1.6 carries three things that are easy to lose:**
+- **No persona header.** The interviewer name is deferred to Phase 3; "Maya Chen" is in the register
+  v1 §7 bans. Decided 2026-07-31.
+- **Realtime is unproven under the new RLS policies.** `agent_events` has a scoped SELECT policy and
+  Supabase Realtime applies RLS per subscriber. It *should* work. Nothing has tested it.
+- The browser Supabase client (`@supabase/supabase-js`) belongs to 1.6. It was deliberately kept out
+  of 1.1 to avoid two agents colliding on `frontend/package.json`.
+
+**Story 1.7 deletes the Phase 0 scaffolding**, only after 1.6 is verified: `app/graph/skeleton.py`,
+`tests/test_interrupt.py`, `test_api.py`'s skeleton tests, `frontend/src/HealthCheck.tsx`, the
+`/skeleton/*` routes, and the Vite starter content in `App.tsx`. **Do not delete** `config.py`'s
+validation, the lifespan checkpointer, the CORS setup, or anything in `tests/conftest.py`.
+
+**Keep every agent calling `get_llm(role)`.** Never let an agent import a client directly or
+hardcode a model name. That one rule is what keeps a provider switch a six-line change — see
+Decisions 2026-07-31 on LLM portability.
 
 **Two live issues that will bite in Phase 3 if forgotten** — both under Blockers below:
 `nemotron-3-nano` intermittently leaks reasoning preamble into `content` (it is the Interviewer's
@@ -701,6 +769,43 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-31 · LLM PORTABILITY, assessed against the code rather than assumed. A model swap is an
+env var; a provider swap is about six lines in one file. Do NOT build a provider abstraction.**
+
+Karthik asked how hard it would be to leave Nemotron later. Measured by grep, not estimated:
+
+```
+files importing ChatNVIDIA under backend/app :  1   (app/llm.py, line 20)
+files referencing "nvidia" under backend/app  :  2   (app/llm.py, app/config.py)
+agents importing a client directly            :  0
+```
+
+**The load-bearing design decision is that agents ask for a ROLE, not a model.** `get_llm("deep")`
+resolves through `_MODEL_BY_ROLE`, which reads settings. Three tiers of switch follow:
+
+| Switch | Cost |
+|---|---|
+| Different model, same NVIDIA endpoint | **Change an env var.** Zero code. Re-run golden cases |
+| OpenAI-compatible provider (Groq, Together, Fireworks, OpenRouter, local vLLM) | Replace the `ChatNVIDIA(...)` constructor at `llm.py:239-243` with `ChatOpenAI(base_url=...)`. One file. Plus the env-var rename, which triggers the `backend/scripts/` grep rule |
+| Anthropic / Gemini | Same single constructor swap — they are all LangChain `BaseChatModel`s with the same `invoke` / `with_structured_output` surface |
+
+Roles resolve independently, so **mixed providers per role is already possible** with no change.
+
+**What is not free, stated honestly.** Golden cases are the real switching cost and that is the
+point — ~48 fixtures once all six agents exist, and re-running them is what makes a switch
+falsifiable instead of "seems fine". The retry wrapper's justification is Nemotron-specific (it
+exists because `deep` returns `None` rather than raising), so a provider with native strict schema
+would make it near-dead code and every claim resting on the 7-9/10 figure would need re-measuring.
+Prompts tuned around Nemotron's reasoning-preamble leak may not transfer. `reasoning_effort` is a
+Nemotron-specific enum, currently used nowhere — keep it that way as long as possible. And two
+constraints are provider-shaped rather than code-shaped: the 40 RPM ceiling, and free-tier-only.
+
+**Decision: change nothing now.** There is no second caller for a provider abstraction, and the role
+indirection already buys the flexibility. **The one rule to enforce in every future agent brief:
+agents call `get_llm(role)` and never import a client or hardcode a model name.** That single rule
+is the entire difference between a six-line switch and a six-file one. Cosmetic only:
+`LoggingChatNVIDIA` and `llm.py`'s docstring are vendor-named, rename at swap time.
 
 **2026-07-31 · STORY 1.2 DEVIATES FROM ARCHITECTURE §1: the resume is uploaded THROUGH Render, not
 direct to Storage via a signed URL. Deliberate, and I think §1 is wrong here.**
