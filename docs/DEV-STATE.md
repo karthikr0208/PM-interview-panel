@@ -25,8 +25,8 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**Phase 1 is IN PROGRESS as of 2026-07-31. Stories 1.1, 1.2 and 1.5 are done and committed.
-Next is story 1.3, the Resume Analyst — see § Next session, start here.**
+**Phase 1 is IN PROGRESS as of 2026-07-31. Stories 1.1, 1.2, 1.5, 1.3a and 1.6a are done and
+committed. Next is story 1.3b, the Resume Analyst prompt itself — see § Next session, start here.**
 
 The database is no longer wide open: cross-session denial is proven on all six tables with real
 JWTs. Resumes upload, extract, and reject a scanned PDF loudly. The design foundation governs every
@@ -62,7 +62,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
-| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 defined, ⬜ not yet implemented (story 1.3) | — |
+| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | **8 written and red on purpose** (story 1.3a). Green once 1.3b lands | — (no prompt yet) |
 | Case Architect | ⬜ (Phase 2) | — | — |
 | Planner | ⬜ (Phase 2) | — | — |
 | Interviewer | ⬜ (Phase 3) | — | — |
@@ -320,6 +320,50 @@ So the `var()` indirection works, opacity modifiers work, and one utility silent
 See the Decisions entry below.
 
 ## Last session
+
+**Session 5 — 2026-07-31. Stories 1.3a and 1.6a complete. Both halves of a deliberate split.**
+
+Two stories were **split in two** this session, and one of those splits paid for itself immediately.
+
+**Story 1.3 was split so the golden suite could not be tuned to the prompt.** 1.3a wrote eight
+fixtures and the assertion harness blind, delivering a suite that is red on purpose; 1.3b must make
+it pass without editing a fixture or an assertion. The hazard was specific: an agent writing both
+can nudge a fixture whenever the prompt misses, and the suite stops gating at the exact moment it is
+supposed to start.
+
+**That split bought the session's real finding. The spec's single most important assertion was
+passing vacuously on all eight cases.** `missing_verbatim_quotes([])` returns `[]`, so an agent that
+quoted **nothing** passed the fabricated-quote check that the agent spec calls the most important
+assertion in the file. Found with a from-scratch probe, not by re-running the agent's tests, and the
+positive control is what makes it meaningful: a fabricated quote **was** correctly rejected. The
+check was right; it simply had no floor. **This is story 1.1's `A/own = 1` column in different
+clothes** — a denial assertion with no positive control passes when the mechanism under test is dead.
+Closed and re-falsified in both directions, because a fix that makes everything fail is not a fix.
+
+**A second defect was mine, not the agent's.** My brief told it to detect retries by matching
+`outcome=empty`. `_LoggedStructured` also logs `outcome=invalid` for a `ValidationError`, and both
+paths retry. The file would have recorded "retry never fired" while retries were firing, against the
+one acceptance box that exists to stop exactly that assumption.
+
+**Story 1.6 was split on dependency, not risk.** 1.6a's shell, anonymous sign-in and upload surface
+need nothing from 1.3 or 1.4, so they ran in parallel with 1.3a on a disjoint file set with no LLM
+contention. 1.6b keeps the confirmation screen, the live orchestration states and Realtime.
+
+**1.6a came back clean and stayed clean under independent re-verification** — env vars proven inlined
+into the bundle, no em-dashes, no bare `duration-standard`, no `lucide`, no `console.*` anywhere so
+the JWT is never logged, and the frontend/backend contract checked against `app/main.py` rather than
+assumed. Its one defect was found by reading the flow rather than by any test: **a new session row
+is created on every upload attempt**, so a rejected scanned PDF plus a retry orphans a row.
+Deliberately deferred to 1.6b, where the session lifecycle is actually decided.
+
+```
+7af1d72  Story 1.3a: golden fixtures and a deliberately red assertion harness
+218e832  Story 1.6a: app shell, silent anonymous sign-in, and the upload surface
+857032b  docs: record 1.3a and 1.6a, the vacuity finding, and the deferred session defect
+```
+
+**Test counts moved 30 → 53 offline and 25 → 33 vitest. Live count unchanged at 85** — the eight
+golden cases are written but cannot run until 1.3b exists.
 
 **Session 4 — 2026-07-31. Stories 1.1, 1.5 and 1.2 complete. Three of Phase 1's seven stories, plus
 the Resume Analyst contract written before its prompt.**
@@ -762,16 +806,32 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Stories 1.1, 1.2 and 1.5 are DONE and committed. START WITH STORY 1.3, the Resume Analyst.**
-Remaining: **1.3 → 1.4 → 1.6 → 1.7**, in that order. 1.7 must not start until 1.6 is verified.
+**Stories 1.1, 1.2, 1.5, 1.3a and 1.6a are DONE and committed.** Remaining, in order:
+**1.3b → 1.4 → 1.6b → 1.7.** 1.7 must not start until 1.6b is verified.
 
 **Run these three first (~1 min), before anything else:**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 30 passed, 58 deselected
-cd frontend && npm test                                                   # expect 25 passed
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 53 passed, 67 deselected
+cd frontend && npm test                                                   # expect 33 passed
 curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, ~32s if cold
 ```
+
+**Then check whether 1.3b landed**, because it is the thing most likely to have been interrupted:
+
+```
+ls backend/app/agents/resume_analyst.py                  # exists? 1.3b ran
+cd backend && .venv/Scripts/python.exe -m pytest tests/golden -q
+  # 23 passed, 8 errors (ModuleNotFoundError: app.agents)  -> 1.3b never started, brief it
+  # 31 passed                                              -> 1.3b is done and green
+  # 23 passed, 8 failed                                    -> 1.3b ran and the agent is wrong.
+  #   Iterate the PROMPT. Never the fixtures or assertions. See below.
+```
+
+**The golden suite is red BY DESIGN until 1.3b lands.** It was written blind to the prompt in story
+1.3a precisely so the prompt cannot be tuned against it. **Whoever implements 1.3b may not edit a
+fixture or an assertion** — if one looks wrong, stop and report it. That constraint is the only
+thing making this agent falsifiable, and these eight cases gate every future prompt change to it.
 
 Do **not** run the full live suite to warm up. It is 6-63 minutes depending on NVIDIA contention
 (see Decisions 2026-07-31) and it costs real rate budget. Run it before handover, not before work.
@@ -792,10 +852,16 @@ it; implement it. Read it before writing a line of prompt.
    wrong on every ambiguous one is the exact failure this product cannot afford. Ambiguous cases
    assert a *set* of acceptable levels plus a populated `low_confidence_fields`, never one level.
 
-**Budget the time. 1.3 is the heaviest LLM story in the phase.** Eight cases across two models is
+**Budget the time. 1.3b is the heaviest LLM story in the phase.** Eight cases across two models is
 16+ structured calls per run, and the spec requires running enough times to observe a retry
 actually fire. At the bad end of the contention range that is hours. **Run golden cases as their
 own `make golden AGENT=resume_analyst` target, never inside the full suite.**
+
+**1.3b's scope is a pure function, not a graph node.** `analyse_resume(resume_text, *, role)` takes
+text and returns a parsed `ResumeAnalysis`. The spec's §1 side effects — the two `agent_events` rows
+and the `resumes.profile` write — belong to the `level_candidate` **node in story 1.4**. The golden
+cases call `analyse_resume` directly with no session and no database, so a DB call inside it breaks
+all eight. It must also **assert `resume_text` is non-empty and fail loudly** (spec §7, row 1).
 
 **The spec asks 1.3 to settle an open question, so do not skip it:** run the golden set against
 BOTH `deep` and `fast` and record both. ARCHITECTURE §4 assigns `deep`, but `fast` is 10/10 on
@@ -808,18 +874,29 @@ above that line. The single-call assertion goes against **`app/llm.py`'s call lo
 state; LangGraph discards the state writes of a node that interrupted, so a doubled call leaves
 counters looking correct. See Decisions 2026-07-30.
 
-**Story 1.6 carries three things that are easy to lose:**
+**Story 1.6a is DONE** — shell, silent anonymous sign-in, upload surface, 33 vitest tests. The
+browser Supabase client is installed and working. **Story 1.6b carries four things that are easy
+to lose:**
 - **No persona header.** The interviewer name is deferred to Phase 3; "Maya Chen" is in the register
   v1 §7 bans. Decided 2026-07-31.
 - **Realtime is unproven under the new RLS policies.** `agent_events` has a scoped SELECT policy and
-  Supabase Realtime applies RLS per subscriber. It *should* work. Nothing has tested it.
-- The browser Supabase client (`@supabase/supabase-js`) belongs to 1.6. It was deliberately kept out
-  of 1.1 to avoid two agents colliding on `frontend/package.json`.
+  Supabase Realtime applies RLS per subscriber. It *should* work. Nothing has tested it. **This is
+  the single riskiest unknown left in the phase** — prove it with a real subscriber and a real
+  second identity, not by reading the policy.
+- **Fix the session-per-upload defect 1.6a left**, recorded under Decisions 2026-07-31. Every upload
+  attempt currently calls `POST /session`, so a rejected scanned PDF plus a retry orphans a row.
+  One candidate journey should be one session. Hoist it once 1.4 has settled the session lifecycle.
+- **`.mono-num` exists and nothing uses it yet.** Story 1.5 defined it for "mono for every numeral";
+  1.6b renders the first real numbers (the assessed level, confidence marks). Apply it to numerals
+  that update, not to static prose like "up to 5MB".
 
-**Story 1.7 deletes the Phase 0 scaffolding**, only after 1.6 is verified: `app/graph/skeleton.py`,
-`tests/test_interrupt.py`, `test_api.py`'s skeleton tests, `frontend/src/HealthCheck.tsx`, the
-`/skeleton/*` routes, and the Vite starter content in `App.tsx`. **Do not delete** `config.py`'s
-validation, the lifespan checkpointer, the CORS setup, or anything in `tests/conftest.py`.
+**Story 1.7 deletes the Phase 0 scaffolding**, only after 1.6b is verified: `app/graph/skeleton.py`,
+`tests/test_interrupt.py`, `test_api.py`'s skeleton tests, `frontend/src/HealthCheck.tsx`, and the
+`/skeleton/*` routes. ~~The Vite starter content in `App.tsx`~~ — **already gone, removed by 1.6a**,
+which had to replace it to mount the real shell. **`HealthCheck.tsx` is still mounted and must stay
+until 1.6b is verified**; it is the working reference for backend connectivity. **Do not delete**
+`config.py`'s validation, the lifespan checkpointer, the CORS setup, or anything in
+`tests/conftest.py`.
 
 **Keep every agent calling `get_llm(role)`.** Never let an agent import a client directly or
 hardcode a model name. That one rule is what keeps a provider switch a six-line change — see
