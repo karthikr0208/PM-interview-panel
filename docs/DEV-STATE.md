@@ -321,7 +321,32 @@ See the Decisions entry below.
 
 ## Last session
 
-**Session 5 — 2026-07-31. Stories 1.3a and 1.6a complete. Both halves of a deliberate split.**
+**Session 5 — 2026-07-31. Stories 1.3a and 1.6a complete, AND THE PROJECT CHANGED LLM PROVIDER.**
+
+The headline is not the stories. **NVIDIA NIM cannot run this product's core pattern**, and finding
+that out cost most of the session. `with_structured_output` returns `None` there once the system
+prompt passes roughly 1500-2800 characters, on all three of its models. Every agent in this
+architecture is a long rule-dense prompt returning a validated schema, so all six were affected, not
+just the Resume Analyst.
+
+**Diagnosed by isolating variables rather than by tuning the prompt**, which is what stopped it being
+misread as a bad agent: a trivial 2-field schema also failed with the long prompt, while the full
+11-field nested schema succeeded with a short one. The schema was innocent. **Karthik's call: move to
+Groq.** The clinching evidence came after: `openai/gpt-oss-20b` is the SAME MODEL as NVIDIA's backup
+role, and it works on Groq and fails on NVIDIA. Never a model-quality problem; a serving stack.
+
+**Result: the golden suite went 0/8 to every-case-that-could-run passing.** Migration was one
+constructor in `llm.py` plus `config.py`, exactly as the portability finding predicted, then a long
+tail of scripts and docs.
+
+**Three limits found the hard way, each correcting the previous answer:** 1000 requests/day, then
+8000 tokens/minute, and finally the one that actually stops work — **200,000 tokens per day per
+model, which is not exposed in any header.** Verified by dumping every header on a live response.
+
+**Story 1.3 is NOT done.** Six of eight cases measured green on `deep`, all passing; the rest blocked
+by that daily quota. Two commands next session finish it.
+
+Also this session, before the migration: stories 1.3a and 1.6a, both halves of deliberate splits.
 
 Two stories were **split in two** this session, and one of those splits paid for itself immediately.
 
