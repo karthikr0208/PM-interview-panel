@@ -1,0 +1,22 @@
+Nadia Kowalska
+nadia.kowalska@northlightsoft.pl | +48 22 651 3390 | Warsaw, Poland
+
+Education
+Warsaw University of Technology, M.Sc. Management and Production Engineering, 2014
+
+Experience
+
+Senior Product Manager, NorthLight Software
+March 2020 to Present (5 years 4 months)
+
+Responsible for the analytics and reporting module across the company's three main products. Attends weekly syncs with engineering leads from each product team to review the module's open issues. Writes requirements documents for upcoming module changes and reviews them with the design team before handoff. Coordinates with the support team to triage incoming bug reports related to reporting and assigns them to the appropriate squad. Maintains the module's roadmap document and updates it after each planning cycle based on direction set in the quarterly leadership offsite. Represents the reporting module in the company's monthly cross-team status meeting and answers stakeholder questions about upcoming changes. Manages relationships with two external vendors who supply data connectors used by the module.
+
+Product Manager, Baltic Systems
+August 2015 to February 2020 (4 years 6 months)
+
+Owned the internal tooling used by the customer support team, gathering requirements from support agents and translating them into specifications for a two-person engineering squad. Held weekly office hours for support agents to raise tooling issues and maintained a backlog of open requests, prioritized jointly with the support team lead.
+
+Attended the company's annual planning offsite each year as the representative for internal tooling and support systems. Reviewed contractor proposals for a support-ticketing vendor migration alongside the IT manager, though the final vendor decision was made by IT.
+
+Skills
+Jira, Confluence, SQL, Polish and English, raised in Kraków before moving to Warsaw for university.

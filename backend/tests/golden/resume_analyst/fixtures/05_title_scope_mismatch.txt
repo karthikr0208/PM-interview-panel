@@ -1,0 +1,22 @@
+Camille Béranger
+camille.beranger@lumenanalytics.fr | +33 6 71 40 28 55 | Paris, France
+
+Education
+Sciences Po Paris, M.A. Public Affairs, 2015
+
+Experience
+
+Group Product Manager, Lumen Analytics
+September 2020 to Present (4 years 10 months)
+
+Redesigned the export button on the reporting dashboard, moving it from a dropdown menu to a single visible icon after support tickets showed users could not find it, which cut related tickets from 34 a month to 6. Rebuilt the date-range picker on the same dashboard to support custom ranges, a change requested directly by the VP of Sales for a single enterprise account. Wrote the copy for three onboarding tooltips shown on first login and fixed a bug where the tooltip for the filter panel appeared behind the sidebar on Firefox. Ran the weekly bug triage meeting for the reporting team and closed 62 tickets from the backlog over two quarters, each assigned by the engineering manager rather than prioritized independently.
+
+Product Analyst, Lumen Analytics
+January 2018 to August 2020 (2 years 8 months)
+
+Built weekly usage reports for the reporting dashboard and flagged churn-risk accounts to the customer success team, following a reporting template the analytics lead had already defined. Sat in on customer success calls twice a month to hear how the dashboard reports were used.
+
+Maintains the reporting team's internal wiki page of known dashboard bugs and their workarounds, updated whenever a new ticket is closed. Attended two internal product-management workshops run by the VP of Product but has not led a roadmap planning session for any surface.
+
+Skills
+SQL, Tableau, native French, working English, raised in Lyon before moving to Paris for graduate school.

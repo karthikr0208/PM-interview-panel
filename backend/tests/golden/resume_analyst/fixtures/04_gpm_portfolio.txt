@@ -1,0 +1,27 @@
+Haruto Kobayashi
+haruto.kobayashi@sumiresoft.jp | +81 90 3312 6607 | Tokyo, Japan
+
+Education
+Keio University, B.A. Business and Commerce, 2013
+
+Experience
+
+Group Product Manager, Sumire Software
+April 2019 to Present (6 years)
+
+Owns the full portfolio of three B2B scheduling products, sets multi-quarter strategy across them, and carries the combined P&L, currently $18.7M in annual recurring revenue against a $16.4M target set at the start of the fiscal year. Manages four product managers, each owning one product line, and personally decides quarterly resourcing tradeoffs between the three when engineering capacity is constrained. Made the call to sunset the smallest product, a shift-scheduling tool with 2,100 paying seats, after concluding it would never reach the margin of the other two, and reallocated its two engineers to the flagship calendar product within the same quarter. Sits on the company's five-person leadership council and presents portfolio performance to the board twice a year.
+
+Senior Product Manager, Sumire Software
+May 2015 to March 2019 (3 years 11 months)
+
+Owned the flagship calendar product end to end, set its roadmap, and grew paid seats from 41,000 to 129,000 while holding monthly churn under 1.8%. Mentored two associate product managers who later became product managers on the team.
+
+Product Manager, Rakumo Systems
+April 2014 to April 2015 (1 year)
+
+Owned a single feature area, calendar sharing permissions, executing a roadmap the product lead set.
+
+Runs the quarterly hiring plan for the product organization across the three-product portfolio and personally interviews every senior product manager candidate before an offer goes out. Chairs the monthly pricing council with finance and sales leadership, which sets list price and discount bands for all three products.
+
+Skills
+SQL, Looker, Japanese and English, grew up in Yokohama.

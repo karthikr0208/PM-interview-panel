@@ -1,0 +1,27 @@
+Owen Fitzgerald
+owen.fitzgerald@lattice-devtools.ie | +353 87 214 6690 | Dublin, Ireland
+
+Education
+Trinity College Dublin, B.A. Mod. Computer Science, 2014
+
+Experience
+
+Product Manager, Lattice DevTools
+February 2024 to Present (1 year 6 months)
+
+Owns the command-line interface product used by roughly 6,800 registered developers, and sets its release plan jointly with the engineering lead since taking the role. Shipped a plugin system that let three external teams build their own extensions, replacing a hard-coded list of nine built-in commands, and used weekly usage logs to decide which two legacy commands to deprecate. Runs the CLI product's fortnightly planning meeting and writes the release notes read by the developer community.
+
+Senior Software Engineer, Lattice DevTools
+January 2019 to January 2024 (5 years)
+
+Built and maintained the CLI's plugin-loading engine and its test harness, working from specifications the CLI's then-product lead wrote. Fixed a memory leak that had been causing crashes on long-running sessions, cutting crash reports from 210 a month to 40.
+
+Software Engineer, Anseo Systems
+August 2015 to December 2018 (3 years 5 months)
+
+Wrote backend services for an internal billing tool, implementing tickets assigned by a team lead in two-week sprints. Was the on-call engineer for the billing service one week in four for the last year of the role.
+
+Volunteers as a mentor for a local coding bootcamp one evening a month, reviewing project submissions from career changers moving into software roles, an experience colleagues cited when the CLI product role opened up.
+
+Skills
+Go, Python, PostgreSQL, English and some Irish, grew up in Cork before moving to Dublin for university.

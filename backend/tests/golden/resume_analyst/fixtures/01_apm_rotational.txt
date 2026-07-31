@@ -1,0 +1,23 @@
+Ingrid Solberg
+ingrid.solberg@protonmail.com | +47 922 14 038 | Oslo, Norway
+
+Education
+Norwegian University of Science and Technology (NTNU), B.Sc. Industrial Economics and Technology Management, 2022
+
+Experience
+
+Associate Product Manager, Kroner Pay
+March 2023 to May 2024 (14 months)
+
+Rotation 1, Onboarding squad (March 2023 to September 2023)
+Owned the identity verification step of new account signup, a single screen inside a larger flow the team lead designed. Rebuilt the document upload retry logic after support tickets showed 1,340 users abandoning on the second failed attempt each week. Reduced the abandon rate on that screen from 22.6% to 14.1% over the rotation. Wrote the acceptance criteria for two engineers building the retry flow and ran the weekly standup for the squad.
+
+Rotation 2, Card controls squad (October 2023 to May 2024)
+Shipped a spending-limit toggle inside the existing card management surface, following a roadmap the squad's senior PM had already prioritized for the quarter. Ran usability sessions with 11 customers in Bergen and Trondheim and used the notes to cut the toggle's confirmation steps from three to one. Tracked adoption weekly and reported it in the squad's Monday review; did not set the quarter's priorities.
+
+Prior to the program, completed a six-month internship on the same team, writing user research summaries and shadowing sprint planning, and presenting findings at the squad's biweekly review without owning any part of the roadmap.
+
+Attended the company's internal APM cohort training two afternoons a week for the first three months of the program, covering interview scripting, SQL fundamentals, and how to write a one-page problem brief. Volunteered to note-take for the squad's retro sessions, which the senior PM said made the notes more consistent than the previous rotation's.
+
+Skills
+SQL, Figma, Amplitude, moderate Norwegian and English fluency, grew up in Bergen before moving to Oslo for the program.

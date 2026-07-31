@@ -1,0 +1,22 @@
+Kwame Boateng
+kwame.boateng@indigopay.africa | +233 24 601 7738 | Accra, Ghana
+
+Education
+University of Ghana, Legon, B.Sc. Computer Science, 2016
+
+Experience
+
+Senior Product Manager, Lending, IndigoPay
+January 2022 to Present (3 years 6 months)
+
+Owns the entire consumer lending product line, spanning short-term advances, merchant credit, and the underwriting model that prices both, and sets strategy for the line across three engineering squads. Chose not to build a buy-now-pay-later product despite two rounds of board pressure, arguing the underwriting data was too thin to price default risk responsibly, a bet the company revisited eighteen months later once repayment data existed. Grew the lending book from $6.4M to $22.9M in outstanding principal while holding the 90-day default rate at 4.3%, below the 6.5% ceiling the risk committee had set. Mentors two product managers on adjacent squads and represents lending in the company's quarterly strategy offsite alongside the CFO and Head of Risk.
+
+Product Manager, Merchant Tools, IndigoPay
+February 2019 to December 2021 (2 years 11 months)
+
+Owned the merchant-facing invoicing and payout dashboard, setting its roadmap after the initial version shipped from a founder specification. Shipped bulk invoicing, cutting the average time merchants spent reconciling payouts from 47 minutes to 12 minutes a week, measured across 900 active merchants. Hired and onboarded the first dedicated designer for the merchant tools squad.
+
+Speaks regularly at regional fintech meetups on underwriting for thin-file borrowers and reviews two peer companies' lending products informally each quarter to track how the underwriting landscape is shifting across West Africa.
+
+Skills
+SQL, Python (pandas), Metabase, Twi and English, grew up in Kumasi before moving to Accra for university.

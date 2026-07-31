@@ -1,0 +1,22 @@
+Renata Alcántara
+renata.alcantara@mercato.io | +52 33 1049 2287 | Guadalajara, Mexico
+
+Education
+Instituto Tecnológico Autónomo de México (ITAM), B.A. Economics, 2019
+
+Experience
+
+Product Manager, Checkout, Mercato
+July 2021 to Present (4 years)
+
+Owns the checkout and payments surface end to end across web and the Android app, and sets its quarterly roadmap independently of the wider commerce team. Decided to deprioritize a long-requested one-click reorder feature after cart data showed only 3.8% of repeat buyers would qualify, choosing instead to rebuild the address form that was causing 9,200 failed orders a month. Cut checkout abandonment from 31.7% to 24.2% over five months by removing two redundant confirmation screens. Negotiated directly with the payments-processing vendor to add a retry path for declined cards, recovering an estimated $410,000 in monthly revenue that had previously been lost to first-attempt declines. Runs a weekly review with the two engineers and one designer on the squad and presents checkout metrics to the VP of Commerce each quarter.
+
+Associate Product Manager, Loyalty, Mercato
+June 2019 to June 2021 (2 years)
+
+Built and shipped the points-redemption screen for the loyalty program, executing against a roadmap the Head of Growth had already set. Ran A/B tests on redemption copy and increased redemption rate from 6.1% to 8.9%. Wrote the weekly experiment recap that the Head of Growth used in the leadership standup.
+
+Sat on the interview panel for two subsequent Associate Product Manager hires and ran the take-home exercise review for both. Presents a monthly checkout-health readout to the broader product organization, covering conversion, abandonment, and payment failure rate across the three markets Mercato serves.
+
+Skills
+SQL, Amplitude, Looker, native Spanish, working English, raised in Guadalajara.
