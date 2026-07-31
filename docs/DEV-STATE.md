@@ -817,6 +817,22 @@ cd frontend && npm test                                                   # expe
 curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, ~32s if cold
 ```
 
+**🔴 FIRST THING: finish story 1.3's verification. It is blocked ONLY on a daily token quota that
+resets overnight, and it is two commands.** Both models hit Groq's 200,000 tokens/day cap on
+2026-07-31, so 10 of 16 model-case combinations are unmeasured. Every case that ran, passed.
+
+```
+cd backend
+GOLDEN_ROLE=deep .venv/Scripts/python.exe -m pytest tests/golden/resume_analyst -q -s
+GOLDEN_ROLE=fast .venv/Scripts/python.exe -m pytest tests/golden/resume_analyst -q -s
+```
+
+Expect 31 passed each (23 offline + 8 golden). **A 429 naming `tokens per day (TPD)` is the quota,
+not a failure** — wait for the reset it names and re-run. Only after BOTH are clean may story 1.3 be
+ticked in DEV-STATE and PHASE-1-SPEC. One golden run costs ~32,000 tokens, about 16% of a model's
+daily budget, so there is room for roughly six runs per model per day. Iterate on a single case, not
+the set.
+
 **Then check whether 1.3b landed**, because it is the thing most likely to have been interrupted:
 
 ```
@@ -1876,6 +1892,40 @@ replenish, and 172.8 / 2 = 86.4s, which is exactly 86400 / 1000. **Each model ha
 so spreading roles across models multiplies the daily budget. **Tokens per minute is the binding
 constraint, not requests** — a Resume Analyst call is roughly 2500 tokens, so ~3 fit in a minute.
 
+**🔴 THE ACTUAL BINDING LIMIT IS 200,000 TOKENS PER DAY, PER MODEL. It is NOT in the headers and is
+invisible until you hit it.** Found by story 1.3b's agent exhausting it during prompt iteration, then
+reproduced independently on both models:
+
+```
+Rate limit reached for model `openai/gpt-oss-20b` ... on tokens per day (TPD):
+  Limit 200000, Used 198971, Requested 7441. Please try again in 46m9.984s.
+```
+
+**Header check, deliberate: `x-ratelimit-*` exposes only the per-MINUTE token limit and the daily
+REQUEST count. There is no daily-token header at all** — verified by dumping every header on a live
+response. So the one limit that actually stops work cannot be monitored, only discovered.
+
+**Budget arithmetic, which changes how this project must be worked:**
+
+```
+system prompt now 11,600 chars  ~2,900 tokens
++ resume + output               ~4,000 tokens per Resume Analyst call
+golden run (8 cases)           ~32,000 tokens  = 16% of one model's DAILY budget
+                                -> about 6 golden runs per model per day
+```
+
+**Plan prompt iteration around this.** Story 1.3b spent ~27 calls tuning and exhausted `fast`
+entirely; my two independent verification runs then exhausted `deep`. Iterate on ONE case
+(`pytest "...::test_golden_case[06_founder_no_pm_title]"`), not the full set, and save full runs for
+confirmation.
+
+**Unquantified but serious for Phase 3 and beyond:** a full 45-minute interview is roughly 45 calls
+across Case Architect, Planner, ~20 Interviewer turns, ~20 Evaluator calls and the Coach, and the
+Interviewer and Evaluator both carry a transcript that grows every turn. That plausibly costs more
+than one model's entire daily budget for a SINGLE interview. Roles sit on different models with
+separate buckets, which helps, but **this needs measuring before Phase 3 commits to a turn count.**
+Do not assume the free tier supports repeated end-to-end runs in one day.
+
 **The spread is worth noting for Phase 3.** `llama-3.1-8b-instant` has 14400 requests/day, more than
 14x our chosen models, and `groq/compound` has 70000 TPM against our 8000. Neither supports strict
 schemas, so neither can run a structured agent — but the Interviewer needs prose, and if its token
@@ -1908,7 +1958,35 @@ constraint, not requests** — a Resume Analyst call is roughly 2500 tokens, so 
 | **`temperature=0`** | Golden cases are a REGRESSION suite | **Case 02 passed one run and failed the next on identical input.** A red case could not be distinguished from a bad sample, making every future prompt change unfalsifiable |
 | 30s pacing between golden cases | 8000 TPM | 429 partway through the suite. Changes no assertion; a busy endpoint must not be recorded as a wrong prompt |
 
-**GOLDEN RESULTS, temperature 0, both models, same eight cases:**
+**GOLDEN RESULTS AFTER THE 1.3b PROMPT WORK — 2026-07-31, re-run independently by me, not taken
+from the agent's paste:**
+
+```
+deep  (gpt-oss-120b)   6 measured, 6 PASSED   01 02 03 04 05 06     07 08 blocked by TPD
+fast  (gpt-oss-20b)    0 measured             all 8 blocked by TPD
+offline assertions    23 passed throughout
+retries fired          0
+```
+
+**Every case that could run, passed.** But `fast` is entirely unverified against the final prompt and
+`deep` is missing two cases, so **story 1.3 is NOT done and must not be ticked.** The honest state is
+6/8 observed green, 10/16 model-case combinations unmeasured, blocked on a daily quota that resets
+overnight. The agent flagged the same gap on `fast` rather than claiming 8/8, which was the right
+call and matches what I measured.
+
+**Finish this first next session, before anything else** — it is two commands and it is cheap once
+the quota resets. See § Next session.
+
+**Prompt changes that did the work** (agent's account, not independently attributed): binding each
+uncertainty trigger to a NAMED field rather than a generic list fixed 05, 06b and 08 together; a
+PM-vs-Senior-PM boundary paragraph fixed 02; and verbatim-quoting hardening around capitalisation,
+trailing punctuation and verb tense fixed 06a's fabrication plus a second fabrication class it
+exposed on 05 and 08. **A judgment call is on record and worth a human read:** the agent concluded
+that fixture 05's designed answer implicitly weighs sustained multi-year surface ownership ABOVE the
+rubric's "who set the direction" discriminator, and encoded that as an explicit tie-break rather than
+silently rewriting the rule. Read AGENT-RESUME-ANALYST-SPEC §3 against the prompt before accepting it.
+
+**EARLIER GOLDEN RESULTS, before the 1.3b prompt work, temperature 0, same eight cases:**
 
 ```
 deep  (gpt-oss-120b)  4/8   4m41s   PASS 01 03 04 07   FAIL 02 05 06 08   retries fired: 0

@@ -77,6 +77,21 @@ the same thing as setting another team's direction. If a candidate owns one surf
 and every decision you can point to is a trade-off call within that surface, however sharp, \
 that is PM, not Senior PM.
 
+THE APM VERSUS PM BOUNDARY. Scope breadth matters independently of who initiated each \
+individual piece of work within it. A candidate who has been the sole, continuing owner of one \
+whole named surface, not just a single feature within it, across a multi-year tenure has \
+PM-level scope, even where many of the specific changes described were requested by a \
+stakeholder or assigned by a manager rather than self-directed; working with stakeholders and \
+picking up assigned items is normal for a PM and does not by itself demote the scope back down \
+to APM. What keeps a candidate at APM is scope limited to a feature or one defined slice of a \
+surface, or a tenure too short to show sustained ownership of the whole thing, regardless of \
+how that scope was assigned. When scope breadth and autonomy genuinely point in different \
+directions, specifically when the candidate has owned one whole surface, not a slice of it, \
+across a multi-year tenure, but every individual initiative you can point to was assigned or \
+requested rather than self-directed, resolve to PM rather than APM: sustained multi-year \
+ownership of a whole surface is the stronger of the two signals in that specific conflict. \
+Flag "assessed_level" as low confidence when you resolve it this way.
+
 NEVER infer or use protected characteristics. Name, nationality, gender, age, and university \
 must not influence the level in any way, and must never appear in level_rationale.
 
@@ -96,14 +111,27 @@ candidate_profile.company_contexts: short labels, e.g. "seed startup", "public e
 candidate_profile.scope_evidence: a non-empty list of phrases copied VERBATIM, \
 character-for-character, from the resume text, that show what the candidate owned and how \
 much autonomy they had over it. Copy exact spans exactly as they appear, including original \
-capitalization and punctuation. Do not paraphrase, tidy up, summarize, fix a typo, merge two \
-bullets into one, or re-case a word to make it read more naturally as a list item. If the span \
-you want begins mid-sentence in the resume, copy it starting from wherever it actually begins, \
-capital letter and all; do not lowercase a sentence-initial word to make it fit grammatically \
-into your list. Every entry must be found by an exact substring search, including case, against \
-the resume text you were given. If you cannot reproduce a span exactly, pick a different span \
-rather than adjusting this one. This list must never be empty; every resume describes some \
-scope, find it and quote it exactly as written.
+capitalization, punctuation, and word forms. Do not paraphrase, tidy up, summarize, fix a \
+typo, merge two bullets into one, re-case a word, add punctuation that is not in the source, or \
+change a word's tense or form (for example "cutting" to "cut", or "led" to "leads") to make the \
+quote read more naturally on its own. A copied span that reads as a sentence fragment, or that \
+keeps an -ing verb instead of the past tense you would naturally write, is correct; a copied \
+span that has been smoothed into a full grammatical sentence is a paraphrase and fails the \
+verbatim requirement even when every word is individually accurate. If the span you want begins mid-sentence in the resume, \
+copy it starting from wherever it actually begins, capital letter and all; do not lowercase a \
+sentence-initial word to make it fit grammatically into your list. If the span you want ends \
+mid-sentence in the resume, for instance right before a comma that continues on to something \
+you are not quoting, end your copied span at exactly that point and do not add a period or any \
+other punctuation the resume does not have there, even though your quote will then read as an \
+incomplete sentence: an incomplete-sounding quote is correct here, an inaccurate one is not. \
+For example, if the resume says "cut load time from 4.2s to 1.8s, a result the VP cited at the \
+next board meeting" and you only want the metric, copy exactly "cut load time from 4.2s to \
+1.8s" with nothing added at the end, not "cut load time from 4.2s to 1.8s." with a period that \
+is not in the source. Every entry must be found by an exact \
+substring search, including case and punctuation, against the resume text you were given. If \
+you cannot reproduce a span exactly, pick a different, shorter span rather than adjusting this \
+one. This list must never be empty; every resume describes some scope, find it and quote it \
+exactly as written.
 
 candidate_profile.notable_outcomes: phrases copied VERBATIM from the resume showing shipped \
 impact or results (numbers, metrics, a before/after, a stated consequence). Same verbatim rule \
@@ -134,16 +162,27 @@ low_confidence_fields: a list of schema field names, not human-readable labels, 
 genuinely uncertain about. Each trigger below names the specific field to flag; use that field \
 name, not a different one that also happens to feel vague to you.
 
-- The title and the described scope disagree (a senior-sounding title over feature-level work, \
-or the reverse): flag "assessed_level". This is a disagreement about the level itself, not \
-about any one input field, so "assessed_level" is always the field to name here, even if other \
-fields also feel uncertain.
-- The candidate's tenure includes a role whose title contains neither "product" nor "PM" that \
-you are nonetheless counting toward PM experience: a founder, a consultant, an engineer or \
-other role transitioning into product, or any other non-PM-titled role. Flag \
-"years_pm_experience". Crediting non-PM-titled work as PM-shaped is a judgment call every time, \
-even when the scope evidence for it is strong, so flag it even when you are fairly confident in \
-your read.
+- The title implies a different level than the level you actually assessed from scope and \
+autonomy (a senior-sounding or portfolio-sounding title over work you leveled lower, or the \
+reverse): flag "assessed_level". Flag it even after you have resolved the disagreement and \
+settled on a specific level. The fact that you resolved it is exactly why it needs confirming; \
+your resolution is a judgment call the candidate should get the chance to correct, not proof \
+that no uncertainty remains. This is a disagreement about the level itself, not about any one \
+input field, so "assessed_level" is always the field to name here, even if other fields also \
+feel uncertain.
+- The candidate's career includes a transition into a PM-titled role from a substantially \
+different prior career whose title contains neither "product" nor "PM": a founder, a \
+consultant, an established engineer, or another established non-PM career. Flag \
+"years_pm_experience" every time this pattern is present, regardless of how you computed the \
+number, whether you credited none, some, or all of the pre-transition time toward PM \
+experience, and regardless of how confident you feel in the number you chose. Deciding how \
+much of that earlier career counts as PM-shaped is a judgment call either way, and the number \
+you report is only one defensible answer among several. A clean, easy-to-compute number (for \
+example, because the PM-titled role has unambiguous start and end dates) does NOT make this \
+rule stop applying; the arithmetic being easy is not the same as the underlying question being \
+settled. This does NOT include a student internship that leads directly into the same \
+company's formal APM or new-grad rotational program: that is a normal, well-defined pipeline \
+into the PM track, not a career transition, and should not by itself trigger this flag.
 - Tenure is not cleanly derivable for another reason: overlapping roles, missing dates, or \
 dates given without months. Flag "years_pm_experience".
 - The domain the candidate has worked in is unclear from the resume. Flag "domains".
