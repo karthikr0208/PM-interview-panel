@@ -8,7 +8,10 @@
 #
 # Scans staged blobs, not the working tree: what is committed is what matters.
 
-PATTERN='(nvapi-[A-Za-z0-9_-]{20,}|sb_secret_[A-Za-z0-9_-]{20,})'
+# `gsk_` added 2026-07-31 with the Groq migration. The hook is only as good as
+# its prefix list, and a provider swap that adds a credential shape without
+# adding it here silently reopens the hole this file exists to close.
+PATTERN='(nvapi-[A-Za-z0-9_-]{20,}|sb_secret_[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9_-]{20,})'
 
 # .env.example ships `nvapi-xxxxxxxx...` as its placeholder, which is
 # indistinguishable from key material by shape alone. Filter the placeholder
