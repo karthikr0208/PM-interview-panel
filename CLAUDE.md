@@ -4,12 +4,19 @@ Multi-agent PM interview simulator. A candidate uploads a resume, gets levelled,
 45-minute Product Strategy interview conducted by a panel of six cooperating agents, and
 receives an evidence-linked scorecard plus a coaching report.
 
-LangGraph orchestration · **`nvidia/nemotron-3-nano-30b-a3b` (fast) and
-`nemotron-3-super-120b-a12b` (deep)** via NVIDIA NIM, `openai/gpt-oss-20b` as backup ·
+LangGraph orchestration · **`openai/gpt-oss-20b` (fast) and `openai/gpt-oss-120b` (deep)**
+via **Groq**, `llama-3.3-70b-versatile` for prose and as backup ·
 FastAPI on Render (Singapore) · React + Vite on Netlify · Supabase for all durable state
 (Singapore). Entire stack is free tier.
 
-Not GLM 5.2 — it queues ~230s on the free tier, measured. See DEV-STATE § Decisions 2026-07-29.
+Not NVIDIA NIM — `with_structured_output` returns `None` there once the system prompt passes
+roughly 1500-2800 characters, on all three of its models, which is the shape every agent uses.
+Measured 2026-07-31, and the same model works on Groq. Not GLM 5.2 — it queues ~230s, measured.
+See DEV-STATE § Decisions 2026-07-31 and 2026-07-29.
+
+**Only `openai/gpt-oss-*` accept a strict JSON schema on Groq.** Llama, Qwen and Compound return
+`400 This model does not support response format`. That is what pins `fast` and `deep`; it is a
+constraint, not a preference.
 
 ---
 
@@ -159,8 +166,10 @@ candidate asks a clarifying question forty minutes in.
 **Never develop against `MemorySaver`.** It hides the entire class of stateless-HTTP bugs
 until deploy. Use the Postgres checkpointer from Phase 0 onward.
 
-**Every LLM call is logged with a timestamp.** The free tier ceiling is 40 requests/minute
-and it is the first thing that will break under a demo.
+**Every LLM call is logged with a timestamp.** The binding free-tier ceiling is **8000 tokens
+per minute** (1000 requests/day) on the gpt-oss models, and TOKENS are what bind, not requests.
+It is the first thing that will break under a demo. Limits differ per model and each has its own
+bucket — see DEV-STATE Environment notes for the measured table.
 
 **Golden cases must pass before any agent prompt change is committed.** Prompt edits are
 otherwise unfalsifiable — the output "seems fine" and a dimension silently regresses.
@@ -205,7 +214,8 @@ lines below are the ones to watch.
 ```
 python backend/scripts/check_env.py        # all credentials present AND working
 python backend/scripts/check_db.py         # DB connects; diagnoses the 3 failure modes
-python backend/scripts/probe_candidates.py # model latency + structured output, re-measure
+python backend/scripts/probe_groq.py       # catalog, rate limits, strict-schema support
+python backend/scripts/probe_groq.py --schema  # + one structured call per model (costs budget)
 
 make dev-api                  # FastAPI with reload
 make dev-web                  # Vite dev server

@@ -19,11 +19,11 @@ from dotenv import dotenv_values
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 env = dotenv_values(ENV_PATH)
 
-# Three models, not one: `thinking` is GLM-only, so model choice is the
-# latency lever. See DEV-STATE 2026-07-29.
+# Groq replaced NVIDIA NIM on 2026-07-31. Kept in sync with
+# app/config.py REQUIRED_VARS by hand -- when one changes, grep the other.
 REQUIRED = [
-    "NVIDIA_API_KEY", "NVIDIA_BASE_URL",
-    "NVIDIA_MODEL_FAST", "NVIDIA_MODEL_DEEP", "NVIDIA_MODEL_BACKUP",
+    "GROQ_API_KEY", "GROQ_BASE_URL",
+    "GROQ_MODEL_FAST", "GROQ_MODEL_DEEP", "GROQ_MODEL_BACKUP",
     "SUPABASE_DB_URL", "SUPABASE_URL", "SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY", "ALLOWED_ORIGINS",
 ]
@@ -43,10 +43,15 @@ def check_present() -> None:
 
 
 def request(url: str, headers: dict, body: dict | None = None) -> tuple[bool, str]:
+    # A User-Agent is REQUIRED, not cosmetic. Groq sits behind Cloudflare,
+    # which answers urllib's default header set with `HTTP 403 error code:
+    # 1010` (browser integrity check). That is indistinguishable from a
+    # rejected key by status code alone, so without this the script tells you
+    # to regenerate a perfectly good credential. Observed 2026-07-31.
     req = urllib.request.Request(
         url,
         data=json.dumps(body).encode() if body else None,
-        headers=headers,
+        headers={"User-Agent": "pm-interview-panel/check_env", **headers},
         method="POST" if body else "GET",
     )
     try:
@@ -59,22 +64,23 @@ def request(url: str, headers: dict, body: dict | None = None) -> tuple[bool, st
         return False, f"{type(exc).__name__}: {exc}"
 
 
-def check_nvidia() -> None:
+def check_groq() -> None:
     """Times all three models. Latency is the whole reason for the split, so a
     model that has become slow is a finding, not noise — but it is not an env
     failure, so it never appends to `failures`.
 
-    No `thinking` parameter: Nemotron rejects it with HTTP 400. It was GLM-only.
+    Groq: the binding constraint is TOKENS PER MINUTE (8000 on the gpt-oss
+    models), not requests. A 429 here is throttling, not misconfiguration.
     """
-    print("\nnvidia")
+    print("\ngroq")
     import time
 
-    for name in ("NVIDIA_MODEL_FAST", "NVIDIA_MODEL_DEEP", "NVIDIA_MODEL_BACKUP"):
+    for name in ("GROQ_MODEL_FAST", "GROQ_MODEL_DEEP", "GROQ_MODEL_BACKUP"):
         model = env[name]
         started = time.perf_counter()
         ok, detail = request(
-            f"{env['NVIDIA_BASE_URL']}/chat/completions",
-            {"Authorization": f"Bearer {env['NVIDIA_API_KEY']}",
+            f"{env['GROQ_BASE_URL']}/chat/completions",
+            {"Authorization": f"Bearer {env['GROQ_API_KEY']}",
              "Content-Type": "application/json"},
             {"model": model,
              "messages": [{"role": "user", "content": "Reply with the single word: ok"}],
@@ -84,13 +90,15 @@ def check_nvidia() -> None:
         print(f"  {model:34} {'OK' if ok else 'FAIL'}  {elapsed:5.1f}s  {detail}")
         if ok:
             if elapsed > 10:
-                print(f"  -> {elapsed:.0f}s is far above the 2-4s measured 2026-07-29. Contention.")
+                print(f"  -> {elapsed:.0f}s is far above the 2.7-4.4s measured 2026-07-31.")
         elif "401" in detail or "403" in detail:
-            failures.append("NVIDIA_API_KEY")
-            print("  -> key rejected. Regenerate at build.nvidia.com.")
+            failures.append("GROQ_API_KEY")
+            print("  -> key rejected. Regenerate at console.groq.com/keys.")
         elif "404" in detail:
             failures.append(name)
             print("  -> model id wrong, or not enabled for this account.")
+        elif "429" in detail:
+            print("  -> rate limited, not misconfigured. 8000 tokens/min is the binding cap.")
         else:
             print("  -> not an auth failure. Slow or queued, not misconfigured.")
 
@@ -165,7 +173,7 @@ def main() -> None:
     if failures:
         sys.exit(f"\n{len(failures)} missing: {', '.join(failures)}")
     check_key_shapes()
-    check_nvidia()
+    check_groq()
     check_supabase_keys()
 
     print()

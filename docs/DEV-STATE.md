@@ -1855,12 +1855,45 @@ This was never model quality. It is the serving stack.
 gpt-oss models, and it is why the Interviewer gets `llama-3.3-70b` instead: it needs prose, not a
 schema, and it is the product's biggest token consumer.
 
-**Rate limits, read from `x-ratelimit-*` headers rather than documentation:**
+**Rate limits, read from `x-ratelimit-*` headers rather than documentation. CORRECTED 2026-07-31
+after probing the whole catalog: the limits are NOT uniform, and my earlier "1000/day per model"
+generalisation was wrong. It happens to be true for the models we chose and false in general:**
 
 ```
-openai/gpt-oss-20b / 120b   1000 requests/day    8000 tokens/minute
-llama-3.3-70b-versatile     1000 requests/day   12000 tokens/minute
+model                      requests   tokens/min
+allam-2-7b                     7000         6000
+groq/compound                   250        70000
+groq/compound-mini              250        70000
+llama-3.1-8b-instant          14400         6000
+llama-3.3-70b-versatile        1000        12000     <- backup / Interviewer
+openai/gpt-oss-120b            1000         8000     <- deep
+openai/gpt-oss-20b             1000         8000     <- fast
+qwen/qwen3.6-27b               1000         8000
 ```
+
+Requests are per DAY, derived rather than assumed: 2 requests consumed showed `2m52.8s` to
+replenish, and 172.8 / 2 = 86.4s, which is exactly 86400 / 1000. **Each model has its own bucket**,
+so spreading roles across models multiplies the daily budget. **Tokens per minute is the binding
+constraint, not requests** — a Resume Analyst call is roughly 2500 tokens, so ~3 fit in a minute.
+
+**The spread is worth noting for Phase 3.** `llama-3.1-8b-instant` has 14400 requests/day, more than
+14x our chosen models, and `groq/compound` has 70000 TPM against our 8000. Neither supports strict
+schemas, so neither can run a structured agent — but the Interviewer needs prose, and if its token
+budget ever binds, those are the escape hatches.
+
+**Raw `response_format` needs two things Pydantic does not emit, and `langchain-openai` does them
+for us.** Found by watching `probe_groq.py` return false negatives against the exact models the app
+runs on:
+
+```
+nested Pydantic model -> $defs/$ref -> 400 invalid JSON schema for response_format
+missing additionalProperties: false -> 400 invalid JSON schema
+```
+
+`with_structured_output` resolves refs and sets `additionalProperties` before sending, which is why
+the app's nested `ResumeAnalysis` works while a hand-rolled probe of the same shape does not.
+**Anything that bypasses `get_llm()` and calls `response_format` directly must do both itself.**
+One more reason the "agents call `get_llm(role)`" rule is load-bearing rather than stylistic.
 
 Requests are per DAY, derived rather than assumed: 2 requests consumed showed `2m52.8s` to
 replenish, and 172.8 / 2 = 86.4s, which is exactly 86400 / 1000. **Each model has its own bucket**,
