@@ -3,6 +3,14 @@ fastapi==0.135.1
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 python-dotenv==1.0.1
+# Required for FastAPI's UploadFile/Form parsing (story 1.2's resume upload).
+# FastAPI raises at request time without it, not at import time.
+python-multipart==0.0.20
+# Story 1.2: the backend talks to Supabase Storage and PostgREST directly
+# over raw HTTP rather than pulling in supabase-py, which drags five
+# transitive packages in for what is otherwise a handful of REST calls.
+# Moved out of # Dev since it is now a runtime dependency, not just a test one.
+httpx==0.28.1
 
 # LangGraph
 langgraph==1.2.9
@@ -24,4 +32,5 @@ python-docx==1.1.2
 # Dev
 pytest==8.3.4
 pytest-asyncio==0.25.0
-httpx==0.28.1
+# httpx moved to # Core above — it is now a runtime dependency too (Supabase
+# Storage/REST calls), not just a test one.

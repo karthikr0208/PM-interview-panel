@@ -58,15 +58,23 @@ policy is too permissive. Extend it rather than writing a parallel test.
 
 ---
 
-### 1.2 Resume upload and text extraction
+### 1.2 Resume upload and text extraction — ✅ DONE 2026-07-31
 
 **Acceptance**
-- [ ] `POST /session` creates a session row and returns its id
-- [ ] `POST /session/{id}/resume` accepts PDF and DOCX, stores the file in the private `resumes` bucket, and writes `storage_path`
-- [ ] Extracted text written to `resumes.parsed_text` via `pypdf` / `python-docx`, both already in `requirements.txt`
-- [ ] **A scanned or image-only PDF with no text layer fails with a clear message**, not with an empty string that silently produces a confident wrong level. This is the most likely real-world upload failure and it must not be silent
-- [ ] File size and type rejected server-side, not only in the browser
-- [ ] Anything other than PDF or DOCX is rejected by content inspection, not by file extension alone
+- [x] `POST /session` creates a session row and returns its id
+- [x] **`POST /session` populates `user_id` from the caller's validated JWT** (via `GET /auth/v1/user`), never from a client-supplied value. Added beyond the original boxes; without it the backend's service-role write produces sessions the candidate's own browser cannot read
+- [x] `POST /session/{id}/resume` accepts PDF and DOCX, stores the file in the private `resumes` bucket, and writes `storage_path`. **Also enforces session ownership** — 403 proven with two real identities
+- [x] Extracted text written to `resumes.parsed_text` via `pypdf` / `python-docx`, both already in `requirements.txt`
+- [x] **A scanned or image-only PDF with no text layer fails with a clear message**, not with an empty string. Proven end to end against a real server with a genuinely text-free PDF
+- [x] File size and type rejected server-side. 5MB cap, counted from bytes received rather than a client-declared `Content-Length`
+- [x] Anything other than PDF or DOCX is rejected by content inspection (`%PDF-`, `PK\x03\x04`), not by file extension alone
+
+**Deviates from ARCHITECTURE §1 deliberately:** upload is proxied through Render rather than direct
+to Storage via a signed URL, because rejecting a scanned PDF requires server-side extraction and
+the bytes therefore cross Render either way. See DEV-STATE § Decisions 2026-07-31.
+
+**Added `python-multipart==0.0.20`** (FastAPI cannot accept an upload without it) and moved
+`httpx` from the dev block to core. No new environment variables.
 
 **Out of scope:** OCR. A scanned resume is told to re-upload a text PDF.
 

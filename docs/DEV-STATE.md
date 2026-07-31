@@ -58,7 +58,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
-| Resume Analyst | ⬜ (Phase 1) | — | — |
+| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 defined, ⬜ not yet implemented (story 1.3) | — |
 | Case Architect | ⬜ (Phase 2) | — | — |
 | Planner | ⬜ (Phase 2) | — | — |
 | Interviewer | ⬜ (Phase 3) | — | — |
@@ -73,7 +73,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 1.1 + 1.5 in parallel, then 1.2 + 1.3, then 1.4, then 1.6, then 1.7 inline.
 
 - [x] 1.1 ~~Anonymous sign-in and scoped RLS policies~~ — done 2026-07-31. Cross-session denial proven on all six tables with real JWTs through PostgREST, re-proven independently. Output below
-- [ ] 1.2 Resume upload and text extraction
+- [x] 1.2 ~~Resume upload and text extraction~~ — done 2026-07-31. 18 tests. **Deviates from ARCHITECTURE §1 deliberately** (backend-proxied upload, reasoning in Decisions) and **shipped three em-dashes into candidate-facing copy**, now fixed and guarded
 - [ ] 1.3 Resume Analyst agent
 - [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
 - [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
@@ -95,6 +95,46 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.2 resume upload and text extraction — observed output
+
+`backend/app/resume.py` (pure, no network), `backend/app/supabase_client.py` (httpx against
+Auth/PostgREST/Storage), two new routes in `app/main.py`, `backend/tests/test_resume_upload.py`.
+
+**Driven end to end against a real local server, with real anonymous tokens and real files —
+not by re-running the agent's tests:**
+
+```
+=== auth on POST /session ===
+  no Authorization header -> 422        garbage token -> 401
+  valid A token           -> 200 {"session_id":"56691565-..."}
+  session A user_id == A uid: True      <- populated from the JWT, not from the client
+
+=== THE SECURITY ONE: can B upload into A's session? ===
+  B uploads to A's session -> 403 {"detail":"This session does not belong to the calling identity."}
+  no token                 -> 422       unknown session -> 404
+
+=== content inspection, not extension ===
+  .pdf that is plain text  -> 400 {"detail":"Unsupported file. Please upload a PDF or DOCX resume."}
+
+=== no-text-layer PDF ===
+  blank/scanned PDF        -> 400 "This PDF has no extractable text. It looks like a scanned or
+                                   image-only document. Please upload a text-based PDF..."
+
+=== residue after every rejected upload ===
+  resumes rows: 0      storage objects in bucket: 0
+```
+
+**Rejected uploads leave nothing anywhere**, because extraction runs *before* the storage write.
+There is also a compensating delete if the database insert fails after a successful upload, so a
+half-finished request cannot orphan an object.
+
+```
+offline suite            30 passed, 58 deselected in 2.42s   (21 -> 27 from the story, -> 30 with the copy guard)
+tests/test_resume_upload 18 passed in 40.31s                 (re-run independently)
+tests/test_llm.py         7 passed in 481.98s
+full live suite          85 passed in 3765.07s               (agent's run, see the contention note)
+```
 
 ### 1.1 scoped RLS policies — observed output
 
@@ -661,6 +701,74 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-31 · STORY 1.2 DEVIATES FROM ARCHITECTURE §1: the resume is uploaded THROUGH Render, not
+direct to Storage via a signed URL. Deliberate, and I think §1 is wrong here.**
+
+ARCHITECTURE §1 says "Direct upload via signed URL. The file never touches Render — routing
+multi-MB PDFs through a 512MB process is wasted compute." My story-1.2 brief specified a
+backend-proxied `POST /session/{id}/resume` without noticing the conflict; the agent caught it and
+flagged it, correctly.
+
+**Kept, because §1's reasoning does not survive the no-text-layer requirement.** Acceptance for
+this story is that a scanned PDF is *rejected*, and that decision needs `pypdf`, which runs on the
+backend. With a direct browser upload the file lands in Storage first, Render must then download it
+to extract text, and a rejected scan leaves an orphan object to clean up. **The bytes cross Render
+either way — direct upload just adds a round trip and an orphan.** It would also require storage
+write policies for the browser, which is new attack surface on a bucket that currently has none.
+
+The compute argument is also small at real sizes: ARCHITECTURE's own estimate is ~200KB per resume
+against Render's 512MB. The 5MB cap chosen here (no number was specified anywhere) is headroom, not
+a real ceiling.
+
+**Revisit only if resumes get large or uploads get frequent.** Neither is true at single-candidate
+scale. ARCHITECTURE.md deliberately not edited, per the rule that decisions supersede it.
+
+**2026-07-31 · STORY 1.2 SHIPPED THREE EM-DASHES INTO CANDIDATE-FACING COPY. Now fixed, and the
+rule is a test instead of a hope.**
+
+Found by grepping user-facing strings during re-verification, not by any test. All three were in
+`resume.py`'s upload errors, including the scanned-PDF message a real candidate is most likely to
+see:
+
+```
+"This PDF has no extractable text — it looks like a scanned or image-only document."
+"Unable to read this PDF — the file may be corrupted."          (x2)
+```
+
+**The instructive part: the function's own docstring says "the message is written for the candidate
+reading it, not a developer."** The author knew the strings were candidate-facing, and the em-dash
+ban still did not survive contact. A rule that is stated in three documents and violated anyway is
+a rule that needs a test.
+
+`backend/tests/test_user_facing_copy.py` now AST-walks `backend/app/` and fails on an em-dash or
+en-dash inside any `HTTPException(...)` or `*Error(...)` message. **Deliberately narrow** — it skips
+docstrings and comments, which the rule exempts, and skips developer-facing exceptions
+(`NotImplementedError`, `ConfigError`, `StructuredOutputError`) by name. It carries a
+`test_the_check_finds_real_user_facing_strings` guard so an AST walk that silently matches nothing
+cannot make the whole file vacuously green, and it was falsified by reintroducing an em-dash and
+watching it fail.
+
+**2026-07-31 · Full live suite duration swings between ~6 minutes and ~63 minutes. Same tests, same
+code. Plan story 1.3 around this.**
+
+Three measurements of the same suite today:
+
+```
+67 tests   382.61s  (0:06:22)     my run, story 1.1
+85 tests  3765.07s  (1:02:45)     agent's run, story 1.2      <- 10x
+tests/test_llm.py alone: 481.98s (0:08:01) vs a 335.27s baseline recorded 2026-07-30
+```
+
+The story-1.2 tests account for ~40s of that hour. **This is NVIDIA free-tier contention**, and it
+is consistent with DEV-STATE's earlier finding that `deep`'s median moved between 9.2s and 20.4s
+inside ninety minutes. Nothing is wrong with the code.
+
+**Consequence for story 1.3, which is the next story and the heaviest LLM consumer in the phase:**
+eight golden cases across two models is at minimum sixteen structured calls per full run, and
+"run it enough times to observe a retry" multiplies that. At the bad end of this range that is
+hours, not minutes. Budget for it, run golden cases as their own target rather than inside the
+full suite, and **do not read a slow run as a broken agent.**
 
 **2026-07-31 · STORY 1.1: an unauthorised UPDATE or DELETE through PostgREST returns HTTP 200, not
 403. Assert on the DATABASE, never on the status code.** This is the CORS trap of 2026-07-30
@@ -1501,6 +1609,13 @@ pytest 8.3.4 · pytest-asyncio 0.25.0
 opens with `@import "tailwindcss";`. Do not add v3-style config, the two do not mix. Tailwind was
 proven to actually compile, not merely install, by grepping the built CSS for emitted rules. No
 `lucide-react` anywhere, per the Phosphor decision.
+
+**Added in story 1.2 (2026-07-31):** `python-multipart==0.0.20` — **FastAPI cannot accept an
+`UploadFile` without it**, so this was a hard blocker, not a nicety. `httpx==0.28.1` moved from the
+`# Dev` block to `# Core`: it is now a runtime dependency, since `app/supabase_client.py` talks to
+Supabase Auth, PostgREST and Storage over raw HTTP. **No Supabase Python client was added** — that
+would have pulled five transitive packages in for one upload call. **No new environment variables**;
+everything needed was already in `REQUIRED_VARS`.
 
 **Added in story 1.5 (2026-07-31):** `@phosphor-icons/react` 2.1.10 (dependency) · `vitest` 4.1.10
 (devDependency) · Geist + Geist Mono variable `woff2` vendored into `frontend/src/assets/fonts/`
