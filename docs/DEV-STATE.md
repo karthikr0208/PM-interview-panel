@@ -846,17 +846,25 @@ curl -s https://pm-interview-panel.onrender.com/health                    # {"st
 resets overnight, and it is two commands.** Both models hit Groq's 200,000 tokens/day cap on
 2026-07-31, so 10 of 16 model-case combinations are unmeasured. Every case that ran, passed.
 
+**Only two cases are actually missing.** 01-06 passed on `deep` on 2026-07-31; 07 and 08 never ran.
+The Resume Analyst calls `deep`, so `deep` is the only model that gates this story:
+
 ```
 cd backend
-GOLDEN_ROLE=deep .venv/Scripts/python.exe -m pytest tests/golden/resume_analyst -q -s
-GOLDEN_ROLE=fast .venv/Scripts/python.exe -m pytest tests/golden/resume_analyst -q -s
+GOLDEN_ROLE=deep .venv/Scripts/python.exe -m pytest \
+  "tests/golden/resume_analyst/test_golden.py::test_golden_case[07_duties_no_outcomes]" \
+  "tests/golden/resume_analyst/test_golden.py::test_golden_case[08_engineer_transition]" -q -s
 ```
 
-Expect 31 passed each (23 offline + 8 golden). **A 429 naming `tokens per day (TPD)` is the quota,
-not a failure** — wait for the reset it names and re-run. Only after BOTH are clean may story 1.3 be
-ticked in DEV-STATE and PHASE-1-SPEC. One golden run costs ~32,000 tokens, about 16% of a model's
-daily budget, so there is room for roughly six runs per model per day. Iterate on a single case, not
-the set.
+~8,000 tokens, about two minutes. **If both pass, story 1.3 is DONE** — tick it here and in
+PHASE-1-SPEC. A 429 naming `tokens per day (TPD)` is the quota, not a failure; wait for the reset it
+names.
+
+**Do NOT re-run the full set on `fast` just to complete a matrix.** Karthik's call 2026-07-31, and it
+is the right one: `fast` only answers the optional "could this agent use the cheaper model" question
+from spec §6. That costs ~32,000 tokens, 16% of a daily budget, for a comparison nobody has to act
+on. **Run it only when there is a reason** — if Resume Analyst latency becomes a real complaint, or
+if Phase 2 wants the quality signal before assigning models to the Case Architect and Planner.
 
 **Then check whether 1.3b landed**, because it is the thing most likely to have been interrupted:
 
