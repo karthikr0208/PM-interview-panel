@@ -1,113 +1,160 @@
 @import "tailwindcss";
 
+/* Geist + Geist Mono, self-hosted from src/assets/fonts (copied from the
+   `geist` npm package's static woff2 output, OFL-licensed — see
+   src/assets/fonts/GEIST-LICENSE.txt). No Google Fonts, no CDN, no
+   third-party @import: everything below is served from our own origin once
+   built. Variable weight files, so every weight comes from one file each. */
+@font-face {
+  font-family: 'Geist';
+  src: url('./assets/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('./assets/fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Tailwind v4 theme layer. This project is on Tailwind v4 via the
+   @tailwindcss/vite plugin — there is no tailwind.config.js and no
+   @tailwind directives. Everything Tailwind needs to generate utility
+   classes (bg-background, font-mono, rounded-card, shadow-elevated, ...)
+   is declared here, in @theme, per v4's own convention. Do not add a
+   v3-style config file; the two do not mix. */
+@theme {
+  /* Color tokens resolve through the mode-switchable custom properties
+     defined in :root / the dark media query below, so a single @theme
+     declaration serves both modes. */
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+
+  /* No serif anywhere (v1 §3 Rule 1 bans it outright on dashboard/software
+     UI). Fallback stacks stay within sans-serif / monospace families. */
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /* 4px spacing scale, explicit rather than inherited from a default
+     rem-based value that would drift if root font-size ever changes. */
+  --spacing: 4px;
+
+  /* Radius: 8px on cards, 6px on controls (ARCHITECTURE §8). Generates the
+     `rounded-card` / `rounded-control` utilities. */
+  --radius-card: 8px;
+  --radius-control: 6px;
+
+  /* Single-layer shadow, tinted to a dark neutral derived from the
+     text/background hue rather than pure black. The rgb triplet and alpha
+     are mode-dependent custom properties (below) so light and dark each
+     get a shadow that reads as "this surface's shadow", not a generic
+     rgba(0,0,0,x) drop shadow. */
+  --shadow-elevated: 0 2px 8px rgba(var(--shadow-tint), var(--shadow-alpha));
+
+  /* Motion: cubic-bezier(0.16, 1, 0.3, 1) at 150-200ms, exposed as tokens
+     instead of retyped at every call site.
+
+     ASYMMETRY, VERIFIED 2026-07-31 — the two halves are NOT used the same way.
+     `--ease-*` is a real Tailwind v4 theme namespace, so `ease-standard` is a
+     working utility. There is NO `--duration-*` namespace in v4: the duration
+     utility takes a bare number (`duration-150`). So `duration-standard`
+     silently emits NOTHING, and an element written that way gets no transition
+     duration at all rather than a visible error.
+
+     Use `duration-(--duration-standard)`, which is verified to emit
+     `transition-duration: var(--duration-standard)`, or `var(--duration-fast)`
+     in plain CSS. Never the bare `duration-standard`. */
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-standard: 180ms;
+  --duration-slow: 200ms;
+}
+
+/* Light mode is the default palette — not an override. Permanent dark mode
+   is itself a documented AI tell, and this tool is used at a desk in
+   daylight (ARCHITECTURE §8, CLAUDE.md § Design). */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --background: #FBFBFA;
+  --surface: #FFFFFF;
+  --border: #E6E6E3;
+  --text-primary: #16171A;
+  --text-secondary: #6B6D73;
+  --accent: #3A63D0;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Semantic colors are the same in both modes. */
+  --success: #2E7D5B;
+  --warning: #B7791F;
+  --error: #B3452C;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  /* Shadow tint: the rgb of --text-primary, i.e. a dark neutral that
+     shares the light palette's hue rather than rgba(0, 0, 0, ...). */
+  --shadow-tint: 22, 23, 26;
+  --shadow-alpha: 0.08;
+
   color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+    --background: #0E0F11;
+    --surface: #17181B;
+    --border: #26282D;
+    --text-primary: #ECEDEF;
+    --text-secondary: #8B8E96;
+    --accent: #6E92E8;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+    /* Dark mode's own dark-neutral tint — close to --background's own hue,
+       not the literal (0, 0, 0) of a pure-black shadow. */
+    --shadow-tint: 3, 4, 5;
+    --shadow-alpha: 0.4;
   }
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+* {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  font-family: var(--font-sans);
+  background: var(--background);
+  color: var(--text-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* Mono for every numeral — timers and token counters must not jitter in
+   width as they update (ARCHITECTURE §8). Later phases apply this class to
+   any element that renders a number. Tailwind's generated `font-mono`
+   utility (from --font-mono above) covers the typeface; this adds
+   tabular-nums so digit widths stay fixed within the mono face too. */
+.mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+/* prefers-reduced-motion: reduce to near-zero duration, not merely
+   "less" — a distinction the brief calls out explicitly. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
 }

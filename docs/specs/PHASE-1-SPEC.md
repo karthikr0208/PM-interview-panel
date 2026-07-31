@@ -121,19 +121,21 @@ duplicated side effects, and only the log sees them.
 
 ---
 
-### 1.5 Design foundation
+### 1.5 Design foundation — ✅ DONE 2026-07-31
 
 Governs every phase after this one. `design-taste-frontend-v1` is the authority; v2 contributes
 its AI-tells list and the em-dash ban. Dials: **VARIANCE 3 · MOTION 4 · DENSITY 6**.
 
 **Acceptance**
-- [ ] Tokens from ARCHITECTURE §8 implemented as CSS variables: background, surface, border, text primary/secondary, accent `#3A63D0` light / `#6E92E8` dark, semantic success/warning/error
-- [ ] **Geist and Geist Mono** self-hosted. No serif anywhere. **Mono for every numeral**, so timers and counters do not jitter in width as they update
-- [ ] **`@phosphor-icons/react`** at `strokeWidth 1.5` globally. No `lucide-react` anywhere, including transitively via shadcn's default
-- [ ] 4px spacing scale · radius 8px cards / 6px controls · single-layer shadows tinted to the background hue, never pure black
-- [ ] Transitions `cubic-bezier(0.16, 1, 0.3, 1)` at 150-200ms; `prefers-reduced-motion` respected
-- [ ] Light mode is the default. Permanent dark mode is itself a documented AI tell, and this is used at a desk in daylight
-- [ ] **No em-dashes in any user-facing copy.** Docs are exempt; anything a candidate reads is not
+- [x] Tokens from ARCHITECTURE §8 implemented as CSS variables: background, surface, border, text primary/secondary, accent `#3A63D0` light / `#6E92E8` dark, semantic success/warning/error
+- [x] **Geist and Geist Mono** self-hosted. No serif anywhere. **Mono for every numeral**, so timers and counters do not jitter in width as they update
+- [x] ~~**`@phosphor-icons/react`** at `strokeWidth 1.5` globally~~ → **`weight: "regular"` globally via `IconContext`.** Phosphor has no `strokeWidth` prop; verified by grep across the whole package. See DEV-STATE § Decisions 2026-07-31. No `lucide-react` anywhere, confirmed against `package-lock.json`
+- [x] 4px spacing scale · radius 8px cards / 6px controls · single-layer shadows tinted to the background hue, never pure black
+- [x] Transitions `cubic-bezier(0.16, 1, 0.3, 1)` at 150-200ms; `prefers-reduced-motion` respected. **`ease-standard` is a working utility, `duration-standard` is not** — use `duration-(--duration-standard)`, guarded by test
+- [x] Light mode is the default. Permanent dark mode is itself a documented AI tell, and this is used at a desk in daylight
+- [x] **No em-dashes in any user-facing copy.** Docs are exempt; anything a candidate reads is not
+- [x] `DESIGN.md` generated via `stitch-design-taste` at the repo root, reconciled against §8
+- [x] vitest installed and configured. **`make test-web` runs for the first time: 25 passed**
 
 **Consider generating `DESIGN.md` via the `stitch-design-taste` skill** rather than hand-writing
 it, per DEV-STATE Environment notes. It produces a semantic design document agents can follow,

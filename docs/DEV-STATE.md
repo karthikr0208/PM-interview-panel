@@ -30,12 +30,11 @@ not exist yet and must be written before it starts.
 
 **Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
 frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
-nothing from the database. See Decisions 2026-07-30.
-
-**Carried into Phase 1, do not lose:** Supabase **anonymous sign-in must be wired before the
-frontend reads any data.** Phase 0 ships RLS with zero policies, so browsers currently get
 nothing — correct now, but it means the three-column UI will show an empty middle column until
 sign-in plus scoped policies exist. See Decisions 2026-07-30.
+
+**Anonymous sign-in is DISABLED on the project as of 2026-07-31, measured, and it is a dashboard
+toggle no script can flip.** See Blockers.
 
 ---
 
@@ -70,7 +69,20 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 ## Current phase — story detail
 
-Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
+**Phase 1 stories are defined in `docs/specs/PHASE-1-SPEC.md`.** Wave plan set 2026-07-31:
+1.1 + 1.5 in parallel, then 1.2 + 1.3, then 1.4, then 1.6, then 1.7 inline.
+
+- [ ] 1.1 Anonymous sign-in and scoped RLS policies   ← NEXT, blocked on the dashboard toggle
+- [ ] 1.2 Resume upload and text extraction
+- [ ] 1.3 Resume Analyst agent
+- [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
+- [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
+- [ ] 1.6 Upload and confirmation UI
+- [ ] 1.7 Delete the Phase 0 scaffolding
+
+### Phase 0 stories — all complete, kept for the record
+
+Defined in `docs/specs/PHASE-0-SPEC.md`.
 
 - [x] 0.1 ~~Repo scaffold, `.env` handling, `requirements.txt`, Vite app, secret-prefix pre-commit hook~~ — done 2026-07-30, all four acceptance boxes verified with output below
 - [x] 0.2 ~~NVIDIA smoke test~~ — done 2026-07-30. Gate resolved: **not 10/10** (`deep` 7-9/10), so validate-retry is mandatory. Streaming, rate-limit logging, and the off-peak re-measure all done
@@ -80,9 +92,43 @@ Phase 0 stories are defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.5 ~~Postgres checkpointer wired via session pooler, `.setup()` run once~~ — done 2026-07-30. Idempotent, no collision, 6543 failure reproduced, **RLS added to LangGraph's tables**
 - [x] 0.6 ~~Two-node graph with `interrupt()` / `Command(resume=...)`~~ — done 2026-07-30. All five boxes, and **the idempotency assertion was falsified against a deliberately wrong graph before being trusted**
 - [x] 0.7 ~~Interrupt/resume proven across two separate HTTP requests~~ — done 2026-07-30. Restart proven with **two separate uvicorn subprocesses**, not a rebuilt TestClient
-- [ ] 0.8 Deploy backend to Render, frontend to Netlify, CORS wired, health check green   ← NEXT
+- [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.5 design foundation — observed output
+
+`frontend/src/index.css` (full rewrite), `src/lib/icons.tsx`, `src/index.css.test.ts`,
+`src/assets/fonts/` (Geist + Geist Mono variable woff2, OFL licence kept alongside), `DESIGN.md`
+at the repo root, plus vitest wired into `vite.config.ts` and `package.json`.
+
+```
+npm run build
+  dist/assets/Geist-Variable-Bj2R_7yk.woff2       69.65 kB
+  dist/assets/GeistMono-Variable-Dispecij.woff2   71.36 kB
+  dist/assets/index-KSU7xFWs.css                  14.05 kB │ gzip: 3.93 kB
+  ✓ built in 356ms
+
+make test-web        25 passed (25)      <- FIRST TIME THIS TARGET HAS RUN
+npx oxlint           exit=0, clean
+backend offline      21 passed, 31 deselected in 2.47s   (backend untouched, git status clean there)
+```
+
+**The agent proved the accent hex reaches `dist/`. That was not the assertion that mattered**, and
+finding the gap is what independent re-verification bought this time. `#3A63D0` reaches the bundle
+from the plain `:root` block whether or not Tailwind's `@theme` layer works at all. What story 1.6
+actually depends on is `@theme` **generating utilities** through a `var()` indirection, which was
+untested. Probed by building a throwaway component that uses them and grepping the emitted CSS:
+
+```
+EMITTED  .bg-background   .text-text-secondary   .border-border   .rounded-card
+EMITTED  .shadow-elevated  .font-mono  .ease-standard  .rounded-control  .text-error
+MISSING  .duration-standard          <- the one that does not exist
+.bg-accent\/40 { background-color: color-mix(in oklab, var(--color-accent) 40%, transparent) }
+```
+
+So the `var()` indirection works, opacity modifiers work, and one utility silently does not exist.
+See the Decisions entry below.
 
 ## Last session
 
@@ -569,6 +615,80 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-07-31 · STORY 1.5: `strokeWidth 1.5` is NOT implementable in Phosphor. It has no such prop.
+CLAUDE.md and ARCHITECTURE §8 both specify something the mandated library cannot do.**
+
+The agent contradicted its brief here and was right. Verified independently rather than taken on
+its word:
+
+```
+grep -rl 'strokeWidth' node_modules/@phosphor-icons/react/dist/   ->  no matches, anywhere
+IconContext accepted props                                       ->  color?  size?  weight?  mirrored?
+icon geometry                                                    ->  filled <path d="..."/>, viewBox "0 0 256 256"
+```
+
+Phosphor icons are **filled path geometry, not stroked paths** — the weight is drawn into the
+outline, so there is nothing for a stroke width to apply to. `strokeWidth` is `lucide-react`'s API,
+and lucide is the library three separate skills tell us not to use. The instruction was written by
+analogy to the library we deliberately rejected.
+
+**Resolved as `weight: "regular"` set globally through `IconContext`**, in
+`frontend/src/lib/icons.tsx`. Phosphor documents `regular` as its 1.5px-stroke-at-24px-viewBox
+weight, which is consistent with the 256 viewBox (16/256 × 24 = 1.5) and is the faithful reading of
+the intent. **CLAUDE.md § Design updated**; ARCHITECTURE §8 deliberately left alone, per the rule
+that decisions supersede it rather than rewriting its history.
+
+**2026-07-31 · STORY 1.5: `ease-standard` is a working utility and `duration-standard` is not.
+Tailwind v4 has no `--duration-*` theme namespace, and the failure is silent.**
+
+Found by re-verification, not by the agent. `--ease-*` is a real v4 theme namespace so
+`ease-standard` emits; the duration utility takes a bare number (`duration-150`), so a token named
+`--duration-standard` generates **no class at all**. An element written `duration-standard` gets no
+transition duration and no error — it just does not animate.
+
+The tokens are emitted as custom properties and are usable, through a different syntax:
+
+```
+--duration-fast:.15s   --duration-standard:.18s              <- present in the built CSS
+.duration-\(--duration-standard\){transition-duration:var(--duration-standard)}   <- works
+.duration-standard                                            <- never generated
+```
+
+**Use `duration-(--duration-standard)`, never the bare form.** Documented in `index.css` at the
+token, and guarded by a test that greps all of `frontend/src` — it will fail story 1.6 if anyone
+writes the bare form.
+
+**That guard was falsified in three directions before being trusted**, per the story 0.6 precedent:
+it passes clean at 25, fails with `['__bad.tsx']` against a planted bare `duration-standard`, and
+stays green against the correct `duration-(--duration-standard)` form. Its first two drafts were
+both wrong in the same way the agent's own tests had been — `\bduration-fast\b` matches inside the
+declaration `--duration-fast`, and a comment explaining the ban tripped the ban. **A regex needs a
+`(?<!-)` lookbehind here, and comments must be stripped before matching.** Third time was correct.
+
+**2026-07-31 · Phase 1 delegation shape, and three calls made before any code was written.**
+
+Wave plan: **1.1 + 1.5 in parallel** (disjoint: backend SQL and tests vs frontend CSS and fonts),
+then **1.2 + 1.3**, then **1.4**, then **1.6**, then **1.7 inline**. Two constraints shaped it.
+`frontend/package.json` is a collision point — 1.1 would want `@supabase/supabase-js` while 1.5
+wants Geist and Phosphor, so **the browser Supabase client was moved into story 1.6** and 1.1 is
+backend-and-SQL only. And **no two agents run live LLM tests concurrently**: the 40 RPM ceiling is
+shared, and 1.3's golden cases are the heaviest consumer in the phase.
+
+**Karthik's call: `DESIGN.md` is generated via the `stitch-design-taste` skill**, not hand-written,
+and lives at the repo root rather than in `docs/`. Every later phase's UI is built against it.
+Where the skill's output conflicts with ARCHITECTURE §8, **§8 wins** and the conflict gets recorded.
+
+**Karthik's call: the interviewer persona name is deferred to Phase 3, so story 1.6 ships NO
+persona header.** "Maya Chen" sits in the register v1 §7 bans and the architecture wireframes are
+riddled with it, so the constraint is written into the 1.6 brief explicitly rather than left to be
+noticed. Deferring costs nothing here — Phase 1 has no interviewer.
+
+**Orchestration call, not in the spec: vitest is installed in story 1.5, not 1.6.** The spec's test
+table says only "this phase installs it" without assigning a story. Putting it in the foundation
+means `make test` stops failing on its `test-web` leg a story earlier, and 1.6 gets a working
+runner instead of having to build one. Its first test is a real guard rather than a smoke test: it
+reads `index.css` and asserts every §8 token value, no serif family, and no `lucide-react`.
 
 **2026-07-30 · STORY 0.7: the Windows event-loop guard in `app/main.py` does NOT do what the
 2026-07-30 entry below implies. `--reload` is what makes `make dev-api` work.**
@@ -1140,6 +1260,25 @@ evidence.
 
 ## Blockers & open questions
 
+**2026-07-31 · BLOCKS STORY 1.1: anonymous sign-in is disabled on the Supabase project. Measured,
+not assumed.** `POST {SUPABASE_URL}/auth/v1/signup` with an empty body and the publishable key:
+
+```
+status 422
+{"code":422,"error_code":"anonymous_provider_disabled","msg":"Anonymous sign-ins are disabled"}
+```
+
+It is a dashboard toggle — Authentication → Sign In / Providers → **Anonymous Sign-Ins** — and no
+migration or script can flip it. **This blocks more of 1.1 than it appears to.**
+`sessions.user_id references auth.users`, so the cross-session denial test cannot insert its two
+fixture sessions at all without two genuine `auth.users` rows, which is exactly what anonymous
+sign-in mints. The story was held rather than started, deliberately: an agent facing failing auth
+calls tends to weaken the assertion until it goes green, and this is the one story in the phase
+where a weakened assertion is silent and serious.
+
+Re-probe with the snippet above before starting 1.1. Expect `200` and
+`is_anonymous = True`.
+
 ~~`reasoning_effort` enum unknown~~ — **RESOLVED 2026-07-30. See Decisions.** Full set is
 `none · minimal · low · medium · high · xhigh · max`. `high` exists, so the architecture's
 assumption for the Evaluator holds. **No LLM-side unknowns remain.**
@@ -1252,6 +1391,19 @@ pytest 8.3.4 · pytest-asyncio 0.25.0
 opens with `@import "tailwindcss";`. Do not add v3-style config, the two do not mix. Tailwind was
 proven to actually compile, not merely install, by grepping the built CSS for emitted rules. No
 `lucide-react` anywhere, per the Phosphor decision.
+
+**Added in story 1.5 (2026-07-31):** `@phosphor-icons/react` 2.1.10 (dependency) · `vitest` 4.1.10
+(devDependency) · Geist + Geist Mono variable `woff2` vendored into `frontend/src/assets/fonts/`
+from the `geist` npm package, OFL licence kept beside them. `test: "vitest run"` added to
+`package.json`, and a `test` block to `vite.config.ts` (`environment: 'node'`). Test files are
+excluded from `tsconfig.app.json` and typed by a separate `tsconfig.vitest.json` — `src/` is typed
+browser-only, so a test importing `node:fs` breaks `tsc -b` without that split.
+
+**`make test-web` works from 2026-07-31 and `make test` no longer fails on its second leg.**
+The design tokens live in `frontend/src/index.css` and are guarded by `src/index.css.test.ts`,
+which asserts every ARCHITECTURE §8 hex value. **`DESIGN.md` at the repo root is the design
+authority for every later phase**, generated via `stitch-design-taste` and reconciled against §8;
+its § 8 lists every skill directive that was overridden and why.
 
 **Supabase connection: session pooler, port 5432 — verified working 2026-07-30.**
 `aws-0-ap-southeast-1.pooler.supabase.com:5432`, PostgreSQL 17.6. `check_db.py` connects clean.

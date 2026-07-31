@@ -243,7 +243,10 @@ the anti-jitter requirement. Density sits at 6 so card containers stay legitimat
 v1 bans them.
 
 Non-negotiables that follow: **Geist + Geist Mono**, no serif anywhere, mono for every
-number. **`@phosphor-icons/react`** at `strokeWidth 1.5` — not `lucide-react`. One accent
+number. **`@phosphor-icons/react`** at `weight: "regular"`, set globally through `IconContext` —
+not `lucide-react`. (This said `strokeWidth 1.5` until 2026-07-31. Phosphor has no such prop; its
+icons are filled geometry and `strokeWidth` is lucide's API. `regular` is Phosphor's own name for
+the same 1.5px-at-24px weight. See DEV-STATE § Decisions 2026-07-31.) One accent
 under 80% saturation. No pure black. Full loading / empty / error state cycles on every
 interactive surface. Labels above inputs.
 
