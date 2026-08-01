@@ -2414,8 +2414,8 @@ constraint, not requests** — a Resume Analyst call is roughly 2500 tokens, so 
 | Fix | Why | Symptom if missing |
 |---|---|---|
 | `max_tokens=4096` | Default truncates mid-JSON on nested schemas | Groq 400 `json_validate_failed`, "max completion tokens reached", which reads like a prompt bug and is not one |
-| **`temperature=0`** | Golden cases are a REGRESSION suite | **Case 02 passed one run and failed the next on identical input.** A red case could not be distinguished from a bad sample, making every future prompt change unfalsifiable |
-| 30s pacing between golden cases | 8000 TPM | 429 partway through the suite. Changes no assertion; a busy endpoint must not be recorded as a wrong prompt |
+| **`temperature=0`** | Golden cases are a REGRESSION suite | **Case 02 passed one run and failed the next on identical input.** A red case could not be distinguished from a bad sample, making every future prompt change unfalsifiable. **⚠️ SUPERSEDED 2026-08-01 — this narrows the variance and does NOT remove it. Case 01 still flaps. See Decisions 2026-08-01** |
+| ~~30s~~ **60s** pacing between golden cases | 8000 TPM | 429 partway through the suite. Changes no assertion; a busy endpoint must not be recorded as a wrong prompt. **⚠️ 30s was arithmetically impossible and was recording 429s as prompt failures — one case requests ~7500 against a bucket refilling at 133/sec, needing ~56s. Raised to 60s on 2026-08-01. Raise it in step with the prompt** |
 
 **GOLDEN RESULTS AFTER THE 1.3b PROMPT WORK — 2026-07-31, re-run independently by me, not taken
 from the agent's paste:**
@@ -2672,6 +2672,26 @@ changes, so a docs-only commit deploys nothing.
 
 **Measured in production, 2026-07-30:** checkpoint step **~27ms** · cold start **32.33s** after
 ~18 min idle, warm 0.13s.
+
+**Test counts, observed 2026-08-01:** backend offline **60 passed, 67 deselected** (~4s) ·
+frontend **66 passed** across 8 files (~9s) · backend live **85 passed** (last full run
+2026-07-31, ~63 min, costs real rate budget).
+
+**Groq rate limits — the daily cap is a ROLLING window, not a midnight reset.** Confirmed
+2026-08-01: at 196,251/200,000 used, the 429 said "try again in 27m28s", not hours. Budget trickles
+back continuously at roughly 138 tokens/min, so practically **one golden call every ~28 minutes**
+once the ceiling is hit. **There is no daily-token header** — verified by dumping every header on a
+live response — so it is invisible until you hit it. `x-ratelimit-*` exposes only the per-minute
+token limit and the daily request count.
+
+**Size any budget probe to the request you actually intend to make.** A probe asking for
+`max_tokens=4096` with a ten-token prompt reported both models "AVAILABLE" while a real golden call
+requesting ~7,565 was still refused. It measured nothing.
+
+**Realtime under RLS: PROVEN 2026-08-01**, with two real anonymous identities plus a service-role
+control. Re-run `node frontend/scripts/probe_realtime.mjs` after any change to RLS policies or the
+realtime publication. One residual startup race is documented at the top of
+`frontend/src/lib/agentEvents.ts`.
 
 **Toolchain, observed 2026-07-30:** Python 3.12.10 · Node 26.1.0 · npm 11.13.0 · git 2.54.0 ·
 GNU Make 4.4.1 (installed this session, see Decisions).

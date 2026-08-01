@@ -166,10 +166,20 @@ candidate asks a clarifying question forty minutes in.
 **Never develop against `MemorySaver`.** It hides the entire class of stateless-HTTP bugs
 until deploy. Use the Postgres checkpointer from Phase 0 onward.
 
-**Every LLM call is logged with a timestamp.** The binding free-tier ceiling is **8000 tokens
-per minute** (1000 requests/day) on the gpt-oss models, and TOKENS are what bind, not requests.
-It is the first thing that will break under a demo. Limits differ per model and each has its own
-bucket — see DEV-STATE Environment notes for the measured table.
+**Every LLM call is logged with a timestamp.** TOKENS bind, not requests, and there are **two**
+ceilings on the gpt-oss models: **8000 tokens per minute**, and **200,000 tokens per DAY** which is
+the one that actually stops work. The daily cap appears in **no header** and is invisible until you
+hit it; it is a **rolling window**, not a midnight reset, so budget trickles back at roughly
+138 tokens/min. One golden run is ~32,000 tokens, so about six exist per model per day. Limits
+differ per model and each has its own bucket — see DEV-STATE Environment notes for the measured
+table. **Iterate on ONE case, never the full set**, and size any budget probe to the request you
+actually intend to make or it measures nothing.
+
+**A green run is one sample, not a measurement.** `temperature=0` narrows run-to-run variance on
+these MoE models and does not remove it — golden case 01 flaps PASS/FAIL on `deep` against
+identical input. Before trusting that a prompt change worked, sample the affected case several
+times, and **run the control** (the same case with the change reverted) or a green run may be
+telling you nothing. See DEV-STATE § Decisions 2026-08-01.
 
 **Golden cases must pass before any agent prompt change is committed.** Prompt edits are
 otherwise unfalsifiable — the output "seems fine" and a dimension silently regresses.
@@ -216,6 +226,11 @@ python backend/scripts/check_env.py        # all credentials present AND working
 python backend/scripts/check_db.py         # DB connects; diagnoses the 3 failure modes
 python backend/scripts/probe_groq.py       # catalog, rate limits, strict-schema support
 python backend/scripts/probe_groq.py --schema  # + one structured call per model (costs budget)
+node frontend/scripts/probe_realtime.mjs   # Realtime respects RLS: two real anonymous identities,
+                              # A gets its own agent_events row and never B's, plus a service-role
+                              # control so the denial cannot pass vacuously. Cleans up after itself.
+                              # No LLM budget. Re-run after ANY change to RLS policies or to the
+                              # realtime publication.
 
 make dev-api                  # FastAPI with reload
 make dev-web                  # Vite dev server
