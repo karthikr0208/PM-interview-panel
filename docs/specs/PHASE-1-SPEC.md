@@ -95,11 +95,11 @@ Writes `candidate_profile`, `assessed_level`, `level_rationale`, `low_confidence
 
 **Acceptance**
 - [x] `AGENT-RESUME-ANALYST-SPEC.md` exists and defines the output schema, the level rubric, and the golden cases — written 2026-07-31, before the prompt
-- [ ] `assessed_level` is one of `APM | PM | Senior PM | GPM`, enforced by the schema, not by prompt text
-- [ ] `level_rationale` cites specific resume content, not generic praise
-- [ ] `low_confidence_fields` names fields the model was unsure about; these drive the confirmation UI in 1.6
-- [ ] **5-10 golden cases at `backend/tests/golden/resume_analyst/`, passing, runnable with `make golden AGENT=resume_analyst`**
-- [ ] Validate-retry is exercised, not assumed: at least one golden case records the observed retry behaviour on `deep`
+- [x] `assessed_level` is one of `APM | PM | Senior PM | GPM`, enforced by the schema, not by prompt text — a `Literal` on the Pydantic model, asserted anyway on every golden case, never violated across any measured run on either model
+- [x] `level_rationale` cites specific resume content, not generic praise — `rationale_cites_resume` requires a verbatim 8+ word span from the input, green on every case that has run
+- [ ] `low_confidence_fields` names fields the model was unsure about; these drive the confirmation UI in 1.6 — **this is the open one.** Correct on the ambiguous cases, but case 01 flags `assessed_level` on an unambiguous resume in about half of runs. See DEV-STATE § Decisions 2026-08-01
+- [ ] **5-10 golden cases at `backend/tests/golden/resume_analyst/`, passing, runnable with `make golden AGENT=resume_analyst`** — 8 exist and run; not yet green in one run, and blocked by the flap above rather than by missing work
+- [x] Validate-retry is exercised, not assumed: at least one golden case records the observed retry behaviour on `deep` — recorded on **every** case of every run, both models: `retry_fired=False` throughout. The wrapper is now near-dead code against Groq's strict schema; see DEV-STATE 2026-07-31
 
 **Golden cases must span the levels**, including at least one deliberately ambiguous resume where
 the correct behaviour is a populated `low_confidence_fields`, not a confident guess. A levelling

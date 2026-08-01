@@ -19,8 +19,10 @@ from tests.golden.resume_analyst.assertions import (
     contains_forbidden_token,
     eight_word_windows,
     empty_quote_lists,
+    fold_typography,
     missing_verbatim_quotes,
     no_dash_variants,
+    normalize_for_comparison,
     normalize_whitespace,
     rationale_cites_resume,
 )
@@ -38,6 +40,34 @@ RESUME = (
 
 def test_normalize_whitespace_collapses_runs_and_strips() -> None:
     assert normalize_whitespace("  a\n\nb\t\tc  ") == "a b c"
+
+
+# --- fold_typography ---------------------------------------------------------
+
+
+def test_fold_typography_maps_hyphen_and_quote_variants_to_ascii() -> None:
+    """The variants gpt-oss actually emits against pure-ASCII fixtures."""
+    assert fold_typography("hard‑coded") == "hard-coded"
+    assert fold_typography("hard‐coded") == "hard-coded"
+    assert fold_typography("the team’s roadmap") == "the team's roadmap"
+    assert fold_typography("“shipped”") == '"shipped"'
+
+
+def test_fold_typography_leaves_em_and_en_dashes_alone() -> None:
+    """The deliberate exclusion, and the reason this fold cannot be widened
+    casually: em- and en-dashes are distinct punctuation this project bans in
+    candidate-facing copy, not renderings of the hyphen. Folding them would
+    let a quote introduce a banned character and still read as verbatim."""
+    assert fold_typography(f"checkout {EM_DASH} payments") == f"checkout {EM_DASH} payments"
+    assert fold_typography(f"2019{EN_DASH}2023") == f"2019{EN_DASH}2023"
+
+
+def test_fold_typography_is_a_noop_on_ascii() -> None:
+    assert fold_typography(RESUME) == RESUME
+
+
+def test_normalize_for_comparison_applies_both_and_preserves_case() -> None:
+    assert normalize_for_comparison("  Hard‑coded\n\nlist  ") == "Hard-coded list"
 
 
 # --- eight_word_windows: vacuity guard ---------------------------------------
@@ -102,6 +132,31 @@ def test_missing_verbatim_quotes_is_case_sensitive_by_design() -> None:
     fabrication must not be waved through as a genuine one."""
     recapitalized = "grew CONVERSION from 12.4% to 19.1%"
     assert missing_verbatim_quotes([recapitalized], RESUME) == [recapitalized]
+
+
+def test_missing_verbatim_quotes_accepts_a_typographic_hyphen_variant() -> None:
+    """The false positive this fold exists to close, measured 2026-08-01 on
+    golden case 08: gpt-oss-120b reproduced 42 words of the fixture exactly and
+    emitted U+2011 for the two ASCII hyphens. The words were identical; the
+    suite's most important assertion called it a fabrication."""
+    source = "replacing a hard-coded list of nine built-in commands"
+    assert missing_verbatim_quotes(["replacing a hard‑coded list"], source) == []
+
+
+def test_missing_verbatim_quotes_still_rejects_a_fabrication_wearing_a_hyphen() -> None:
+    """The fold must not become a fabrication path. Same typographic hyphen,
+    but the WORDS are invented -- this must still fail."""
+    fake = "replacing a hard‑coded list of forty legacy commands"
+    source = "replacing a hard-coded list of nine built-in commands"
+    assert missing_verbatim_quotes([fake], source) == [fake]
+
+
+def test_missing_verbatim_quotes_rejects_a_quote_that_swaps_in_an_em_dash() -> None:
+    """The guard on the exclusion above. A quote that introduces the banned
+    character is not verbatim, and the fold must not launder it."""
+    source = "Owned checkout and payments, and set its quarterly roadmap"
+    swapped = f"Owned checkout and payments{EM_DASH} and set its quarterly roadmap"
+    assert missing_verbatim_quotes([swapped], source) == [swapped]
 
 
 def test_missing_verbatim_quotes_empty_list_is_vacuously_honest() -> None:

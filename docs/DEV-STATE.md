@@ -1,6 +1,6 @@
 # Development State
 
-**Last updated:** 2026-07-30 · Session 3
+**Last updated:** 2026-08-01 · Session 6
 
 ---
 
@@ -25,8 +25,14 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**Phase 1 is IN PROGRESS as of 2026-07-31. Stories 1.1, 1.2, 1.5, 1.3a and 1.6a are done and
-committed. Next is story 1.3b, the Resume Analyst prompt itself — see § Next session, start here.**
+**Phase 1 is IN PROGRESS as of 2026-08-01. Stories 1.1, 1.2, 1.5, 1.3a and 1.6a are done and
+committed. Story 1.3b's agent and prompt exist and are close, but 1.3 CANNOT BE TICKED — the
+golden suite is not yet a reliable gate. See § Next session, start here.**
+
+**🔴 The headline finding of 2026-08-01: `temperature=0` does NOT make Groq's gpt-oss models
+deterministic, and this file previously recorded that it did.** Golden case 01 flaps roughly 50/50
+on `deep` against identical input. A flapping case makes every future prompt change unfalsifiable,
+which is the exact property the golden suite exists to provide. Details under Decisions.
 
 The database is no longer wide open: cross-session denial is proven on all six tables with real
 JWTs. Resumes upload, extract, and reject a scanned PDF loudly. The design foundation governs every
@@ -48,7 +54,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a done**; 1.3b, 1.4, 1.6b, 1.7 remain | PHASE-1-SPEC.md | 2026-07-31 — 85 live tests, **53 offline, 33 vitest** |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a done**; 1.3b blocked on the case-01 flap; 1.4, 1.6b, 1.7 remain | PHASE-1-SPEC.md | 2026-08-01 — 85 live tests, **60 offline, 33 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -62,7 +68,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
-| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | **8 written and red on purpose** (story 1.3a). Green once 1.3b lands | — (no prompt yet) |
+| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). **Not yet a reliable gate — case 01 flaps ~50% on `deep`** | 2026-08-01, uncommitted and unvalidated |
 | Case Architect | ⬜ (Phase 2) | — | — |
 | Planner | ⬜ (Phase 2) | — | — |
 | Interviewer | ⬜ (Phase 3) | — | — |
@@ -80,7 +86,10 @@ Specs are written at the top of the phase that builds each agent, not up front.
 - [x] 1.2 ~~Resume upload and text extraction~~ — done 2026-07-31. 18 tests. **Deviates from ARCHITECTURE §1 deliberately** (backend-proxied upload, reasoning in Decisions) and **shipped three em-dashes into candidate-facing copy**, now fixed and guarded
 - [ ] 1.3 Resume Analyst agent — **split in two, see Decisions 2026-07-31**
   - [x] 1.3a ~~golden fixtures + assertion harness~~ — done 2026-07-31. 8 fixtures, 23 offline tests, suite deliberately RED. **Independent probe found the spec's most important assertion passing vacuously on all eight cases; fixed and re-falsified.** Output below
-  - [ ] 1.3b the agent itself — `app/agents/resume_analyst.py`, prompt, golden run on both models
+  - [ ] 1.3b the agent itself — `app/agents/resume_analyst.py` exists and is close. **Blocked on
+    the case-01 flap, not on missing work.** Two harness defects found and fixed 2026-08-01; a
+    prompt fix for the flap is written but UNVALIDATED and deliberately UNCOMMITTED, because
+    CLAUDE.md forbids committing a prompt change before its golden cases pass. Output below
 - [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
 - [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
 - [ ] 1.6 Upload and confirmation UI — **split in two**
@@ -103,6 +112,129 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.3b golden-suite reliability — observed output, 2026-08-01
+
+`backend/tests/golden/resume_analyst/assertions.py` (typography fold),
+`test_assertions.py` (+7 tests), `test_golden.py` (pacing). `app/agents/resume_analyst.py`
+carries an uncommitted prompt fix — see § Next session.
+
+**Cases 07 and 08 finally ran on `deep`, which is what this session opened to do.** 07 passed
+first time. 08 failed on the suite's most important assertion, and the failure was the harness's
+fault, not the model's:
+
+```
+AssertionError: 08_engineer_transition: fabricated scope_evidence quote(s):
+  ['Shipped a plugin system that let three external teams build their own extensions,
+    replacing a hard‑coded list of nine built‑in commands, and used weekly usage logs
+    to decide which two legacy commands to deprecate.']
+```
+
+**Character-level diff against the fixture, because "looks identical" is not evidence:**
+
+```
+non-ASCII in the model's quote : U+2011 NON-BREAKING HYPHEN
+non-ASCII in fixture 08        : (none)
+char-by-char, quote vs fixture sentence, same length:
+  idx  98: model U+2011 != fixture U+002D HYPHEN-MINUS
+  idx 123: model U+2011 != fixture U+002D HYPHEN-MINUS
+  total differing positions: 2   out of 233
+```
+
+42 words reproduced exactly, two hyphens rendered typographically. **The most important assertion
+in the suite was reporting a fabrication that did not happen.** Closed with a content-neutral
+`fold_typography`, and re-falsified in both directions rather than just checking 08 went green:
+
+```
+typographic hyphen variant accepted            PASS
+fabrication WEARING a typographic hyphen       still rejected
+quote that swaps in an em-dash                 still rejected   <- the fold must not launder it
+recapitalized fabrication                      still rejected   <- case-sensitivity intact
+empty-list vacuity floor                       intact
+offline suite   53 -> 60 passed, 67 deselected
+08 on deep      1 passed in 35.87s
+```
+
+EM_DASH and EN_DASH are deliberately excluded from the fold. They are distinct punctuation this
+project bans in candidate-facing copy, not renderings of a hyphen; folding them would let a quote
+introduce a banned character and still read as verbatim.
+
+**The fold cannot regress a previously-passing case**, and this was checked rather than argued:
+the only non-ASCII characters in any of the eight fixtures are `U+00E1`, `U+00E9`, `U+00F3`
+(accented letters in names). None are in the fold map, so `fold_typography(source) == source` on
+every fixture and the fold can only widen the quote side.
+
+**🔴 THEN THE REAL PROBLEM: CASE 01 FLAPS AT `temperature=0`.** Four observations on `deep`,
+identical input:
+
+```
+2026-07-31 (recorded)   PASS
+run A, full suite       FAIL   low_confidence_fields=['assessed_level']
+run B, cases 01+05 only PASS
+run C, full suite       FAIL   low_confidence_fields=['assessed_level']
+```
+
+Case 05 flapped too, failing in run A and passing in B and C. **Nothing is shared between cases** —
+each is an independent call with no conversation state — so this is model variance, not test
+pollution. Fixture 01 is a clean APM: the title says Associate Product Manager and the scope is a
+single screen plus a toggle built on someone else's roadmap, so the prompt's title-vs-scope trigger
+has no disagreement to fire on.
+
+**A prompt fix was written** — an explicit negative boundary on that trigger, matching the style of
+the negative boundary trigger 2 already carries. **It is unvalidated.** `deep` hit its daily quota
+before it could be tested:
+
+```
+429 tokens per day (TPD): Limit 200000, Used 196348, Requested 7565
+```
+
+**THE CONTROL THAT CHANGED THE CONCLUSION.** With `deep` exhausted, the fix was measured on `fast`,
+which has its own bucket, and came back 5/5 clean. **That proved nothing, and running the control
+is the only reason it was not recorded as a pass:**
+
+```
+fixture 01, role=fast, 5 runs each
+  WITH the prompt fix       PASS PASS PASS PASS PASS   5/5
+  WITHOUT it (reverted)     PASS PASS PASS PASS PASS   5/5   <- fast never flapped
+```
+
+`fast` does not exhibit the flap at all, so a green run there is not evidence about a fix aimed at
+`deep`. **This is the project's third recorded false pass caught by an independent control**, after
+story 1.1's `A/own = 1` column and story 1.3a's vacuity probe. Same shape every time: a measurement
+that cannot fail is not a measurement.
+
+**Second harness defect, found by reading a failure message instead of trusting the label: the
+golden suite's own pacing is too short, so it was recording rate limits as prompt failures.**
+
+```
+first fast run    2 "failures" (06, 08)  -> both 429 TPM, zero assertion failures
+  "Limit 8000, Used 1177, Requested 7516"    <- the 8000 is a refill rate, not our usage
+```
+
+The arithmetic was never going to work. The prompt grew to ~2900 tokens, so one case now requests
+~7500 against an 8000 TPM bucket refilling at 133 tokens/sec: **~56s needed, 30s configured.**
+Raised to 60s. **Raise it in step with the prompt, or the suite silently stops measuring whichever
+cases land last in the run.**
+
+**Final measured state, and it is honest rather than tidy.** Both models hit the 200k/day ceiling:
+
+```
+deep (gpt-oss-120b)  07 PASS  08 PASS (after the fold)
+                     01 flaps ~50%, 05 flapped once
+                     prompt fix UNVALIDATED - quota exhausted at 196,348/200,000
+fast (gpt-oss-20b)   01 5/5 clean with fix AND 5/5 without - no flap on this model
+                     run 1 (30s pacing)  6 measured, 6 passed, 06+08 lost to TPM
+                     run 2 (60s pacing)  01 03 PASS, 02 FAILED on a fabricated
+                                         notable_outcomes quote, 04-08 lost to TPD
+                     quota exhausted at 195,988/200,000
+retries fired        0, on every case of every run, both models
+offline suite        60 passed, 67 deselected
+```
+
+**On the ARCHITECTURE §4 model question, the answer moved and is now genuinely open.** `fast` is
+immune to the case-01 flap across 10 observations, which is a real point in its favour. But it
+fabricated a quote on case 02 today, where `deep` passed 02 — the reverse of what 2026-07-31
+recorded. Neither model is stable across days. **Do not switch the assignment on this evidence.**
 
 ### 1.3a golden fixtures and assertion harness — observed output
 
@@ -320,6 +452,47 @@ So the `var()` indirection works, opacity modifiers work, and one utility silent
 See the Decisions entry below.
 
 ## Last session
+
+**Session 6 — 2026-08-01. No story completed. The session's value is that story 1.3 was stopped
+from being ticked on a suite that cannot gate.**
+
+Opened to run two golden cases and close story 1.3. Case 07 passed. Case 08 failed on the
+suite's most important assertion, and everything after that came out of reading the failure
+rather than accepting the label.
+
+**Case 08's "fabricated quote" was character-identical to the fixture across 42 words** — two
+hyphens rendered as U+2011 instead of ASCII. The check that exists to catch fabrication was
+manufacturing one. Fixed with a content-neutral typography fold, em-dash deliberately excluded so
+a banned character cannot be laundered through as verbatim, and re-falsified in both directions.
+Offline suite 53 → 60.
+
+**Then the real finding: `temperature=0` does not make these models deterministic, and this file
+said it did.** Golden case 01 flaps PASS/FAIL/PASS/FAIL on `deep` against identical input. These
+are MoE models; temperature governs sampling, not the batched forward pass. **A flapping case
+makes every future prompt change unfalsifiable, which is the one thing the golden suite exists to
+prevent**, so story 1.3 cannot be ticked. Karthik's call: fix the prompt boundary rather than mask
+the variance with `seed=`.
+
+**The session's best moment was a control that invalidated my own result.** With `deep` out of
+daily quota, the prompt fix was measured on `fast` and came back 5/5 clean. Running the control —
+`fast` with the fix reverted — also returned 5/5. **`fast` never had the flap, so the green run was
+not evidence about the fix at all.** Recorded as unvalidated. Third false pass this project has
+caught with an independent control, after 1.1's `A/own = 1` column and 1.3a's vacuity probe.
+
+**A second harness defect, same shape as the first: the suite was recording rate limits as prompt
+failures.** `_PACE_SECONDS` was 30 against an 8000 TPM bucket while one case grew to request ~7500
+tokens, needing ~56s of refill. In one run, 5 of 6 "failures" were 429s. Raised to 60s.
+
+**Both harness defects manufactured failures rather than hiding them** — the mirror image of this
+project's earlier vacuity findings, and just as expensive, because a red suite nobody trusts gets
+tuned against and the assertion is what usually gets tuned.
+
+**Both models hit the 200,000 tokens/day ceiling**, so the prompt fix is written, uncommitted, and
+unmeasured on `deep`. That is deliberate: CLAUDE.md forbids committing a prompt change before its
+golden cases pass. `git status` is dirty by design and § Next session names the file and the
+command.
+
+**Nothing about the frontend, deployment, or the database changed this session.**
 
 **Session 5 — 2026-07-31. Stories 1.3a and 1.6a complete, AND THE PROJECT CHANGED LLM PROVIDER.**
 
@@ -837,53 +1010,76 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 **Run these three first (~1 min), before anything else:**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 53 passed, 67 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 60 passed, 67 deselected
 cd frontend && npm test                                                   # expect 33 passed
 curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, ~32s if cold
 ```
 
-**🔴 FIRST THING: finish story 1.3's verification. It is blocked ONLY on a daily token quota that
-resets overnight, and it is two commands.** Both models hit Groq's 200,000 tokens/day cap on
-2026-07-31, so 10 of 16 model-case combinations are unmeasured. Every case that ran, passed.
+---
 
-**Only two cases are actually missing.** 01-06 passed on `deep` on 2026-07-31; 07 and 08 never ran.
-The Resume Analyst calls `deep`, so `deep` is the only model that gates this story:
+**🔴 FIRST THING, AND `git status` IS NOT CLEAN ON PURPOSE.**
+
+`backend/app/agents/resume_analyst.py` carries **one uncommitted prompt change**: a negative
+boundary on the `low_confidence_fields` title-vs-scope trigger, added to stop golden case 01
+flagging `assessed_level` on a resume where the title and the assessed level agree. Everything
+else from 2026-08-01 is committed.
+
+**It is uncommitted because CLAUDE.md forbids committing a prompt change before its golden cases
+pass, and it has never been measured on `deep`** — both models hit the 200k/day ceiling first.
+Do not commit it until the run below is green. Do not assume it works: `fast` was 5/5 clean both
+with AND without it, because `fast` never had the flap.
+
+**Step 1 — validate the fix on `deep`, which is the only model that gates this story.** Case 01
+is the target; 05 and 06 are the cases most likely to be regressed BY it, since they depend on
+that same trigger firing:
 
 ```
 cd backend
-GOLDEN_ROLE=deep .venv/Scripts/python.exe -m pytest \
-  "tests/golden/resume_analyst/test_golden.py::test_golden_case[07_duties_no_outcomes]" \
-  "tests/golden/resume_analyst/test_golden.py::test_golden_case[08_engineer_transition]" -q -s
+$env:GOLDEN_ROLE="deep"
+.venv/Scripts/python.exe -m pytest "tests/golden/resume_analyst/test_golden.py::test_golden_case[01_apm_rotational]" -q -s
 ```
 
-~8,000 tokens, about two minutes. **If both pass, story 1.3 is DONE** — tick it here and in
-PHASE-1-SPEC. A 429 naming `tokens per day (TPD)` is the quota, not a failure; wait for the reset it
-names.
+**Run case 01 at least four times.** It flapped ~50/50, so one green run is worth almost nothing —
+that is the whole reason this story is still open. There is a probe that does the sampling and the
+pacing for you; copy it out of the scratchpad note below or rewrite it, it is ~30 lines:
+call `analyse_resume(fixture_01_text, role="deep")` in a loop, print `low_confidence_fields`, sleep
+60s between calls. **4+ consecutive clean runs, then commit. Anything less, and the fix is not
+established.**
 
-**Do NOT re-run the full set on `fast` just to complete a matrix.** Karthik's call 2026-07-31, and it
-is the right one: `fast` only answers the optional "could this agent use the cheaper model" question
-from spec §6. That costs ~32,000 tokens, 16% of a daily budget, for a comparison nobody has to act
-on. **Run it only when there is a reason** — if Resume Analyst latency becomes a real complaint, or
-if Phase 2 wants the quality signal before assigning models to the Case Architect and Planner.
-
-**Then check whether 1.3b landed**, because it is the thing most likely to have been interrupted:
+**Step 2 — if 01 is stable, run the full set on `deep` once** (~8 min, ~32k tokens):
 
 ```
-ls backend/app/agents/resume_analyst.py                  # exists? 1.3b ran
-cd backend && .venv/Scripts/python.exe -m pytest tests/golden -q
-  # 23 passed, 8 errors (ModuleNotFoundError: app.agents)  -> 1.3b never started, brief it
-  # 31 passed                                              -> 1.3b is done and green
-  # 23 passed, 8 failed                                    -> 1.3b ran and the agent is wrong.
-  #   Iterate the PROMPT. Never the fixtures or assertions. See below.
+cd backend && $env:GOLDEN_ROLE="deep"
+.venv/Scripts/python.exe -m pytest tests/golden/resume_analyst -q -s --tb=line
 ```
 
-**The golden suite is red BY DESIGN until 1.3b lands.** It was written blind to the prompt in story
-1.3a precisely so the prompt cannot be tuned against it. **Whoever implements 1.3b may not edit a
-fixture or an assertion** — if one looks wrong, stop and report it. That constraint is the only
-thing making this agent falsifiable, and these eight cases gate every future prompt change to it.
+Expect `38 passed`. **If a case fails, read the message before believing it** — on 2026-08-01, 5
+of 6 "failures" in one run were 429 quota errors and 2 of 2 in another were 429s. Classify first:
 
-Do **not** run the full live suite to warm up. It is 6-63 minutes depending on NVIDIA contention
-(see Decisions 2026-07-31) and it costs real rate budget. Run it before handover, not before work.
+```
+grep -E "tokens per day|tokens per minute|AssertionError" <output>
+```
+
+A TPD 429 means stop for the day; the budget is 200,000 tokens per model and it is not in any
+header. A TPM 429 means `_PACE_SECONDS` needs raising again.
+
+**Then story 1.3 is DONE** — tick it here and in PHASE-1-SPEC, and record the pass rate.
+
+**Budget before you start: one full golden run is ~32,000 tokens, 16% of one model's day, and
+about 6 runs per model per day exist.** `deep` and `fast` have separate buckets. Iterate on ONE
+case; save full runs for confirmation.
+
+**The fixtures and assertions were written blind to the prompt in story 1.3a, precisely so the
+prompt cannot be tuned against them. That constraint still holds — iterate the PROMPT, never a
+fixture.** Two assertion-side edits were made on 2026-08-01 and both are recorded above with
+their falsification: a typography fold that stopped a 42-word exact quote being called a
+fabrication, and a pacing constant that stopped 429s being recorded as prompt failures. **Neither
+weakened what is checked** — the fabrication, em-dash, case-sensitivity and vacuity controls were
+all re-run and still reject. Hold any further assertion edit to that same standard: if changing an
+assertion, prove the thing it exists to catch is still caught.
+
+Do **not** run the full live suite to warm up. It is 6-63 minutes and costs real rate budget.
+Run it before handover, not before work.
 
 **Story 1.3 is the Resume Analyst, and its contract is already written:**
 `docs/specs/agents/AGENT-RESUME-ANALYST-SPEC.md`. **That spec is the authority** — output schema,
@@ -912,10 +1108,13 @@ and the `resumes.profile` write — belong to the `level_candidate` **node in st
 cases call `analyse_resume` directly with no session and no database, so a DB call inside it breaks
 all eight. It must also **assert `resume_text` is non-empty and fail loudly** (spec §7, row 1).
 
-**The spec asks 1.3 to settle an open question, so do not skip it:** run the golden set against
-BOTH `deep` and `fast` and record both. ARCHITECTURE §4 assigns `deep`, but `fast` is 10/10 on
-structured output where `deep` is 7-9/10 and up to 3x slower. Nobody has ever measured *quality*.
-If `fast` matches `deep` on cases 5-8, change the assignment and let Phase 2 inherit the finding.
+**On the open ARCHITECTURE §4 model question — partially measured, and DO NOT switch yet.** `fast`
+has now been run against the same eight cases. It is immune to the case-01 flap across 10
+observations where `deep` flaps ~50%, which is a genuine point in its favour. But it fabricated a
+`notable_outcomes` quote on case 02 on 2026-08-01, where `deep` passed 02 — the reverse of what
+2026-07-31 recorded, on both models. **Neither model is stable across days, so neither a switch nor
+a confirmation is supportable on this evidence.** Settle it in Phase 2 with the flap fixed first,
+otherwise the comparison is between two coin flips.
 
 **Story 1.4 next:** `level_candidate` → `confirm_level`, the first real `interrupt()`.
 `confirm_level` contains **only `interrupt()` and its return** — no LLM call, no counter, no write
@@ -994,6 +1193,55 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-08-01 · 🔴 PHASE-AFFECTING: `temperature=0` DOES NOT MAKE THESE MODELS DETERMINISTIC. THE
+2026-07-31 ENTRY BELOW CLAIMING IT FIXED RUN-TO-RUN VARIANCE IS FALSIFIED. The golden suite is not
+yet a regression gate, and every claim resting on "the suite passed" needs re-reading.**
+
+`llm.py` sets `temperature=0` with this comment: "case 02 passed one run and failed the next on
+identical input (observed 2026-07-31), which makes every future prompt change unfalsifiable." The
+diagnosis was right and the fix does not achieve it. Golden case 01 on `deep`, identical input:
+PASS, FAIL, PASS, FAIL across four observations, the failures carrying
+`low_confidence_fields=['assessed_level']` on a resume where title and scope agree.
+
+**Why, and it is structural rather than a Groq bug.** `gpt-oss-*` are mixture-of-experts models.
+Temperature governs *sampling* from the output distribution; it does nothing about the
+nondeterminism in the forward pass itself, where batched inference varies expert routing and
+floating-point reduction order with whatever else is in the batch. A near-tie between two logits
+resolves differently run to run. `temperature=0` narrows the problem to genuine boundary cases —
+which is why 6 of 8 cases are stable — and cannot remove it.
+
+**The consequence is the one that matters: a flapping case makes the suite unable to do its job.**
+CLAUDE.md's rule is "golden cases must pass before any agent prompt change is committed." If a case
+is a coin flip, a red result cannot be distinguished from a bad sample, and the rule degrades into
+re-rolling until green. **This blocks ticking story 1.3**, and it is not specific to the Resume
+Analyst — the Evaluator in Phase 4 scores against a rubric and will sit on the same boundaries.
+
+**Karthik's call 2026-08-01: fix the prompt boundary rather than mask the variance.** Options
+declined, with reasons, so this is not re-litigated: adding `seed=` freezes the coin flip without
+fixing the borderline and hides a signal the suite was built to surface; accepting a known-flaky
+case corrodes the gate; re-measuring on `fast` was already the cheap comparison and is recorded
+above. **The flap is a real weakness at a decision boundary and the suite is correctly catching
+it.** The fix is written and unvalidated; see § Next session.
+
+**What is NOT yet decided, and should be decided with data, not now:** whether a residual flap
+needs a best-of-N gate, and whether `seed=` is worth adding *in addition to* a prompt fix. Revisit
+once the prompt fix has been measured on `deep`.
+
+**2026-08-01 · The golden suite's pacing was recording rate limits as prompt failures, and the two
+harness defects this session share a shape worth naming.**
+
+`_PACE_SECONDS` was 30 against an 8000 TPM bucket while a single case grew to request ~7500 tokens,
+needing ~56s of refill. Cases landing late in a run 429'd and were reported as failures. Separately,
+`missing_verbatim_quotes` called a 42-word exact quote a fabrication over two typographic hyphens.
+
+**Both defects made the harness lie in the same direction: they manufactured failures.** That is
+the less-discussed half of test reliability in this project's history — 1.1 and 1.3a both found
+assertions that passed vacuously, and the instinct built from those is to distrust green. These two
+are the mirror image, and they are just as expensive: a red suite nobody can trust gets tuned
+against, and the first thing tuned is usually the assertion rather than the code. **Read the failure
+message before believing the label** is the operational rule; both were found that way and neither
+was visible from the pass/fail counts.
 
 **2026-07-31 · 🔴 PHASE-AFFECTING: `with_structured_output()` RETURNS `None` ONCE THE SYSTEM PROMPT
 PASSES ROUGHLY 1500-2800 CHARACTERS. All three models. The schema is innocent. This invalidates the

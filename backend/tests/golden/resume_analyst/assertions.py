@@ -3,10 +3,11 @@
 agent exists, since `test_assertions.py` exercises it at collection time
 under `pytest tests -m "not live"`.
 
-Every comparison routes through `normalize_whitespace`: `pypdf` / `python-docx`
-extraction (story 1.2) produces irregular runs of whitespace, newlines, and
-non-breaking spaces that a naive `in` check would treat as a mismatch even
-when the underlying words are identical.
+Every comparison routes through `normalize_for_comparison`: `pypdf` /
+`python-docx` extraction (story 1.2) produces irregular runs of whitespace,
+newlines, and non-breaking spaces that a naive `in` check would treat as a
+mismatch even when the underlying words are identical, and the model emits
+typographic variants of ASCII punctuation for the same reason.
 """
 from __future__ import annotations
 
@@ -17,15 +18,49 @@ EN_DASH = "–"
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
+# Typographic variants that carry no content: the same character, rendered
+# differently. Folded before any verbatim comparison because the fixtures are
+# pure ASCII while the model is not -- gpt-oss-120b reproduced 42 words of
+# fixture 08 exactly and substituted U+2011 for the two ASCII hyphens in
+# "hard-coded" / "built-in", which `missing_verbatim_quotes` then reported as a
+# fabricated quote. Measured 2026-08-01: 2 differing codepoints out of 233,
+# both hyphens. See DEV-STATE § Decisions 2026-08-01.
+#
+# EM_DASH and EN_DASH are deliberately ABSENT. They are distinct punctuation
+# rather than variants of the hyphen, and this project bans them in candidate-
+# facing copy -- folding them would let a quote introduce a banned character
+# and still read as verbatim.
+_TYPOGRAPHIC = {
+    "‐": "-",  # HYPHEN
+    "‑": "-",  # NON-BREAKING HYPHEN
+    "‘": "'",  # LEFT SINGLE QUOTATION MARK
+    "’": "'",  # RIGHT SINGLE QUOTATION MARK
+    "“": '"',  # LEFT DOUBLE QUOTATION MARK
+    "”": '"',  # RIGHT DOUBLE QUOTATION MARK
+}
+
 
 def normalize_whitespace(text: str) -> str:
-    """Collapse all whitespace runs to a single space and strip. The one
-    normalization helper every comparison in this suite routes through."""
+    """Collapse all whitespace runs to a single space and strip."""
     return _WHITESPACE_RE.sub(" ", text).strip()
 
 
+def fold_typography(text: str) -> str:
+    """Map typographic punctuation variants onto their ASCII equivalents.
+    Content-neutral by construction: every entry in `_TYPOGRAPHIC` is a
+    rendering of the character it maps to, never a different one."""
+    return "".join(_TYPOGRAPHIC.get(ch, ch) for ch in text)
+
+
+def normalize_for_comparison(text: str) -> str:
+    """The one normalization helper every verbatim comparison routes through:
+    typography folded, whitespace collapsed, stripped. Case is NOT folded --
+    callers decide, and `missing_verbatim_quotes` deliberately does not."""
+    return normalize_whitespace(fold_typography(text))
+
+
 def _words(text: str) -> list[str]:
-    normalized = normalize_whitespace(text)
+    normalized = normalize_for_comparison(text)
     return normalized.split(" ") if normalized else []
 
 
@@ -57,19 +92,19 @@ def rationale_cites_resume(rationale: str, resume_text: str, min_words: int = 8)
     not paraphrase, and folding case there would let a fabricated
     recapitalization of a real phrase pass as genuine.
     """
-    haystack = normalize_whitespace(rationale).lower()
+    haystack = normalize_for_comparison(rationale).lower()
     return any(window.lower() in haystack for window in eight_word_windows(resume_text, min_words))
 
 
 def missing_verbatim_quotes(quotes: list[str], source: str) -> list[str]:
     """Returns the subset of `quotes` that do NOT appear verbatim
-    (whitespace-normalized, case-sensitive) in `source`. An empty return
-    means every quote is honest -- this is the check the spec calls "the
-    single most important assertion in the file": a fabricated quote in
-    `scope_evidence` or `notable_outcomes` must fail the case.
+    (whitespace- and typography-normalized, case-sensitive) in `source`. An
+    empty return means every quote is honest -- this is the check the spec
+    calls "the single most important assertion in the file": a fabricated
+    quote in `scope_evidence` or `notable_outcomes` must fail the case.
     """
-    normalized_source = normalize_whitespace(source)
-    return [q for q in quotes if normalize_whitespace(q) not in normalized_source]
+    normalized_source = normalize_for_comparison(source)
+    return [q for q in quotes if normalize_for_comparison(q) not in normalized_source]
 
 
 def empty_quote_lists(

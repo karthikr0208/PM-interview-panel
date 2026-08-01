@@ -60,14 +60,22 @@ def analyse_resume():
 
 
 # Groq's binding limit is TOKENS per minute, not requests: 8000 TPM on the
-# gpt-oss models, measured from x-ratelimit-* headers 2026-07-31. One case is
-# roughly 2500 tokens, so eight fired back-to-back reliably 429s partway
-# through -- case 05 died that way on the first full run.
+# gpt-oss models, measured from x-ratelimit-* headers 2026-07-31.
 #
 # This paces the suite and changes NO assertion. A 429 here is a property of
 # the free tier, not of the agent, and letting it fail a case would encode
 # "the endpoint was busy" as "the prompt is wrong".
-_PACE_SECONDS = 30
+#
+# 60s, not the 30s this started at, and the arithmetic is the reason. The
+# prompt grew to ~2900 tokens, so a single case now REQUESTS about 7500
+# against an 8000 bucket that refills at 8000/60 = 133 tokens per second:
+# ~56s to make room for the next call. 30s could not work, and did not --
+# cases 06 and 08 both 429'd mid-suite on 2026-08-01 and were recorded as
+# failures until the messages were read. Observed both times:
+#   "Limit 8000, Used 1177, Requested 7516"   <- refill, not our usage
+# Raise this in step with the prompt, or the suite silently stops measuring
+# the last cases in the run.
+_PACE_SECONDS = 60
 
 
 @pytest.fixture(autouse=True)

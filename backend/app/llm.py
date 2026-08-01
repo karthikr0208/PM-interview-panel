@@ -247,6 +247,16 @@ def get_llm(role: Role) -> LoggingChatClient:
     # unfalsifiable: a red case cannot be distinguished from a bad sample.
     # The Interviewer may want sampling later for prose variety; that is a
     # per-role override, not a reason to leave the graders non-deterministic.
+    #
+    # It NARROWS that variance and does not remove it, corrected 2026-08-01
+    # after this comment claimed otherwise for a day. These are MoE models;
+    # temperature governs sampling, not the batched forward pass, where expert
+    # routing and reduction order shift with whatever shares the batch. Golden
+    # case 01 still flapped PASS/FAIL/PASS/FAIL on `deep` at temperature=0.
+    # Genuine near-ties resolve differently run to run, so a golden case that
+    # sits on a decision boundary is a coin flip no client parameter can fix.
+    # Do NOT reach for `seed=` as the answer without reading DEV-STATE
+    # § Decisions 2026-08-01: it freezes the flip rather than fixing it.
     client = ChatOpenAI(
         model=_MODEL_BY_ROLE[role],
         api_key=settings.groq_api_key,
