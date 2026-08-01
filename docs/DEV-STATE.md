@@ -64,7 +64,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a, 1.6b done**; 1.3b's case-01 fix committed (`27bb749`) but **2 of 8 golden cases flap**; 1.4, 1.7 remain | PHASE-1-SPEC.md | 2026-08-01 — 85 live tests, **60 offline, 66 vitest** |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a, 1.6b done**; **1.3b (`27bb749`) and 1.4 (`aa3a756`) built and committed but NOT ticked**, each one measurement short and both blocked on daily token budget; 1.7 remains | PHASE-1-SPEC.md | 2026-08-01 — 93 live tests, **60 offline, 74 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -100,7 +100,11 @@ Specs are written at the top of the phase that builds each agent, not up front.
     fix is now VALIDATED against a live control and COMMITTED (`27bb749`, session 7).** Still not
     tickable: **at least two of the eight cases flap**, case 01 has a *second* over-flagging mode
     the fix does not address, and cases 03-08 could not be run on `deep` today. Output below
-- [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
+- [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt — **BUILT AND COMMITTED
+  (`aa3a756`), NOT TICKED.** Structure, offline suite, vitest, build, lint, residue and design
+  rules all verified independently. **The 8 live tests are the agent's run only, and the
+  single-call assertion is UNFALSIFIED** — both models hit the daily cap before the wrong-graph
+  probe could run. Output below
 - [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
 - [ ] 1.6 Upload and confirmation UI — **split in two.** 1.6b brought forward ahead of 1.4 on
   2026-08-01: 1.4 needs model budget that is exhausted, 1.6b needs none. See Decisions
@@ -127,6 +131,85 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.4 level_candidate → confirm_level — observed output, session 7, 2026-08-01
+
+`app/graph/build.py` (two real nodes), `app/main.py` (two routes plus an `_authorize_session`
+refactor), `app/supabase_client.py` (`rest_update`), `tests/test_confirm_level.py` (new, 8 live),
+`frontend/src/{App.tsx,lib/api.ts,lib/levelAssessment.ts,lib/agentEvents.ts,components/UploadSurface.tsx}`
+plus two test files. Committed `aa3a756`. Delegated to a Sonnet agent, re-verified independently.
+
+**Verified by me, not inherited from the agent's report:**
+
+```
+offline pytest    60 passed, 75 deselected      (the +8 deselected are the new live tests)
+vitest            74 passed                     (66 -> 74)
+npm run build     clean, index-fpBkC6vS.js 428.96 kB / gzip 121.59 kB
+npx oxlint        exit=0
+DB residue        sessions · resumes · agent_events · transcript_turns
+                  answer_evaluations · case_worlds · checkpoints   ALL 0
+design greps      no em-dash in rendered copy · no console.* · no bare
+                  duration-standard · no lucide
+```
+
+**The three structural traps, checked by READING the code rather than by a green test**, because
+each is the kind of thing a passing suite does not notice:
+
+```
+T1  confirm_level's body is `chosen = interrupt({...})` then `return {...}`.
+    Nothing above the interrupt line.                        build.py:145-153
+T2  the single-call assertion filters `outcome=ok` records ONLY, so a
+    legitimate validate-retry (empty/invalid THEN ok) cannot fail it while
+    a doubled node execution still does.        test_confirm_level.py:85-101
+T3  analyse_resume stays pure: no supabase/httpx import, no session, no
+    agent_events row. The eight golden cases still call it with no database.
+```
+
+The `_authorize_session` refactor **touches story 1.2's proven security path**, so it was read
+rather than trusted: 401 bad token, 404 unknown session, 403 wrong owner, now shared by all three
+routes. A NULL `user_id` compares unequal and so **fails closed to 403**.
+
+**🔴 WHAT IS NOT VERIFIED, AND IT IS THE BOX THAT MATTERS MOST. Do not read this story as done.**
+
+The 8 live tests in `tests/test_confirm_level.py` are **the agent's run only**. They could not be
+re-run: both models hit the 200,000-token daily cap during this session.
+
+```
+deep (gpt-oss-120b)   199,325 / 200,000     spent validating the case-01 fix
+fast (gpt-oss-20b)    199,086 / 200,000     spent by the agent's 8 live tests
+```
+
+**The single-call assertion is UNFALSIFIED.** A probe was written that builds the WRONG graph —
+the LLM call placed above `interrupt()` in the same node, which is exactly the bug CLAUDE.md's
+load-bearing rule exists to prevent — drives the same start/resume cycle, and applies the test's
+own `outcome=ok` counting to it. **It 429'd on `fast` before executing.** Until the wrong graph is
+observed logging **2** `outcome=ok` records, that assertion is correct by inspection but not proven
+able to fail. **Story 1.3a's most important assertion passed vacuously on all eight cases**; this
+project does not trust a counter it has not seen go red. Recipe, ~50 lines, next session:
+
+```
+one node: analysis = await analyse_resume(text, role="fast"); interrupt(...); return
+compile it on the REAL AsyncPostgresSaver, ainvoke, then ainvoke(Command(resume="PM"))
+count logging records where name == "app.llm" and "outcome=ok" in message
+EXPECT 2. If it reports 1, the assertion cannot detect the bug it exists to detect.
+On Windows: asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+  first, or psycopg raises on the ProactorEventLoop.
+```
+
+**The Realtime startup race from 1.6b is resolved as MOOT, and the reasoning holds up.** The
+`agent_events` subscription starts when `App.tsx` receives `sessionId` from `POST /session`, which
+is before the resume upload begins; the first real `agent_events` row cannot land until after a
+full upload round trip plus a separate `POST /session/{id}/level`. That is several seconds against
+the 2s settle the 1.6b probe measured as sufficient. No delayed re-fetch added. **This is reasoning,
+not a measurement** — if any future agent writes an event on session start, it reopens.
+
+**`.mono-num`** needed nothing new: 1.6b's `ConfirmationScreen` already applies it to
+`years_pm_experience`, and `assessed_level` is a string enum rather than a numeral.
+
+**One scope addition the agent flagged against its own brief**, correctly: the confirm route's
+request body is constrained to `Literal["APM","PM","Senior PM","GPM"]`. The frontend already
+restricted this at the type level; the backend previously accepted any string. Beyond the
+acceptance boxes, and right.
 
 ### 1.3b case-01 fix validated and committed — observed output, session 7, 2026-08-01
 
@@ -678,9 +761,24 @@ which is a bigger problem than the single case session 6 described. Story 1.3 st
 because the blocker is an unrelated pre-existing flap plus exhausted quota, and the fix cleared a
 higher bar than the rule asks for. Story 1.3 explicitly NOT ticked.
 
-**`deep` is spent at 199,325/200,000, so cases 03-08 have not run since the fix landed.** Nothing
-about the frontend, the database, or the deployment changed. Offline 60, vitest 66, both re-run.
-**Cold start measured 42.4s against the 32.3s on record** — worth re-measuring before a demo.
+**Then story 1.4 was built and committed (`aa3a756`), and it is one measurement short of done.**
+Delegated to a Sonnet agent. `level_candidate` → `confirm_level` on the real graph, two routes,
+and the frontend seams 1.6b left: `ConfirmationScreen` is mounted, `submitLevelCorrection` is real.
+Independently re-verified: offline 60/75, **vitest 66 → 74**, build clean, oxlint 0, **residue 0 on
+all seven tables**, design greps clean. The three structural traps (T1 nothing above `interrupt()`,
+T2 count `outcome=ok` only, T3 `analyse_resume` still pure) were checked by reading the code, and
+the `_authorize_session` refactor of story 1.2's security path fails closed to 403.
+
+**But the phase's most important assertion has never been seen to fail.** A probe that builds the
+WRONG graph — the LLM call above `interrupt()` in the same node — was written and **429'd before it
+could run**, because the agent's 8 live tests had just spent `fast`'s daily budget. So 1.4's
+single-call box is correct by inspection and unproven, and the 8 live tests are the agent's run
+only. **Both stories are committed and neither is ticked**, for the same reason in both cases: the
+evidence that would close them costs tokens that no longer exist today.
+
+**Both models ended the session at their cap:** `deep` 199,325/200,000, `fast` 199,086/200,000.
+Nothing about the database or the deployment changed. **Cold start measured 42.4s against the 32.3s
+on record** — worth re-measuring before a demo.
 
 **Session 6 — 2026-08-01. Story 1.6b complete. Story 1.3 was stopped from being ticked on a suite
 that cannot gate, which is the more important half.**
@@ -1249,28 +1347,40 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Stories 1.1, 1.2, 1.5, 1.3a, 1.6a and 1.6b are DONE and committed.** Remaining: **1.3b → 1.4 →
-1.7.** 1.7 must not start until 1.4 is verified.
+**Stories 1.1, 1.2, 1.5, 1.3a, 1.6a and 1.6b are DONE and committed. Stories 1.3b and 1.4 are BUILT
+AND COMMITTED BUT NOT TICKED** — each is one measurement short, and both measurements need model
+budget. Remaining: **finish 1.3b and 1.4's verification → 1.7.**
 
-**`git status` IS CLEAN.** Session 6's uncommitted prompt fix was validated and committed as
-`27bb749` in session 7. There is nothing dirty to pick up.
+**`git status` IS CLEAN.** Session 7 committed `27bb749` (the case-01 prompt fix) and `aa3a756`
+(story 1.4). Nothing dirty to pick up.
 
 **Run these three first (~1 min), before anything else:**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 60 passed, 67 deselected
-cd frontend && npm test                                                   # expect 66 passed
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 60 passed, 75 deselected
+cd frontend && npm test -- --run                                          # expect 74 passed
 curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, 32-42s if cold
 ```
 
 ---
 
-**🔴 DECIDE FIRST: 1.4 OR 1.3'S REMAINING FLAPS. They compete for the same daily token budget and
-you cannot do both well in one day.**
+**🔴 BOTH MODELS WERE AT THEIR DAILY CAP WHEN SESSION 7 ENDED** (`deep` 199,325/200,000, `fast`
+199,086/200,000), refilling at ~138 tokens/min, which is roughly one case per hour. **Check the
+budget before planning the day**, and spend it in this order:
 
-**Recommendation: do 1.4 first.** It is the last real story in the phase, it unblocks the two
-built-but-unmounted 1.6b boxes, and its budget need is small and bounded (a handful of calls).
-1.3's remaining work is open-ended flap-chasing at ~60k tokens per validated prompt change.
+**FIRST, and it is cheap (~2 calls on `fast`): falsify story 1.4's single-call assertion.** It is
+the phase's most important assertion and it has never been seen to fail. Full recipe is in the
+1.4 observed-output section above. **Expect the wrong graph to log 2 `outcome=ok` records.** If it
+logs 1, the assertion is vacuous and 1.4 is not done regardless of how green the suite looks.
+
+**SECOND (~8 calls on `fast`): re-run `tests/test_confirm_level.py -m live` yourself.** Session 7
+only has the agent's word for those 8. Then **1.4 can be ticked.**
+
+**THIRD (~32k on `deep`): the full golden suite**, to confirm the committed case-01 fix regressed
+nothing — especially **05 and 06, which need the `assessed_level` trigger to FIRE** and are the
+cases the fix could plausibly have suppressed. Cases 03-08 have not run since it landed.
+
+**FOURTH, and it is open-ended: the two remaining golden flaps.** Details below.
 
 ---
 
@@ -1339,9 +1449,9 @@ Run it before handover, not before work.
 
 ---
 
-**🔴 STORY 1.4 IS THE OTHER THING TO DO, AND IT IS NOW THE LAST REAL STORY IN THE PHASE.**
-1.6b landed on 2026-08-01, so only 1.4 and the 1.7 cleanup remain. **1.4 needs model budget**, so
-if the daily quota is spent, do 1.3's validation first and 1.4 second.
+**🔴 STORY 1.4 IS BUILT AND COMMITTED (`aa3a756`) AS OF SESSION 7. What follows is the original
+brief, kept because its non-negotiables still describe the code that now exists — and they are what
+the two outstanding measurements above are checking.** Do not rebuild any of it.
 
 `level_candidate` → `confirm_level`, the first real `interrupt()`. `build.py` gets its first two
 nodes. Non-negotiables, all previously recorded:
@@ -1356,16 +1466,15 @@ nodes. Non-negotiables, all previously recorded:
   `analyse_resume` directly with no session and no database, so a DB call inside it breaks all
   eight at once.
 
-**1.4 also owes three things 1.6b left it, and they are cheap to lose:**
+**The three things 1.6b left 1.4 are all DONE in `aa3a756`:**
 
-1. **Mount `ConfirmationScreen`.** It is built, tested, and deliberately unmounted because nothing
-   produces a real `ResumeAnalysis` yet. Its `onConfirm` contract is already defined.
-2. **Wire the `submitLevelCorrection` seam** in `frontend/src/lib/api.ts` — defined, never called.
-   `frontend/src/lib/types.ts` mirrors the backend models field for field and the frontend tests
-   are written against that shape, **so do not change it casually.**
-3. **Re-check the Realtime startup race** documented at the top of `lib/agentEvents.ts`. 1.4 writes
-   the first real `agent_events`. If any agent writes an event immediately on session start, add a
-   delayed re-fetch after SUBSCRIBED; if events only ever land seconds in, the race is moot.
+1. ~~**Mount `ConfirmationScreen`**~~ → mounted in `App.tsx`, wired to `confirmLevel` via its
+   existing `onConfirm` contract.
+2. ~~**Wire the `submitLevelCorrection` seam**~~ → real, backed by `POST /session/{id}/level/confirm`.
+   `types.ts` was NOT changed, so 1.6b's tests still hold.
+3. ~~**Re-check the Realtime startup race**~~ → **resolved as MOOT by reasoning, not measurement.**
+   The subscription starts on `sessionId` from `POST /session`, seconds before any agent event can
+   land. **It reopens if a future agent ever writes an event on session start.**
 
 **Story 1.3 is the Resume Analyst, and its contract is already written:**
 `docs/specs/agents/AGENT-RESUME-ANALYST-SPEC.md`. **That spec is the authority** — output schema,
