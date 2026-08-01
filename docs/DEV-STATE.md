@@ -1,6 +1,6 @@
 # Development State
 
-**Last updated:** 2026-08-01 · Session 6
+**Last updated:** 2026-08-01 · Session 7
 
 ---
 
@@ -185,15 +185,17 @@ load-bearing rule exists to prevent — drives the same start/resume cycle, and 
 own `outcome=ok` counting to it. **It 429'd on `fast` before executing.** Until the wrong graph is
 observed logging **2** `outcome=ok` records, that assertion is correct by inspection but not proven
 able to fail. **Story 1.3a's most important assertion passed vacuously on all eight cases**; this
-project does not trust a counter it has not seen go red. Recipe, ~50 lines, next session:
+project does not trust a counter it has not seen go red.
+
+**The probe is written, committed, and takes no arguments** — it was moved out of the scratchpad so
+it survives the session that could not run it:
 
 ```
-one node: analysis = await analyse_resume(text, role="fast"); interrupt(...); return
-compile it on the REAL AsyncPostgresSaver, ainvoke, then ainvoke(Command(resume="PM"))
-count logging records where name == "app.llm" and "outcome=ok" in message
-EXPECT 2. If it reports 1, the assertion cannot detect the bug it exists to detect.
-On Windows: asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-  first, or psycopg raises on the ProactorEventLoop.
+backend/.venv/Scripts/python.exe backend/scripts/falsify_single_call.py
+
+EXPECT: "outcome=ok records after resume : 2"  and  "FAILS as it must"
+exit 0 = the assertion can detect the bug     exit 2 = it is VACUOUS, 1.4 is not done
+~2 `fast` calls. Cleans up its own sessions/checkpoint rows.
 ```
 
 **The Realtime startup race from 1.6b is resolved as MOOT, and the reasoning holds up.** The
@@ -1365,13 +1367,30 @@ curl -s https://pm-interview-panel.onrender.com/health                    # {"st
 ---
 
 **🔴 BOTH MODELS WERE AT THEIR DAILY CAP WHEN SESSION 7 ENDED** (`deep` 199,325/200,000, `fast`
-199,086/200,000), refilling at ~138 tokens/min, which is roughly one case per hour. **Check the
-budget before planning the day**, and spend it in this order:
+199,086/200,000).
+
+**It is a ROLLING window, not a midnight reset**, refilling at ~138 tokens/min ≈ 8,300/hour. So
+plan against elapsed hours, not the date:
+
+```
+~2h   ~17k    the falsify probe (~15k) and nothing else
+~8h   ~66k    falsify + the 8 live tests of test_confirm_level.py, both on `fast`
+~24h  ~199k   effectively a full bucket - the only point at which a full golden
+              run on `deep` (~32k) plus real flap work both fit in one day
+```
+
+**The two buckets are independent**, so `fast` work and `deep` work do not compete. Spend in this
+order:
 
 **FIRST, and it is cheap (~2 calls on `fast`): falsify story 1.4's single-call assertion.** It is
-the phase's most important assertion and it has never been seen to fail. Full recipe is in the
-1.4 observed-output section above. **Expect the wrong graph to log 2 `outcome=ok` records.** If it
-logs 1, the assertion is vacuous and 1.4 is not done regardless of how green the suite looks.
+the phase's most important assertion and it has never been seen to fail.
+
+```
+backend/.venv/Scripts/python.exe backend/scripts/falsify_single_call.py
+```
+
+**Expect the wrong graph to log 2 `outcome=ok` records** (exit 0). If it logs 1 (exit 2), the
+assertion is vacuous and 1.4 is not done regardless of how green the suite looks.
 
 **SECOND (~8 calls on `fast`): re-run `tests/test_confirm_level.py -m live` yourself.** Session 7
 only has the agent's word for those 8. Then **1.4 can be ticked.**
@@ -1602,8 +1621,17 @@ from "the flap is not happening today."
    unvalidated regardless of how clean the fix arm looks.
 
 Result on case 01: FIX 6/6, CONTROL 2 pass / 2 fail, p ≈ 0.05. Committed as `27bb749`.
-The probe is ~90 lines and worth rewriting rather than preserving; the four rules above are the
-part that matters.
+
+**The method is implemented as `backend/scripts/ab_prompt_control.py`** (session 7), which takes no
+required arguments and **enforces rule 4 rather than leaving it to the reader: it returns exit 4
+and prints INCONCLUSIVE if the control never failed**, instead of reporting a clean fix arm as a
+pass. That is the exact shape of this project's two false passes.
+
+```
+backend/.venv/Scripts/python.exe backend/scripts/ab_prompt_control.py [case] [pairs] [role]
+defaults: 01_apm_rotational 4 deep    = 8 calls, ~60k tokens, a third of a model's day
+aborts if the working tree prompt is identical to HEAD (nothing to A/B)
+```
 
 **2026-08-01 (session 7) · KARTHIK'S CALL: A VALIDATED PROMPT FIX MAY BE COMMITTED WHILE THE GOLDEN
 SUITE IS RED FOR AN UNRELATED REASON. Narrow exception, stated so it is not read as a general one.**

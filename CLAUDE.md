@@ -232,6 +232,20 @@ node frontend/scripts/probe_realtime.mjs   # Realtime respects RLS: two real ano
                               # No LLM budget. Re-run after ANY change to RLS policies or to the
                               # realtime publication.
 
+backend/.venv/Scripts/python.exe backend/scripts/falsify_single_call.py
+                              # Proves story 1.4's single-call assertion CAN fail, by building the
+                              # wrong graph (LLM call above interrupt() in the same node) and
+                              # confirming it logs 2 outcome=ok records. ~2 `fast` calls. Exit 2
+                              # means the assertion is vacuous. Cleans up its own rows.
+
+backend/.venv/Scripts/python.exe backend/scripts/ab_prompt_control.py [case] [pairs] [role]
+                              # THE way to validate an uncommitted prompt change on a flapping
+                              # golden case. Alternates the working tree against the COMMITTED
+                              # prompt (read byte-exact from `git show HEAD:`), and REFUSES to
+                              # report a pass if the control never failed. Defaults
+                              # 01_apm_rotational 4 deep = 8 calls, ~60k tokens, a third of a
+                              # model's day. See DEV-STATE § Decisions 2026-08-01 (session 7).
+
 make dev-api                  # FastAPI with reload
 make dev-web                  # Vite dev server
 make test                     # pytest + vitest
