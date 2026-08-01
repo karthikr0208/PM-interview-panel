@@ -1,4 +1,5 @@
 import { ensureAnonymousSession } from './supabase'
+import type { Level } from './types'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -97,4 +98,20 @@ export function uploadResumeFile(
         xhr.send(formData)
       }),
   )
+}
+
+/**
+ * SEAM FOR STORY 1.4 — not called from anywhere in this codebase yet.
+ *
+ * `confirm_level`'s HTTP route does not exist until story 1.4 builds the
+ * `level_candidate` -> `confirm_level` graph nodes (PHASE-1-SPEC.md 1.4).
+ * When it lands, this is where a candidate's chosen level should be POSTed
+ * so the backend can carry it into `Command(resume=...)` and resume the
+ * paused interrupt. Until then, `ConfirmationScreen` takes an `onConfirm`
+ * callback prop instead of importing this function directly, so the
+ * component stays fully testable against fixtures and 1.4 can wire this
+ * function into that callback without touching `ConfirmationScreen` itself.
+ */
+export async function submitLevelCorrection(_sessionId: string, _level: Level): Promise<never> {
+  throw new Error('submitLevelCorrection is a seam for story 1.4. No backend route exists yet.')
 }

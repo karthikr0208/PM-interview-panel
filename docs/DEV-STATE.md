@@ -25,9 +25,12 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**Phase 1 is IN PROGRESS as of 2026-08-01. Stories 1.1, 1.2, 1.5, 1.3a and 1.6a are done and
-committed. Story 1.3b's agent and prompt exist and are close, but 1.3 CANNOT BE TICKED — the
-golden suite is not yet a reliable gate. See § Next session, start here.**
+**Phase 1 is IN PROGRESS as of 2026-08-01. Stories 1.1, 1.2, 1.5, 1.3a, 1.6a and 1.6b are done and
+committed. Only 1.4 and the 1.7 cleanup remain. Story 1.3b's agent and prompt exist and are close,
+but 1.3 CANNOT BE TICKED — the golden suite is not yet a reliable gate. See § Next session.**
+
+**Realtime under RLS is PROVEN as of 2026-08-01** — the risk carried since Phase 0 that browsers
+could not read their own data is fully retired, with a positive control and a service-role control.
 
 **🔴 The headline finding of 2026-08-01: `temperature=0` does NOT make Groq's gpt-oss models
 deterministic, and this file previously recorded that it did.** Golden case 01 flaps roughly 50/50
@@ -54,7 +57,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a done**; 1.3b blocked on the case-01 flap; 1.4, 1.6b, 1.7 remain | PHASE-1-SPEC.md | 2026-08-01 — 85 live tests, **60 offline, 33 vitest** |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a, 1.6b done**; 1.3b blocked on the case-01 flap; 1.4, 1.7 remain | PHASE-1-SPEC.md | 2026-08-01 — 85 live tests, **60 offline, 66 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -95,7 +98,11 @@ Specs are written at the top of the phase that builds each agent, not up front.
 - [ ] 1.6 Upload and confirmation UI — **split in two.** 1.6b brought forward ahead of 1.4 on
   2026-08-01: 1.4 needs model budget that is exhausted, 1.6b needs none. See Decisions
   - [x] 1.6a ~~shell, anonymous sign-in, upload surface~~ — done 2026-07-31. 33 vitest tests. Env vars proven inlined into the bundle. **One defect found in review, deferred to 1.6b with the reason recorded**. Output below
-  - [ ] 1.6b confirmation screen, orchestration column states, Realtime on `agent_events`
+  - [x] 1.6b ~~confirmation screen, orchestration column states, Realtime on `agent_events`~~ —
+    done 2026-08-01. 66 vitest tests (33 → 66). **Realtime under RLS PROVEN with two real
+    identities plus a service-role control.** Session-per-upload defect fixed and falsified.
+    **Two boxes are built and tested but NOT mounted** — the confirmation screen needs 1.4's real
+    data, and a residual Realtime startup race is recorded. Output below
 - [ ] 1.7 Delete the Phase 0 scaffolding — **one item struck early, see Decisions 2026-07-31**
 
 ### Phase 0 stories — all complete, kept for the record
@@ -113,6 +120,98 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.6b confirmation UI and Realtime — observed output, 2026-08-01
+
+`frontend/src/lib/{types,session,agentEvents,agentStatus}.ts` + tests,
+`components/ConfirmationScreen.tsx` (new), `components/OrchestrationColumn.tsx` (rewritten),
+`UploadSurface.tsx` + `App.tsx` (session hoisting), `scripts/probe_realtime.mjs`.
+
+```
+npm test        8 files, 66 passed (66)      (33 -> 66)
+npm run build   ✓ built in 754ms   index-BJmij3hO.js 421.76 kB │ gzip 120.14 kB
+npx oxlint      exit=0
+```
+
+**🔴 REALTIME UNDER RLS IS PROVEN — the phase's riskiest unknown is retired.** Re-run
+independently, not taken from the agent's paste. Two real anonymous identities, real JWTs, a
+real `postgres_changes` subscription:
+
+```
+check                            expected  observed  verdict
+A receives its OWN row (A/own)   1         1         PASS   <- positive control
+A receives B's row     (A/Bs)    0         0         PASS   <- denial
+
+CONTROL — service role (bypasses RLS), same two INSERTs
+  service receives A's row  1      service receives B's row  1
+```
+
+**The `A/own = 1` column is again what makes this mean anything**, and the service-role control
+is the second floor: it proves the publication and the delivery pipeline are alive, so `A/Bs = 0`
+is RLS denying a row rather than nothing being delivered at all. Story 1.1's lesson applied
+without being re-learned.
+
+**Residue after the probe: zero on every table**, checked directly rather than trusted:
+
+```
+auth.users 0 · sessions 0 · agent_events 0 · resumes 0 · transcript_turns 0
+answer_evaluations 0 · case_worlds 0 · checkpoints (distinct threads) 0
+```
+
+**KNOWN RESIDUAL RISK, and it is NOT closed: a startup race in Realtime delivery, independent of
+RLS correctness.** The agent measured the positive control failing **2 of 8 runs at zero settle
+time, and passing 3 of 3 with a 2s delay** after `subscribe()` returned SUBSCRIBED. The
+service-role control received every row in those same runs, which isolates it to the RLS-scoped
+subscription rather than the publication. **Neither fetch order closes it** — the fetch snapshot
+predates the row and the subscription is not yet delivering, so it falls between them.
+
+Not fixed, deliberately, and the reason is timing rather than confidence: the Resume Analyst takes
+seconds to answer, so its events land long after the settle window. **Story 1.4 writes the first
+real `agent_events` and must re-check this.** If any agent ever writes an event immediately on
+session start, add a delayed re-fetch after SUBSCRIBED. Documented at the top of
+`lib/agentEvents.ts`, where the next person to touch it will actually read it.
+
+**The 1.6a session-per-upload defect is fixed, and the fix was falsified rather than assumed.**
+`useCandidateSession()` hoists creation to `App.tsx` and caches the in-flight promise. Proven to
+gate by deliberately breaking the hoisting and confirming the suite goes red:
+
+```
+BROKEN on purpose:  3 failed | 1 passed (4)
+  × reuses the same session across repeated calls -- the 1.6a defect this story fixes
+  × collapses two concurrent calls into a single createSession request
+  × allows a retry to create a fresh session after a failed attempt
+  AssertionError: expected "vi.fn()" to be called 1 times, but got 2 times
+RESTORED:  66 passed (66)
+```
+
+It also clears the cached promise on failure, so a failed attempt does not permanently wedge the
+journey — covered by the fourth test.
+
+**Design rules verified by my own greps across `frontend/src`, not by the agent's report:**
+
+```
+em-dash / en-dash   only in code comments and describe() strings; NONE in rendered copy
+console.*           zero occurrences        <- the JWT is still never logged
+duration-standard   zero BARE uses; every one is duration-(--duration-standard)
+lucide              only in icons.tsx's own comment and index.css.test.ts's guard
+```
+
+**Orchestration states are triple-encoded, which is better than the box required**: shape
+(`○ ◉ ● ⚠`), colour, AND a text label, plus `role="status" aria-live="polite"`. The box asked for
+shape as well as colour; colour-blind and screen-reader users both get a real signal.
+
+**TWO BOXES ARE BUILT AND TESTED BUT NOT REACHABLE, and must not be read as done.**
+`ConfirmationScreen` renders the profile, level, rationale, the correction control, and the
+`low_confidence_fields` marking — all covered by tests — but **it is deliberately not mounted in
+`App.tsx`.** Nothing produces a real `ResumeAnalysis` until story 1.4 builds `level_candidate`, and
+mounting it against fixture data would show a candidate fabricated results about their own resume.
+**The agent proposed this against its own brief and was right.** Story 1.4 mounts it via the
+`onConfirm` contract already defined on the component.
+
+**Dependency this creates for 1.4, stated so it is not discovered late:** `frontend/src/lib/types.ts`
+mirrors the backend `ResumeAnalysis` / `CandidateProfile` field for field, and `api.ts` carries a
+`submitLevelCorrection` seam that is defined and never called. **1.4 wires that seam and is not free
+to change the shape casually** — the frontend tests are written against it.
 
 ### 1.3b golden-suite reliability — observed output, 2026-08-01
 
@@ -454,8 +553,24 @@ See the Decisions entry below.
 
 ## Last session
 
-**Session 6 — 2026-08-01. No story completed. The session's value is that story 1.3 was stopped
-from being ticked on a suite that cannot gate.**
+**Session 6 — 2026-08-01. Story 1.6b complete. Story 1.3 was stopped from being ticked on a suite
+that cannot gate, which is the more important half.**
+
+**1.6b landed and the phase's riskiest unknown is retired: Realtime respects RLS**, proven with two
+real anonymous identities plus a service-role control that rules out a dead pipeline. Session
+creation is hoisted, fixing the orphan-row defect 1.6a left, and the fix was falsified by breaking
+it and watching three tests go red. 33 → 66 vitest tests. Full output above.
+
+**Only story 1.4 and the 1.7 cleanup remain in Phase 1.**
+
+**Two judgment calls in 1.6b are worth a human read.** The confirmation screen is built, tested,
+and deliberately NOT mounted — nothing produces a real `ResumeAnalysis` until 1.4, and mounting it
+against fixture data would show a candidate fabricated results about their own resume. The agent
+proposed that against its own brief and was right. And Realtime has a residual startup race
+(positive control failed 2 of 8 runs at zero settle) that is unlikely to bite only because the
+Resume Analyst takes seconds to answer. Both are recorded rather than resolved.
+
+**The rest of the session was story 1.3, and it did not close.**
 
 Opened to run two golden cases and close story 1.3. Case 07 passed. Case 08 failed on the
 suite's most important assertion, and everything after that came out of reading the failure
@@ -1082,6 +1197,36 @@ assertion, prove the thing it exists to catch is still caught.
 Do **not** run the full live suite to warm up. It is 6-63 minutes and costs real rate budget.
 Run it before handover, not before work.
 
+---
+
+**🔴 STORY 1.4 IS THE OTHER THING TO DO, AND IT IS NOW THE LAST REAL STORY IN THE PHASE.**
+1.6b landed on 2026-08-01, so only 1.4 and the 1.7 cleanup remain. **1.4 needs model budget**, so
+if the daily quota is spent, do 1.3's validation first and 1.4 second.
+
+`level_candidate` → `confirm_level`, the first real `interrupt()`. `build.py` gets its first two
+nodes. Non-negotiables, all previously recorded:
+
+- **`confirm_level` contains ONLY `interrupt()` and its return.** No LLM call, no counter, no
+  write above that line, ever. On resume LangGraph re-runs the node from the top.
+- **The single-call assertion goes against `app/llm.py`'s call log, never against state.**
+  LangGraph discards the state writes of a node that interrupted, so a doubled call leaves
+  counters looking correct. Only the log sees the duplicated side effect.
+- `analyse_resume` is a pure function and stays one. **The `agent_events` rows and the
+  `resumes.profile` write belong to the NODE, not the function** — the eight golden cases call
+  `analyse_resume` directly with no session and no database, so a DB call inside it breaks all
+  eight at once.
+
+**1.4 also owes three things 1.6b left it, and they are cheap to lose:**
+
+1. **Mount `ConfirmationScreen`.** It is built, tested, and deliberately unmounted because nothing
+   produces a real `ResumeAnalysis` yet. Its `onConfirm` contract is already defined.
+2. **Wire the `submitLevelCorrection` seam** in `frontend/src/lib/api.ts` — defined, never called.
+   `frontend/src/lib/types.ts` mirrors the backend models field for field and the frontend tests
+   are written against that shape, **so do not change it casually.**
+3. **Re-check the Realtime startup race** documented at the top of `lib/agentEvents.ts`. 1.4 writes
+   the first real `agent_events`. If any agent writes an event immediately on session start, add a
+   delayed re-fetch after SUBSCRIBED; if events only ever land seconds in, the race is moot.
+
 **Story 1.3 is the Resume Analyst, and its contract is already written:**
 `docs/specs/agents/AGENT-RESUME-ANALYST-SPEC.md`. **That spec is the authority** — output schema,
 the four-level rubric, all eight golden cases, and the assertions each must make. Do not redesign
@@ -1117,33 +1262,26 @@ observations where `deep` flaps ~50%, which is a genuine point in its favour. Bu
 a confirmation is supportable on this evidence.** Settle it in Phase 2 with the flap fixed first,
 otherwise the comparison is between two coin flips.
 
-**Story 1.4 next:** `level_candidate` → `confirm_level`, the first real `interrupt()`.
-`confirm_level` contains **only `interrupt()` and its return** — no LLM call, no counter, no write
-above that line. The single-call assertion goes against **`app/llm.py`'s call log**, never against
-state; LangGraph discards the state writes of a node that interrupted, so a doubled call leaves
-counters looking correct. See Decisions 2026-07-30.
-
-**Story 1.6a is DONE** — shell, silent anonymous sign-in, upload surface, 33 vitest tests. The
-browser Supabase client is installed and working. **Story 1.6b carries four things that are easy
-to lose:**
-- **No persona header.** The interviewer name is deferred to Phase 3; "Maya Chen" is in the register
-  v1 §7 bans. Decided 2026-07-31.
-- **Realtime is unproven under the new RLS policies.** `agent_events` has a scoped SELECT policy and
-  Supabase Realtime applies RLS per subscriber. It *should* work. Nothing has tested it. **This is
-  the single riskiest unknown left in the phase** — prove it with a real subscriber and a real
-  second identity, not by reading the policy.
-- **Fix the session-per-upload defect 1.6a left**, recorded under Decisions 2026-07-31. Every upload
-  attempt currently calls `POST /session`, so a rejected scanned PDF plus a retry orphans a row.
-  One candidate journey should be one session. Hoist it once 1.4 has settled the session lifecycle.
-- **`.mono-num` exists and nothing uses it yet.** Story 1.5 defined it for "mono for every numeral";
-  1.6b renders the first real numbers (the assessed level, confidence marks). Apply it to numerals
-  that update, not to static prose like "up to 5MB".
+**Stories 1.6a and 1.6b are both DONE** — shell, silent anonymous sign-in, upload surface,
+orchestration states, and Realtime. 66 vitest tests. Of the four things 1.6b was carrying:
+- ~~**Realtime is unproven under the new RLS policies** — the single riskiest unknown left in the
+  phase~~ → **RETIRED 2026-08-01.** Proven with two real identities plus a service-role control;
+  output above. One residual startup race remains, documented in `lib/agentEvents.ts`, handed to 1.4.
+- ~~**Fix the session-per-upload defect 1.6a left**~~ → **DONE 2026-08-01**, and falsified by
+  breaking the hoisting and confirming three tests go red.
+- **No persona header.** Still binding. The interviewer name is deferred to Phase 3; "Maya Chen" is
+  in the register v1 §7 bans. Decided 2026-07-31. **1.6b added none** — confirmed.
+- **`.mono-num` still has no user.** 1.6b did not render the assessed level to a candidate (the
+  confirmation screen is unmounted pending 1.4), so the first real numerals arrive with **1.4**.
+  Apply it to numerals that update, not to static prose like "up to 5MB".
 
 **Story 1.7 deletes the Phase 0 scaffolding**, only after 1.6b is verified: `app/graph/skeleton.py`,
 `tests/test_interrupt.py`, `test_api.py`'s skeleton tests, `frontend/src/HealthCheck.tsx`, and the
 `/skeleton/*` routes. ~~The Vite starter content in `App.tsx`~~ — **already gone, removed by 1.6a**,
 which had to replace it to mount the real shell. **`HealthCheck.tsx` is still mounted and must stay
-until 1.6b is verified**; it is the working reference for backend connectivity. **Do not delete**
+until STORY 1.4 is verified** — not 1.6b, which is now done. The ordering rule protects the working
+reference for backend connectivity, and 1.6's last two boxes (the confirmation screen and its
+uncertainty marking) only become reachable when 1.4 mounts them. **Do not delete**
 `config.py`'s validation, the lifespan checkpointer, the CORS setup, or anything in
 `tests/conftest.py`.
 

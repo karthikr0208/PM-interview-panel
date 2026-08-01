@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { CheckCircle, CloudArrowUp, FileText, WarningCircle } from '@phosphor-icons/react'
-import { ApiError, createSession, uploadResumeFile } from '../lib/api'
+import { ApiError, uploadResumeFile } from '../lib/api'
 
 type UploadState =
   | { kind: 'idle' }
@@ -119,7 +119,15 @@ function ErrorState({
   )
 }
 
-export function UploadSurface() {
+interface UploadSurfaceProps {
+  // Hoisted to the App shell (lib/session.ts) so a rejected file plus a
+  // retry reuses the SAME session row instead of orphaning a new one per
+  // attempt -- "one candidate journey should be one session"
+  // (PHASE-1-SPEC.md 1.6b, a defect 1.6a deliberately left for 1.6b).
+  getOrCreateSessionId: () => Promise<string>
+}
+
+export function UploadSurface({ getOrCreateSessionId }: UploadSurfaceProps) {
   const [state, setState] = useState<UploadState>({ kind: 'idle' })
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -134,8 +142,8 @@ export function UploadSurface() {
 
     setState({ kind: 'uploading', fileName: file.name })
     try {
-      const session = await createSession()
-      await uploadResumeFile(session.session_id, file, (phase) => {
+      const sessionId = await getOrCreateSessionId()
+      await uploadResumeFile(sessionId, file, (phase) => {
         setState({ kind: phase, fileName: file.name })
       })
       setState({ kind: 'done', fileName: file.name })
@@ -152,7 +160,7 @@ export function UploadSurface() {
         })
       }
     }
-  }, [])
+  }, [getOrCreateSessionId])
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
