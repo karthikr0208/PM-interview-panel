@@ -30,10 +30,20 @@ import type { AgentEvent } from './types'
  *
  * It is unlikely to bite in practice today, and that is timing luck rather than
  * design: the Resume Analyst takes seconds to answer, so its `agent_events`
- * land long after the settle window. **Story 1.4 writes the first real events
- * and should re-check this** -- if any agent ever writes an event immediately
- * on session start, add a delayed re-fetch after SUBSCRIBED rather than
- * trusting the subscription alone.
+ * land long after the settle window.
+ *
+ * **Re-checked in story 1.4, which writes the first real events.** The race
+ * is still moot, and by a wider margin than before: a subscription starts the
+ * moment `App.tsx` gets a `sessionId` back from `POST /session`, which is
+ * BEFORE the resume upload even begins. The Resume Analyst's first
+ * `agent_events` row (`level_candidate`'s own "started" write,
+ * `app/graph/build.py`) does not land until after that upload completes
+ * (a real network transfer plus server-side extraction) AND a second
+ * `POST /session/{id}/level` round trip. That is several seconds of margin
+ * on top of the 2s settle time the probe measured as sufficient, on every
+ * candidate journey, not just a lucky one. No delayed re-fetch added --
+ * revisit only if a future agent ever fires its first event synchronously
+ * with session creation, which no agent through Phase 1 does.
  */
 export function useAgentEvents(sessionId: string | null): AgentEvent[] {
   const [events, setEvents] = useState<AgentEvent[]>([])

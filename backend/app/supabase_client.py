@@ -93,6 +93,21 @@ async def rest_select_one(table: str, column: str, value: str, *, select: str = 
     return rows[0] if rows else None
 
 
+async def rest_update(table: str, column: str, value: str, payload: dict) -> None:
+    """Updates every row matching `column = value` as the service role
+    (bypasses RLS). No return value -- every caller today (writing
+    `resumes.profile` and `sessions.level`) already has the value it wrote
+    and has no use for PostgREST echoing the row back."""
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.patch(
+            f"{settings.supabase_url}/rest/v1/{table}",
+            headers=_service_headers(json=True),
+            params={column: f"eq.{value}"},
+            json=payload,
+        )
+    resp.raise_for_status()
+
+
 class StorageError(RuntimeError):
     """Raised when a Supabase Storage call does not succeed. Callers
     translate this to HTTP 502 — the client's file was fine, our upstream

@@ -125,9 +125,14 @@ interface UploadSurfaceProps {
   // attempt -- "one candidate journey should be one session"
   // (PHASE-1-SPEC.md 1.6b, a defect 1.6a deliberately left for 1.6b).
   getOrCreateSessionId: () => Promise<string>
+  // Optional: fires once the upload reaches `done`. Story 1.4's App.tsx
+  // uses this to kick off the Resume Analyst (`level_candidate`) the
+  // moment a resume is ready -- UploadSurface itself stays ignorant of what
+  // happens after a successful upload, same boundary as `getOrCreateSessionId`.
+  onUploadComplete?: () => void
 }
 
-export function UploadSurface({ getOrCreateSessionId }: UploadSurfaceProps) {
+export function UploadSurface({ getOrCreateSessionId, onUploadComplete }: UploadSurfaceProps) {
   const [state, setState] = useState<UploadState>({ kind: 'idle' })
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -147,6 +152,7 @@ export function UploadSurface({ getOrCreateSessionId }: UploadSurfaceProps) {
         setState({ kind: phase, fileName: file.name })
       })
       setState({ kind: 'done', fileName: file.name })
+      onUploadComplete?.()
     } catch (err) {
       if (err instanceof ApiError) {
         // Already written for the candidate to read (backend/app/resume.py) --
@@ -160,7 +166,7 @@ export function UploadSurface({ getOrCreateSessionId }: UploadSurfaceProps) {
         })
       }
     }
-  }, [getOrCreateSessionId])
+  }, [getOrCreateSessionId, onUploadComplete])
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {

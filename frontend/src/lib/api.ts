@@ -1,5 +1,5 @@
 import { ensureAnonymousSession } from './supabase'
-import type { Level } from './types'
+import type { Level, ResumeAnalysis } from './types'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -101,17 +101,58 @@ export function uploadResumeFile(
 }
 
 /**
- * SEAM FOR STORY 1.4 — not called from anywhere in this codebase yet.
+ * Runs the Resume Analyst (`level_candidate`) and returns the payload the
+ * graph paused at `confirm_level` with. Its shape mirrors `ResumeAnalysis`
+ * exactly (`lib/types.ts` mirrors `app/agents/resume_analyst.py`'s Pydantic
+ * models field for field), so the response can be handed straight to
+ * `ConfirmationScreen`.
  *
- * `confirm_level`'s HTTP route does not exist until story 1.4 builds the
- * `level_candidate` -> `confirm_level` graph nodes (PHASE-1-SPEC.md 1.4).
- * When it lands, this is where a candidate's chosen level should be POSTed
- * so the backend can carry it into `Command(resume=...)` and resume the
- * paused interrupt. Until then, `ConfirmationScreen` takes an `onConfirm`
- * callback prop instead of importing this function directly, so the
- * component stays fully testable against fixtures and 1.4 can wire this
- * function into that callback without touching `ConfirmationScreen` itself.
+ * Idempotent from the caller's side: calling this twice for the same
+ * session (a retry, a re-render) returns the SAME assessment rather than
+ * running the Resume Analyst again -- the backend route checks for an
+ * existing paused interrupt before invoking the graph (app/main.py).
  */
-export async function submitLevelCorrection(_sessionId: string, _level: Level): Promise<never> {
-  throw new Error('submitLevelCorrection is a seam for story 1.4. No backend route exists yet.')
+export async function startLevelAssessment(sessionId: string): Promise<ResumeAnalysis> {
+  const session = await ensureAnonymousSession()
+  const res = await fetch(`${API_URL}/session/${sessionId}/level`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  })
+  if (!res.ok) {
+    throw new ApiError(await parseErrorDetail(res))
+  }
+  return res.json()
+}
+
+export interface LevelConfirmationResult {
+  session_id: string
+  level: Level
+  /** True when the candidate's chosen level differs from the level the
+   * Resume Analyst originally assessed -- computed by the backend, which
+   * has both values, rather than trusted from the caller. */
+  corrected: boolean
+}
+
+/**
+ * Resumes the paused `confirm_level` interrupt with the candidate's chosen
+ * level (`ConfirmationScreen`'s `onConfirm` contract), so the backend can
+ * carry it into `Command(resume=...)` and persist it to `sessions.level`.
+ */
+export async function submitLevelCorrection(
+  sessionId: string,
+  level: Level,
+): Promise<LevelConfirmationResult> {
+  const session = await ensureAnonymousSession()
+  const res = await fetch(`${API_URL}/session/${sessionId}/level/confirm`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ level }),
+  })
+  if (!res.ok) {
+    throw new ApiError(await parseErrorDetail(res))
+  }
+  return res.json()
 }

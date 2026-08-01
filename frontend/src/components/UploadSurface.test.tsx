@@ -126,4 +126,31 @@ describe('UploadSurface', () => {
     const sessionIdsUsed = vi.mocked(uploadResumeFile).mock.calls.map((call) => call[0])
     expect(sessionIdsUsed).toEqual(['sess-1', 'sess-1'])
   })
+
+  it('calls onUploadComplete once the upload reaches done, and not before (story 1.4 seam)', async () => {
+    vi.mocked(uploadResumeFile).mockResolvedValue({ resume_id: 'r1', storage_path: 'sess-1/resume.pdf' })
+    const onUploadComplete = vi.fn()
+
+    render(
+      <UploadSurface getOrCreateSessionId={getOrCreateSessionId} onUploadComplete={onUploadComplete} />,
+    )
+    selectFile()
+
+    await waitFor(() => expect(screen.getByText(/resume received/i)).toBeTruthy())
+    expect(onUploadComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('never calls onUploadComplete when the upload is rejected', async () => {
+    const { ApiError } = await import('../lib/api')
+    vi.mocked(uploadResumeFile).mockRejectedValue(new ApiError('This PDF has no extractable text.'))
+    const onUploadComplete = vi.fn()
+
+    render(
+      <UploadSurface getOrCreateSessionId={getOrCreateSessionId} onUploadComplete={onUploadComplete} />,
+    )
+    selectFile()
+
+    await waitFor(() => expect(screen.getByText(/this pdf has no extractable text/i)).toBeTruthy())
+    expect(onUploadComplete).not.toHaveBeenCalled()
+  })
 })

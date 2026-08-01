@@ -1,9 +1,11 @@
 """FastAPI entrypoint. Story 0.7 adds /skeleton/start and /skeleton/resume,
 driving `app.graph.skeleton.build_skeleton_graph` across two separate HTTP
 requests. Story 1.2 adds the first real routes, /session and
-/session/{id}/resume, independent of the skeleton graph. The skeleton routes
-are deleted in story 1.7, once the graph itself has a real `confirm_level`
-node (1.4) and a UI exercising it (1.6) to replace them.
+/session/{id}/resume, independent of the skeleton graph. Story 1.4 adds
+/session/{id}/level and /session/{id}/level/confirm, driving the real graph
+(`app.graph.build.build_graph`) across its first interrupt. The skeleton
+routes are deleted in story 1.7, once 1.4's routes and a UI exercising them
+(1.6) replace them.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ if sys.platform == "win32":
 
 import uuid
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncIterator, Literal
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,6 +50,7 @@ from langgraph.types import Command
 from pydantic import BaseModel
 
 from app.config import settings
+from app.graph.build import build_graph
 from app.graph.skeleton import build_skeleton_graph
 from app.resume import CONTENT_TYPES, MAX_RESUME_BYTES, ResumeValidationError, extract_text
 from app.supabase_client import (
@@ -56,6 +59,7 @@ from app.supabase_client import (
     delete_object,
     rest_insert,
     rest_select_one,
+    rest_update,
     upload_object,
     validate_bearer_token,
 )
@@ -78,6 +82,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with AsyncPostgresSaver.from_conn_string(settings.supabase_db_url) as saver:
         app.state.checkpointer = saver
         app.state.graph = build_skeleton_graph(saver)
+        # The real interview graph, alongside the skeleton above rather than
+        # replacing it -- story 1.7 deletes the skeleton and its routes only
+        # after this one is verified. Production default (`deep`) is
+        # implicit; tests override `app.state.interview_graph` directly
+        # rather than threading a role parameter through this route layer.
+        app.state.interview_graph = build_graph(saver)
         yield
 
 
@@ -143,6 +153,31 @@ async def skeleton_resume(body: ResumeRequest) -> dict:
 # above this line without touching anything below it.
 
 
+async def _authorize_session(session_id: str, authorization: str) -> str:
+    """Resolves the caller's identity and confirms it owns `session_id`.
+
+    Three callers share this exact check (upload, start-level, confirm-
+    level): validate the bearer token, look up the session, 404 if it does
+    not exist, 403 if it belongs to someone else. Returns the caller's
+    `user_id` for callers that want it (none do today, but a 403 without it
+    would still need the lookup). See `upload_resume`'s docstring for why
+    this check exists beyond RLS: the backend connects with the service
+    role, which bypasses RLS entirely, so nothing else stops one candidate
+    reading or resuming another's session by guessing its id.
+    """
+    try:
+        user_id = await validate_bearer_token(authorization)
+    except AuthTokenError as exc:
+        raise HTTPException(401, str(exc)) from exc
+
+    session_row = await rest_select_one("sessions", "id", session_id, select="user_id")
+    if session_row is None:
+        raise HTTPException(404, f"No session with id {session_id!r}.")
+    if session_row["user_id"] != user_id:
+        raise HTTPException(403, "This session does not belong to the calling identity.")
+    return user_id
+
+
 async def _read_limited(file: UploadFile, max_bytes: int) -> bytes:
     """Reads `file` in chunks, aborting as soon as the running total exceeds
     `max_bytes`, so an oversized upload is rejected without ever buffering
@@ -202,16 +237,7 @@ async def upload_resume(
     reopen a version of the same hole from the write side. Extending the same
     check costs one extra query.
     """
-    try:
-        user_id = await validate_bearer_token(authorization)
-    except AuthTokenError as exc:
-        raise HTTPException(401, str(exc)) from exc
-
-    session_row = await rest_select_one("sessions", "id", session_id, select="user_id")
-    if session_row is None:
-        raise HTTPException(404, f"No session with id {session_id!r}.")
-    if session_row["user_id"] != user_id:
-        raise HTTPException(403, "This session does not belong to the calling identity.")
+    await _authorize_session(session_id, authorization)
 
     content = await _read_limited(file, MAX_RESUME_BYTES)
     if not content:
@@ -241,3 +267,81 @@ async def upload_resume(
         raise
 
     return {"resume_id": resume_row["id"], "storage_path": storage_path}
+
+
+# ── Story 1.4: level_candidate -> confirm_level, the first real interrupt ──
+# Independent of the skeleton graph -- story 1.7 deletes everything above the
+# story 1.2 marker without touching anything below it.
+
+
+class LevelCorrectionRequest(BaseModel):
+    # Same four values as AGENT-RESUME-ANALYST-SPEC.md's schema and the
+    # frontend's `Level` type (frontend/src/lib/types.ts) -- an out-of-
+    # vocabulary level is a 422 at the request boundary, not a value that
+    # reaches the graph and `sessions.level`.
+    level: Literal["APM", "PM", "Senior PM", "GPM"]
+
+
+@app.post("/session/{session_id}/level")
+async def start_level_assessment(session_id: str, authorization: str = Header(...)) -> dict:
+    """Runs the Resume Analyst (`level_candidate`) and returns the payload
+    the graph paused at `confirm_level` with -- shaped exactly like the
+    frontend's `ResumeAnalysis` (`frontend/src/lib/types.ts`), so the
+    browser can hand this response straight to `ConfirmationScreen`.
+
+    If a session's graph has already started (a retried request, a double
+    click), this returns the SAME interrupt payload from the existing
+    checkpoint rather than invoking the graph again -- the Resume Analyst's
+    LLM call is not free, and a second run would burn it a second time for
+    nothing new to show the candidate.
+    """
+    await _authorize_session(session_id, authorization)
+
+    config = _config(session_id)
+    existing = await app.state.interview_graph.aget_state(config)
+    if existing.interrupts:
+        return existing.interrupts[0].value
+
+    resume_row = await rest_select_one("resumes", "session_id", session_id, select="parsed_text")
+    if resume_row is None or not resume_row.get("parsed_text"):
+        raise HTTPException(404, "No resume text found for this session. Upload a resume first.")
+
+    result = await app.state.interview_graph.ainvoke(
+        {"session_id": session_id, "resume_text": resume_row["parsed_text"]}, config
+    )
+    if "__interrupt__" not in result:
+        raise HTTPException(500, "The graph did not pause at confirm_level as expected.")
+    return result["__interrupt__"][0].value
+
+
+@app.post("/session/{session_id}/level/confirm")
+async def confirm_level_route(
+    session_id: str,
+    body: LevelCorrectionRequest,
+    authorization: str = Header(...),
+) -> dict:
+    """Resumes the paused `confirm_level` interrupt with the candidate's
+    chosen level, persists it to `sessions.level`, and reports whether it
+    differed from the level the Resume Analyst originally assessed.
+
+    404 covers both an unknown `session_id` and one with no paused level
+    confirmation (never started, or already confirmed) -- `.next` is empty
+    in both cases, matching `/skeleton/resume`'s existing pattern.
+    """
+    await _authorize_session(session_id, authorization)
+
+    config = _config(session_id)
+    state = await app.state.interview_graph.aget_state(config)
+    if not state.next:
+        raise HTTPException(
+            404, f"No paused level confirmation for session_id={session_id!r}."
+        )
+    original_level = state.values.get("assessed_level")
+
+    result = await app.state.interview_graph.ainvoke(Command(resume=body.level), config)
+    confirmed_level = result["assessed_level"]
+    corrected = confirmed_level != original_level
+
+    await rest_update("sessions", "id", session_id, {"level": confirmed_level, "status": "leveled"})
+
+    return {"session_id": session_id, "level": confirmed_level, "corrected": corrected}
