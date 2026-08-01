@@ -29,6 +29,13 @@ than an assumption:
 committed. Only 1.4 and the 1.7 cleanup remain. Story 1.3b's agent and prompt exist and are close,
 but 1.3 CANNOT BE TICKED — the golden suite is not yet a reliable gate. See § Next session.**
 
+**Session 7 update (2026-08-01, later the same day): the case-01 prompt fix is VALIDATED and
+COMMITTED (`27bb749`), and the suite is measurably less trustworthy than session 6 thought.** The
+fix went 6/6 on `deep` against a control that failed 2/4 under identical interleaved conditions.
+But **the flap is not one bug in one case**: case 01 also over-flags `years_pm_experience` (a mode
+the fix does not touch), and **case 02 now flaps too** — it failed on `deep` and went 3/3 clean on
+`fast` the same hour. **Two of eight cases are known-unreliable, so 1.3 stays open.**
+
 **Realtime under RLS is PROVEN as of 2026-08-01** — the risk carried since Phase 0 that browsers
 could not read their own data is fully retired, with a positive control and a service-role control.
 
@@ -57,7 +64,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a, 1.6b done**; 1.3b blocked on the case-01 flap; 1.4, 1.7 remain | PHASE-1-SPEC.md | 2026-08-01 — 85 live tests, **60 offline, 66 vitest** |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a, 1.6b done**; 1.3b's case-01 fix committed (`27bb749`) but **2 of 8 golden cases flap**; 1.4, 1.7 remain | PHASE-1-SPEC.md | 2026-08-01 — 85 live tests, **60 offline, 66 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -71,7 +78,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
-| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). **Not yet a reliable gate — case 01 flaps ~50% on `deep`** | 2026-08-01, uncommitted and unvalidated |
+| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). **Not yet a reliable gate — 2 of 8 flap on `deep`: case 01 on `years_pm_experience`, case 02 on re-capitalization** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ⬜ (Phase 2) | — | — |
 | Planner | ⬜ (Phase 2) | — | — |
 | Interviewer | ⬜ (Phase 3) | — | — |
@@ -89,10 +96,10 @@ Specs are written at the top of the phase that builds each agent, not up front.
 - [x] 1.2 ~~Resume upload and text extraction~~ — done 2026-07-31. 18 tests. **Deviates from ARCHITECTURE §1 deliberately** (backend-proxied upload, reasoning in Decisions) and **shipped three em-dashes into candidate-facing copy**, now fixed and guarded
 - [ ] 1.3 Resume Analyst agent — **split in two, see Decisions 2026-07-31**
   - [x] 1.3a ~~golden fixtures + assertion harness~~ — done 2026-07-31. 8 fixtures, 23 offline tests, suite deliberately RED. **Independent probe found the spec's most important assertion passing vacuously on all eight cases; fixed and re-falsified.** Output below
-  - [ ] 1.3b the agent itself — `app/agents/resume_analyst.py` exists and is close. **Blocked on
-    the case-01 flap, not on missing work.** Two harness defects found and fixed 2026-08-01; a
-    prompt fix for the flap is written but UNVALIDATED and deliberately UNCOMMITTED, because
-    CLAUDE.md forbids committing a prompt change before its golden cases pass. Output below
+  - [ ] 1.3b the agent itself — `app/agents/resume_analyst.py` exists and is close. **The case-01
+    fix is now VALIDATED against a live control and COMMITTED (`27bb749`, session 7).** Still not
+    tickable: **at least two of the eight cases flap**, case 01 has a *second* over-flagging mode
+    the fix does not address, and cases 03-08 could not be run on `deep` today. Output below
 - [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
 - [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
 - [ ] 1.6 Upload and confirmation UI — **split in two.** 1.6b brought forward ahead of 1.4 on
@@ -120,6 +127,93 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.3b case-01 fix validated and committed — observed output, session 7, 2026-08-01
+
+`backend/app/agents/resume_analyst.py` (the prompt fix session 6 left uncommitted), committed as
+`27bb749`. No other file changed. Sanity checks before any LLM call: **offline 60 passed / 67
+deselected · vitest 66 passed · deployed `/health` 200.**
+
+**THE MEASUREMENT THAT CLOSED IT — an ALTERNATING A/B on `deep`, with the control loaded byte-exact
+from `git show HEAD:` rather than reconstructed by string surgery.** Fixture 01, 60s pacing, both
+arms in the same session:
+
+```
+ # variant  level  low_confidence_fields      verdict
+ 1 CONTROL  APM    ['assessed_level']         FAIL
+ 2 FIX      APM    []                         PASS
+ 3 CONTROL  APM    []                         PASS
+ 4 FIX      APM    []                         PASS
+ 5 CONTROL  APM    []                         PASS
+ 6 FIX      APM    []                         PASS
+ 7 CONTROL  APM    ['years_pm_experience']    FAIL
+ 8 FIX      APM    []                         PASS
+
+FIX 4 pass / 0 fail       CONTROL 2 pass / 2 fail
+plus 2 further FIX passes (one pytest run before, one inside the full suite after) = FIX 6/6
+```
+
+**Alternating is the whole design, and it is what session 6's method lacked.** Running all four fix
+runs first and the control afterwards cannot separate "the fix works" from "the flap is not
+happening today" — which is exactly how the `fast` false pass got recorded. Interleaving puts both
+arms under the same serving conditions. **This control could fail, and did, twice.** Fisher's exact
+on 6/6 versus 2/4 is p ≈ 0.05: supported, not overwhelming.
+
+**🔴 CONTROL RUN 7 IS THE MOST IMPORTANT LINE IN THAT TABLE, and it is not good news.** It failed
+on `['years_pm_experience']`, **not** `['assessed_level']`. That is a *second, independent*
+over-flagging mode on the same fixture, and the committed fix says nothing about that trigger.
+Fixture 01 is an APM rotational program, which the prompt's transition trigger explicitly excludes
+("a student internship that leads directly into the same company's formal APM or new-grad
+rotational program"), so the model is violating a boundary the prompt already spells out.
+**"Case 01 is now stable" is a stronger claim than this evidence carries. Do not record it.**
+
+**FULL SUITE ON `deep` — 7 failed, 31 passed. Six of the seven are quota, and classifying first is
+the only reason that is knowable:**
+
+```
+01_apm_rotational          PASS            <- 6th consecutive clean fix observation
+02_pm_owns_area            FAIL   AssertionError, genuine
+03..08                     FAIL   429 TPD, six of them, zero assertion failures
+                                  "Limit 200000, Used 199325, Requested 5094"
+retries fired              0 on every case that ran
+```
+
+**Case 02's failure is real, and it is ONE CHARACTER.** The model returned a `notable_outcomes`
+quote beginning `cut checkout abandonment...`; the fixture reads `Cut checkout abandonment...` at
+the start of a sentence. Checked against the fixture directly rather than assumed, because
+session 6's near-identical "fabrication" on case 08 turned out to be a U+2011 hyphen:
+
+```
+exact substring present : False
+fixture text            : "...9,200 failed orders a month. Cut checkout abandonment from
+                           31.7% to 24.2% over five months by removing two redundant..."
+non-ASCII in fixture 02 : none relevant (accented letters in the name only)
+```
+
+**The assertion is correct and must NOT be relaxed.** The prompt forbids this explicitly ("do not
+lowercase a sentence-initial word to make it fit grammatically into your list"), and session 6
+deliberately kept `recapitalized fabrication still rejected` as a control on the typography fold.
+Folding case would dismantle that control and let genuinely fabricated spans through.
+
+**THEN THE HYPOTHESIS THAT DIED, and it is the session's second most useful result.** DEV-STATE
+recorded `fast` fabricating a quote on case 02 on 2026-08-01, so case 02 looked like a *stable
+cross-model* prompt weakness — which would have made `fast` a legitimate testbed for it, unlike the
+case-01 flap. Measured instead of assumed:
+
+```
+case 02, role=fast, 3 runs   PASS PASS PASS    3/3 clean
+```
+
+**So case 02 flaps too, and `fast` is not a valid testbed for it either.** Two of the eight cases
+are now known to flap on `deep` against identical input. That is the finding that keeps story 1.3
+open, and it is a larger problem than the single case session 6 described.
+
+**Budget: `deep` is spent at 199,325/200,000** and refills at roughly 138 tokens/min, so about one
+case per hour. `fast` had budget and 3 runs were spent on the case-02 probe. **Cases 03-08 have not
+run on `deep` since the fix landed.**
+
+Also observed, not a story: **deployed cold start measured 42.4s**, against the 32.3s recorded in
+Phase 0. Same free tier, same region. Worth re-measuring before any demo rather than trusting 32.3s.
 
 ### 1.6b confirmation UI and Realtime — observed output, 2026-08-01
 
@@ -552,6 +646,41 @@ So the `var()` indirection works, opacity modifiers work, and one utility silent
 See the Decisions entry below.
 
 ## Last session
+
+**Session 7 — 2026-08-01. The case-01 prompt fix is validated and committed (`27bb749`). The suite
+got measurably less trustworthy, and that is the finding worth carrying.**
+
+Session 6 left one uncommitted prompt change and a plan: run case 01 four times on `deep`, then
+commit. **The plan was not good enough, and changing it is what made the session worth anything.**
+Four passes on a case that flaps ~50/50 is p = 0.06 by chance — the same shape of weak evidence
+that produced the `fast` false pass the day before.
+
+**Replaced with an alternating A/B, control loaded byte-exact from `git show HEAD:`.** FIX 6/6,
+CONTROL 2 pass / 2 fail, interleaved so serving drift hit both arms equally. **The control could
+fail and did.** That is the whole difference from session 6's `fast` measurement, where it could
+not. Committed with the full table in the message. Method written up under Decisions, because it
+now costs ~60k tokens to validate a prompt change and that needs budgeting.
+
+**Then two results that both made things worse, honestly.** Control run 7 failed on
+`['years_pm_experience']`, not `['assessed_level']` — a *second* over-flagging mode on case 01 that
+the committed fix does not address. And case 02 failed the full suite on a genuine defect: one
+lowercased sentence-initial letter, `Cut` returned as `cut`. Checked against the fixture directly
+rather than assumed, because session 6's near-identical finding on case 08 turned out to be a
+U+2011 hyphen and a harness bug. This one is real, and the assertion is right to reject it.
+
+**The hypothesis that died is the second most useful result.** Case 02 looked like a *stable
+cross-model* weakness, since `fast` fabricated on it the day before — which would have made `fast`
+a legitimate testbed, unlike the case-01 flap. Measured: **3/3 clean on `fast`.** So case 02 flaps
+too, and `fast` is not a valid testbed for it either. **Two of eight cases are now known-unreliable,
+which is a bigger problem than the single case session 6 described. Story 1.3 stays open.**
+
+**Karthik's call, recorded under Decisions:** commit the validated fix even though the suite is red,
+because the blocker is an unrelated pre-existing flap plus exhausted quota, and the fix cleared a
+higher bar than the rule asks for. Story 1.3 explicitly NOT ticked.
+
+**`deep` is spent at 199,325/200,000, so cases 03-08 have not run since the fix landed.** Nothing
+about the frontend, the database, or the deployment changed. Offline 60, vitest 66, both re-run.
+**Cold start measured 42.4s against the 32.3s on record** — worth re-measuring before a demo.
 
 **Session 6 — 2026-08-01. Story 1.6b complete. Story 1.3 was stopped from being ticked on a suite
 that cannot gate, which is the more important half.**
@@ -1120,66 +1249,77 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Stories 1.1, 1.2, 1.5, 1.3a and 1.6a are DONE and committed.** Remaining, in order:
-**1.3b → 1.4 → 1.6b → 1.7.** 1.7 must not start until 1.6b is verified.
+**Stories 1.1, 1.2, 1.5, 1.3a, 1.6a and 1.6b are DONE and committed.** Remaining: **1.3b → 1.4 →
+1.7.** 1.7 must not start until 1.4 is verified.
+
+**`git status` IS CLEAN.** Session 6's uncommitted prompt fix was validated and committed as
+`27bb749` in session 7. There is nothing dirty to pick up.
 
 **Run these three first (~1 min), before anything else:**
 
 ```
 cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 60 passed, 67 deselected
-cd frontend && npm test                                                   # expect 33 passed
-curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, ~32s if cold
+cd frontend && npm test                                                   # expect 66 passed
+curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, 32-42s if cold
 ```
 
 ---
 
-**🔴 FIRST THING, AND `git status` IS NOT CLEAN ON PURPOSE.**
+**🔴 DECIDE FIRST: 1.4 OR 1.3'S REMAINING FLAPS. They compete for the same daily token budget and
+you cannot do both well in one day.**
 
-`backend/app/agents/resume_analyst.py` carries **one uncommitted prompt change**: a negative
-boundary on the `low_confidence_fields` title-vs-scope trigger, added to stop golden case 01
-flagging `assessed_level` on a resume where the title and the assessed level agree. Everything
-else from 2026-08-01 is committed.
+**Recommendation: do 1.4 first.** It is the last real story in the phase, it unblocks the two
+built-but-unmounted 1.6b boxes, and its budget need is small and bounded (a handful of calls).
+1.3's remaining work is open-ended flap-chasing at ~60k tokens per validated prompt change.
 
-**It is uncommitted because CLAUDE.md forbids committing a prompt change before its golden cases
-pass, and it has never been measured on `deep`** — both models hit the 200k/day ceiling first.
-Do not commit it until the run below is green. Do not assume it works: `fast` was 5/5 clean both
-with AND without it, because `fast` never had the flap.
+---
 
-**Step 1 — validate the fix on `deep`, which is the only model that gates this story.** Case 01
-is the target; 05 and 06 are the cases most likely to be regressed BY it, since they depend on
-that same trigger firing:
+**1.3b — WHAT IS LEFT, and it is not what session 6 described.** The case-01 `assessed_level` fix
+is committed and validated. **Two known flaps remain, and they are different bugs:**
 
 ```
-cd backend
-$env:GOLDEN_ROLE="deep"
-.venv/Scripts/python.exe -m pytest "tests/golden/resume_analyst/test_golden.py::test_golden_case[01_apm_rotational]" -q -s
+case 01   over-flags 'years_pm_experience'   on an APM rotational fixture the prompt
+                                             EXPLICITLY excludes from that trigger
+case 02   returns "cut checkout abandonment..." where the fixture has a
+                                             sentence-initial "Cut ..."   (one character)
 ```
 
-**Run case 01 at least four times.** It flapped ~50/50, so one green run is worth almost nothing —
-that is the whole reason this story is still open. There is a probe that does the sampling and the
-pacing for you; copy it out of the scratchpad note below or rewrite it, it is ~30 lines:
-call `analyse_resume(fixture_01_text, role="deep")` in a loop, print `low_confidence_fields`, sleep
-60s between calls. **4+ consecutive clean runs, then commit. Anything less, and the fix is not
-established.**
+**Do NOT relax the case-02 assertion to fold case.** Session 6 deliberately kept
+`recapitalized fabrication still rejected` as a control on the typography fold; folding case
+dismantles it and lets genuinely fabricated spans through. **This is a prompt problem, and the
+prompt already forbids it in words** ("do not lowercase a sentence-initial word..."), so more
+prose may not be the fix. Consider instead whether the instruction is reachable at that position
+in a ~12,200-character prompt.
 
-**Step 2 — if 01 is stable, run the full set on `deep` once** (~8 min, ~32k tokens):
+**Neither flap is testable on `fast`.** Measured: case 01 never flaps there, case 02 went 3/3
+clean. **A green `fast` run is not evidence about either.** This is the trap that has now produced
+two false passes; do not walk into it a third time.
+
+**Validate ANY prompt change with the alternating A/B under § Decisions 2026-08-01 (session 7)** —
+control loaded byte-exact from `git show HEAD:`, arms interleaved, control REQUIRED to fail.
+Budget ~8 calls / ~60k tokens (a third of a model's day) per change validated.
+
+**Cases 03-08 have not run on `deep` since the fix landed.** Run the full set once on a fresh
+budget to confirm no regression, especially **05 and 06, which need the `assessed_level` trigger to
+FIRE and are the ones the committed fix could plausibly have suppressed:**
 
 ```
 cd backend && $env:GOLDEN_ROLE="deep"
 .venv/Scripts/python.exe -m pytest tests/golden/resume_analyst -q -s --tb=line
 ```
 
-Expect `38 passed`. **If a case fails, read the message before believing it** — on 2026-08-01, 5
-of 6 "failures" in one run were 429 quota errors and 2 of 2 in another were 429s. Classify first:
+Expect `38 passed`. **Classify every failure before believing it** — on 2026-08-01, 6 of 7 were
+quota, and on the day before, 5 of 6 were:
 
 ```
 grep -E "tokens per day|tokens per minute|AssertionError" <output>
 ```
 
-A TPD 429 means stop for the day; the budget is 200,000 tokens per model and it is not in any
-header. A TPM 429 means `_PACE_SECONDS` needs raising again.
+A TPD 429 means stop for the day (200,000 per model, in no header, refills ~138 tokens/min so
+roughly one case per hour). A TPM 429 means `_PACE_SECONDS` needs raising again.
 
-**Then story 1.3 is DONE** — tick it here and in PHASE-1-SPEC, and record the pass rate.
+**Story 1.3 is tickable only when 05 and 06 are confirmed unregressed AND both remaining flaps are
+either fixed or consciously accepted with a written reason.**
 
 **Budget before you start: one full golden run is ~32,000 tokens, 16% of one model's day, and
 about 6 runs per model per day exist.** `deep` and `fast` have separate buckets. Iterate on ONE
@@ -1332,6 +1472,63 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-08-01 (session 7) · A PROMPT CHANGE AIMED AT A FLAPPING CASE IS VALIDATED BY AN
+*ALTERNATING* A/B, NOT BY N CONSECUTIVE GREEN RUNS. This is now the method for this project.**
+
+Session 6's plan, written into § Next session, was "run case 01 four times, then commit." That is
+not enough, and the reason is the same one that produced this project's third false pass: **four
+passes on a case that flaps ~50/50 is p = 0.06 by chance, and a green run says nothing unless the
+same measurement was capable of coming out red.** Sequential arms cannot separate "the fix works"
+from "the flap is not happening today."
+
+**The method, as used and as it should be reused:**
+1. Load the control prompt **byte-exact from `git show HEAD:<file>`**, never by reconstructing the
+   pre-edit string by hand. String surgery measures your reconstruction, not the committed prompt.
+2. **Alternate** control and fix, one call each, through the whole run, so serving drift over the
+   hour hits both arms equally.
+3. Run the **real per-case check** from `cases.py`, not just the one field you expect to move, or a
+   regression elsewhere in the case passes unnoticed.
+4. **Require the control to fail.** If it does not, the run measured nothing and the fix is
+   unvalidated regardless of how clean the fix arm looks.
+
+Result on case 01: FIX 6/6, CONTROL 2 pass / 2 fail, p ≈ 0.05. Committed as `27bb749`.
+The probe is ~90 lines and worth rewriting rather than preserving; the four rules above are the
+part that matters.
+
+**2026-08-01 (session 7) · KARTHIK'S CALL: A VALIDATED PROMPT FIX MAY BE COMMITTED WHILE THE GOLDEN
+SUITE IS RED FOR AN UNRELATED REASON. Narrow exception, stated so it is not read as a general one.**
+
+CLAUDE.md says golden cases must pass before a prompt change is committed. On this day the suite
+**could not** be completed at all: `deep` hit 199,325/200,000 tokens with six cases unrun, and the
+single genuine failure (case 02) is a pre-existing flap that `deep` passed on 2026-07-31 and that
+`fast` passed 3/3 the same hour.
+
+**The reasoning, which is what generalises.** The rule exists so prompt edits are not
+unfalsifiable. This edit was falsified properly, against a control that could fail and did, which
+is a *higher* bar than "the suite was green once". Meanwhile "anything you verified but did not
+record is lost" is the project's other named failure mode, and the fix had already survived one
+session uncommitted.
+
+**The limits of the exception, and they are the point.** Story 1.3 was NOT ticked. The commit
+message carries the full A/B table and names all three reasons it is insufficient. **This does not
+license committing a prompt change whose own case is red, or one validated without a control.**
+
+**2026-08-01 (session 7) · THE FLAP IS NOT ONE BUG IN ONE CASE. At least two of the eight golden
+cases are unreliable on `deep`, and each has a distinct failure mode.** This supersedes session 6's
+narrower framing of case 01 as the problem.
+
+```
+case 01   over-flags 'assessed_level'        -> FIXED and validated (27bb749)
+case 01   over-flags 'years_pm_experience'   -> OPEN, untouched by that fix
+case 02   lowercases a sentence-initial "C"  -> OPEN, flaps: FAIL on deep, 3/3 PASS on fast
+```
+
+**Why this matters more than either individual case:** the golden suite's job is to make prompt
+changes falsifiable, and every flapping case removes one case's worth of that. The alternating-A/B
+method above is the workaround, but it costs ~8 calls (~60k tokens, a third of a model's day) per
+prompt change validated. **Budget prompt work accordingly, and expect to fix flaps before Phase 2
+rather than carrying them.**
 
 **2026-08-01 · KARTHIK'S CALL: FREE-TIER MODEL UNRELIABILITY IS AN OPERATING CONDITION, NOT A
 BLOCKER TO SOLVE. Story 1.3 stays open, and work proceeds to 1.6b OUT OF THE PLANNED ORDER.**
