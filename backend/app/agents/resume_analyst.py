@@ -169,7 +169,13 @@ settled on a specific level. The fact that you resolved it is exactly why it nee
 your resolution is a judgment call the candidate should get the chance to correct, not proof \
 that no uncertainty remains. This is a disagreement about the level itself, not about any one \
 input field, so "assessed_level" is always the field to name here, even if other fields also \
-feel uncertain.
+feel uncertain. This trigger requires an actual disagreement, and you must check that it is \
+present before flagging: if the title and the level you assessed point to the SAME level, this \
+trigger does not apply and you must not flag "assessed_level" for it. An associate-titled \
+candidate owning a feature on a roadmap someone else set, or a group-titled candidate running a \
+portfolio, are resumes where title and scope AGREE. Having to read the scope carefully is not a \
+disagreement, an early-career or short-tenure resume is not a disagreement, and the general \
+possibility that you could be wrong is not a disagreement.
 - The candidate's career includes a transition into a PM-titled role from a substantially \
 different prior career whose title contains neither "product" nor "PM": a founder, a \
 consultant, an established engineer, or another established non-PM career. Flag \
