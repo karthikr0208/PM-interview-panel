@@ -92,7 +92,8 @@ Specs are written at the top of the phase that builds each agent, not up front.
     CLAUDE.md forbids committing a prompt change before its golden cases pass. Output below
 - [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt
 - [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
-- [ ] 1.6 Upload and confirmation UI — **split in two**
+- [ ] 1.6 Upload and confirmation UI — **split in two.** 1.6b brought forward ahead of 1.4 on
+  2026-08-01: 1.4 needs model budget that is exhausted, 1.6b needs none. See Decisions
   - [x] 1.6a ~~shell, anonymous sign-in, upload surface~~ — done 2026-07-31. 33 vitest tests. Env vars proven inlined into the bundle. **One defect found in review, deferred to 1.6b with the reason recorded**. Output below
   - [ ] 1.6b confirmation screen, orchestration column states, Realtime on `agent_events`
 - [ ] 1.7 Delete the Phase 0 scaffolding — **one item struck early, see Decisions 2026-07-31**
@@ -1193,6 +1194,45 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-08-01 · KARTHIK'S CALL: FREE-TIER MODEL UNRELIABILITY IS AN OPERATING CONDITION, NOT A
+BLOCKER TO SOLVE. Story 1.3 stays open, and work proceeds to 1.6b OUT OF THE PLANNED ORDER.**
+
+His framing, and it is the right read: every session that touches the model side throws up a new
+unexpected blocker, and the pattern is now established rather than newly discovered. Three sessions
+running have each surfaced a different one — NVIDIA's structured-output ceiling, then the 200k/day
+cap that is in no header, then run-to-run variance at `temperature=0`. Waiting for a clean model
+day is not a plan.
+
+**What this changes:** story 1.3 is NOT abandoned and NOT ticked. The prompt fix stays uncommitted
+with its validation command in § Next session. It gets picked up on a fresh daily budget, when four
+consecutive clean runs of case 01 on `deep` can actually be afforded.
+
+**Why 1.6b rather than 1.4, which is the next story in the planned order.** 1.4 runs the Resume
+Analyst inside `level_candidate`, so **its acceptance tests need model budget that does not exist
+today** — including the one box that matters most, that the analyst's call fires exactly once
+across the confirm cycle. Building it now would mean writing code that cannot be verified today,
+which this project does not do. **1.6b needs zero model budget and is fully verifiable now**, and
+it carries the riskiest unproven thing left in the phase (Realtime under the new RLS policies).
+
+**The dependency this creates, stated so it is not discovered later.** 1.6b's confirmation screen
+renders data that story 1.4 will produce. It is built against a TypeScript interface mirroring
+`ResumeAnalysis` in `app/agents/resume_analyst.py` and driven by fixtures, with the submit path
+left as a commented seam. **1.4 must wire that seam and is not free to change the shape casually.**
+1.6b deliberately builds no backend route and no graph node.
+
+**The measured budget position when this call was made**, so the next session does not re-derive it:
+
+```
+deep  Used 196,251 / 200,000   3,749 free, 7,565 needed per golden call
+      "try again in 27m28s"  -> ROLLING window, not a midnight reset
+      practical rate: about one golden call every ~28 minutes
+```
+
+**A probe that reported both models "AVAILABLE" was wrong and is worth not repeating.** It asked
+for `max_tokens=4096` with a ten-token prompt, which fit the remaining headroom; a real golden call
+requests ~7,565 and did not. **Size a budget probe to the request you actually intend to make**, or
+it measures nothing.
 
 **2026-08-01 · 🔴 PHASE-AFFECTING: `temperature=0` DOES NOT MAKE THESE MODELS DETERMINISTIC. THE
 2026-07-31 ENTRY BELOW CLAIMING IT FIXED RUN-TO-RUN VARIANCE IS FALSIFIED. The golden suite is not
