@@ -129,13 +129,22 @@ would still pass because they never exercise a correction. **Assert the correcti
 
 ---
 
-### 2.4 `AGENT-PLANNER-SPEC.md`, written before the prompt
+### 2.4 `AGENT-PLANNER-SPEC.md`, written before the prompt — ✅ DONE 2026-08-02
 
 **Acceptance**
-- [ ] `docs/specs/agents/AGENT-PLANNER-SPEC.md` exists, defining `question_plan`'s schema as a list of question objects
-- [ ] It defines how the plan **covers the rubric's dimensions**, so the conduct loop's `dimension_coverage` has something to count against. Cross-reference `docs/PRD.md` for the rubric rather than restating it
-- [ ] It states plan length and its relationship to the 45-minute interview, and what happens when time runs short
-- [ ] 5-10 golden cases defined, keyed to case worlds from 2.2 so the two suites compose
+- [x] `docs/specs/agents/AGENT-PLANNER-SPEC.md` exists, defining `question_plan`'s schema as a list of question objects — §2, `PlannedQuestion` and `QuestionPlan`
+- [x] It defines how the plan **covers the rubric's dimensions**, so the conduct loop's `dimension_coverage` has something to count against. Cross-references `docs/PRD.md` §7 rather than restating it — §3, with the reason stated: a restatement would drift
+- [x] It states plan length and its relationship to the 45-minute interview, and what happens when time runs short — §3. Truncation is `decide_next`'s job in Phase 3, so the Planner's obligation is **ordering the plan so truncation degrades gracefully**
+- [x] 5-10 golden cases defined, keyed to case worlds from 2.2 so the two suites compose — §5, five fixtures reusing 2.2's worlds so a `CaseWorld` schema change breaks both loudly
+
+**The design move worth reading §2 for is `grounded_in`.** Each question declares which case-world
+entities it depends on, which turns "is this question answerable?" from a judgment call into a
+**set-membership check** against `case_world`. A fabricated entry fails the case, exactly as a
+fabricated quote fails the Resume Analyst.
+
+**And §5's cross-world control is the cheapest high-value test in the phase:** run fixture 1's plan
+against fixture 4's case world and **require it to FAIL.** A plan that passes against a world it
+was not written for is generic by definition.
 
 **The Planner is a thin agent with one hard requirement: the plan must be answerable from the case
 world.** A question that assumes facts the case world does not contain is the defect that surfaces

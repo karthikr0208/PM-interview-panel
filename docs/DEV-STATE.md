@@ -105,7 +105,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 |---|---|---|---|
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 defined in the spec, **not yet written** (story 2.2, blind) | — no prompt yet |
-| Planner | ⬜ (Phase 2) | — | — |
+| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 defined in the spec, **not yet written** (story 2.5, blind) | — no prompt yet |
 | Interviewer | ⬜ (Phase 3) | — | — |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
@@ -1765,8 +1765,8 @@ that needs no model budget at all, and it is the highest-leverage kind:
 ```
 DONE 2026-08-02   docs/specs/PHASE-2-SPEC.md                     no LLM
 DONE 2026-08-02   docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md no LLM  (story 2.1)
-NEXT              backend/tests/golden/case_architect/ fixtures  no LLM  (story 2.2, BLIND)
-STILL AVAILABLE   docs/specs/agents/AGENT-PLANNER-SPEC.md        no LLM  (story 2.4)
+DONE 2026-08-02   docs/specs/agents/AGENT-PLANNER-SPEC.md        no LLM  (story 2.4)
+IN FLIGHT         backend/tests/golden/case_architect/ fixtures  no LLM  (story 2.2, BLIND)
 STILL AVAILABLE   backend/tests/golden/planner/ fixtures         no LLM  (story 2.5, BLIND)
 STILL AVAILABLE   fix tests/test_llm.py:112                      no LLM to verify - inject a
                                                                  RateLimitError and assert it
