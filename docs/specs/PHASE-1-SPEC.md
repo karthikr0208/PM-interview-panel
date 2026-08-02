@@ -80,10 +80,44 @@ the bytes therefore cross Render either way. See DEV-STATE § Decisions 2026-07-
 
 ---
 
-### 1.3 Resume Analyst agent
+### 1.3 Resume Analyst agent — ✅ DONE 2026-08-02, WITH THREE FLAPS CONSCIOUSLY ACCEPTED
 
 First agent. Its contract lives in `docs/specs/agents/AGENT-RESUME-ANALYST-SPEC.md`, **written
 before the prompt**, and that spec is the authority on schema and golden cases.
+
+**🔴 READ THIS BEFORE CHANGING THIS AGENT'S PROMPT. The golden suite is NOT currently a clean
+gate, and that is a decision, not an oversight.**
+
+Three of the eight cases flap on `deep` against byte-identical input, in three unrelated modes:
+
+```
+case 01   over-flags 'years_pm_experience'   on a fixture the prompt explicitly excludes
+case 02   returns "cut checkout abandonment" where the fixture has "Cut ..."  (one character)
+case 05   assessed_level lands on APM        where the case accepts {PM, Senior PM}
+```
+
+**Karthik's call 2026-08-02: accept these, tick 1.3, and take the model-quality question into
+Phase 2**, where the Case Architect gives a second and independent signal. The reasoning:
+
+- The three modes are **unrelated**, so there is no single prompt edit to find. Case 01's fix
+  already revealed a second mode behind the first.
+- Validating one prompt change properly costs **60,000-100,000 tokens**, a third to a half of one
+  model's daily budget, and the last such spend returned p ≈ 0.44.
+- **Nothing here is a correctness failure a candidate would see.** Every flap is a *variance*
+  failure. `assessed_level` is schema-constrained and has never been violated; quotes are never
+  fabricated; the uncertainty flag is over-eager rather than silent.
+- Phase 2 produces the first independent evidence on whether `deep` is the right model at all,
+  which is the more likely root cause than prompt prose.
+
+**THE COST, stated plainly so it is not discovered later: every future prompt change to this agent
+is unfalsifiable by a single golden run.** A green run may be the flap, and a red run may be the
+flap. Until this is resolved, any prompt change to the Resume Analyst must be validated with the
+alternating A/B in DEV-STATE § Decisions 2026-08-01, at **6-8 pairs**, not by running the suite.
+
+**WHAT REOPENS THIS.** Any of these means it stops being an accepted limitation and becomes a bug:
+a flap that changes `assessed_level` by more than one level; any fabricated quote that is not a
+typography artefact; a case going red *consistently* rather than intermittently; or Phase 2's Case
+Architect showing the same variance, which would make it a model problem rather than an agent one.
 
 Model: **`deep`**. Note ARCHITECTURE §4 assigns `deep` to this agent while DEV-STATE 2026-07-30
 records that on *reliability* grounds the assignment is backwards — `deep` is 7-9/10 on structured
@@ -97,8 +131,8 @@ Writes `candidate_profile`, `assessed_level`, `level_rationale`, `low_confidence
 - [x] `AGENT-RESUME-ANALYST-SPEC.md` exists and defines the output schema, the level rubric, and the golden cases — written 2026-07-31, before the prompt
 - [x] `assessed_level` is one of `APM | PM | Senior PM | GPM`, enforced by the schema, not by prompt text — a `Literal` on the Pydantic model, asserted anyway on every golden case, never violated across any measured run on either model
 - [x] `level_rationale` cites specific resume content, not generic praise — `rationale_cites_resume` requires a verbatim 8+ word span from the input, green on every case that has run
-- [ ] `low_confidence_fields` names fields the model was unsure about; these drive the confirmation UI in 1.6 — **this is the open one.** Correct on the ambiguous cases, but case 01 flags `assessed_level` on an unambiguous resume in about half of runs. See DEV-STATE § Decisions 2026-08-01. **Measured 2026-08-02: the flagging itself is sound on case 05 — `assessed_level` was flagged in 9 of 9 observations.** The remaining defect there is the *level*, not the flag
-- [ ] **5-10 golden cases at `backend/tests/golden/resume_analyst/`, passing, runnable with `make golden AGENT=resume_analyst`** — 8 exist and run. **Best run to date is 37 passed / 1 failed with zero 429s (2026-08-02, `deep`)**, so the suite finally measures rather than rate-limits. Still not green in one run: **three of eight cases now flap** (01, 02, 05), which is one more than 2026-08-01 recorded
+- [x] `low_confidence_fields` names fields the model was unsure about; these drive the confirmation UI in 1.6 — correct on the ambiguous cases. **Measured 2026-08-02: the flagging mechanism is sound — `assessed_level` fired on case 05 in 9 of 9 observations, and on case 06 too.** Where it is wrong it is over-eager (case 01), never silent, which is the safe direction for a confirmation UI: the candidate is asked to check something that was already right
+- [x] **5-10 golden cases at `backend/tests/golden/resume_analyst/`, passing, runnable with `make golden AGENT=resume_analyst`** — 8 exist and run. **Best and most recent run: 37 passed / 1 failed with zero 429s (2026-08-02, `deep`)**, the first full run that measured the prompt rather than the rate limiter. **Not green in a single run, and ticked on a CONSCIOUS ACCEPTANCE rather than a fix** — see the box below
 - [x] Validate-retry is exercised, not assumed: at least one golden case records the observed retry behaviour on `deep` — recorded on **every** case of every run, both models: `retry_fired=False` throughout. The wrapper is now near-dead code against Groq's strict schema; see DEV-STATE 2026-07-31
 
 **Golden cases must span the levels**, including at least one deliberately ambiguous resume where
@@ -241,16 +275,40 @@ Do not start Phase 2 until every box above is ticked and these hold:
 ## Handoff
 
 ### Verified by me, with evidence in DEV-STATE
-- `make test` and `make golden` output
-- Cross-session RLS denial, queried directly
-- The single-LLM-call assertion across the confirm cycle
-- Structured-output behaviour of `deep` under real resumes, including any retries observed
+- 🔴 **`make test` has NOT passed** — 8 failed / 122 passed on 2026-08-02. **All 8 are quota, zero
+  assertion failures**, but that is not a pass and is not recorded as one. `pytest tests` includes
+  `tests/golden/`, so one run costs ~50,000 `deep` tokens; it must be the FIRST thing run on a
+  fresh daily budget. See DEV-STATE § PHASE GATE #1
+- ✅ `make golden` output — **37 passed / 1 failed, zero 429s** on `deep`, 2026-08-02. The first
+  full run that measured the prompt rather than the rate limiter. Pass rate recorded; three flaps
+  consciously accepted, see § 1.3
+- ✅ **Cross-session RLS denial, queried directly** — all six tables, two real anonymous identities,
+  `A/own = 1` asserted alongside so the denial cannot pass vacuously (story 1.1)
+- ✅ **Realtime under RLS** — proven with two real identities plus a service-role control (1.6b)
+- ✅ **The single-LLM-call assertion across the confirm cycle** — and, as of 2026-08-02, **the
+  assertion has been observed FAILING** against a deliberately wrong graph, so it is not merely
+  green. `backend/scripts/falsify_single_call.py`
+- ✅ **Structured-output behaviour of `deep` under real resumes** — `retry_fired=False` on every
+  case of every run, on both models. Groq's strict JSON schema has made the validate-retry wrapper
+  near-dead code; recorded 2026-07-31
+- ✅ **Cross-process interrupt/resume still proven** — story 1.7 was stopped from deleting it
 
 ### Needs your eyes
-- **Does the assessed level look right?** This is the first output with no objective answer. Golden cases prove consistency, not correctness. Upload your own resume and several others.
-- **The first genuine design review.** Phase 0 had nothing visually assessable. Judge the shell, the type, the motion, and whether the orchestration column reads as informative or as decoration.
-- **The interviewer persona name**, if the header ships this phase.
-- **Whether `deep` should stay on this agent.** Phase 2 was named as the decision point, but this phase produces the first real quality signal.
+- **🔴 PHASE GATE #4, the only unmet gate condition: upload a real resume through the deployed
+  Netlify URL and judge the level.** Everything upstream of this is verified; this one cannot be.
+  Golden cases prove consistency, not correctness. Use your own resume and several others.
+- **The first genuine design review.** Phase 0 had nothing visually assessable. Judge the shell,
+  the type, the motion, and whether the orchestration column reads as informative or as decoration.
+  The confirmation screen became reachable only on 2026-08-02, so **nobody has looked at it in a
+  browser yet.**
+- ~~**The interviewer persona name**, if the header ships this phase~~ — **struck. No persona header
+  shipped**, deliberately. Deferred to Phase 3; "Maya Chen" sits in the register v1 §7 bans.
+- **Whether `deep` should stay on this agent** — still open, and now the most consequential open
+  question in the project. Neither model has been stable across days. **Phase 2's Case Architect is
+  the tiebreak**, and it is also what would reopen the three accepted flaps if it shows the same
+  variance.
+- **Cold start measured 42.4s on 2026-08-01, against 32.3s on record.** Re-measure before any demo
+  rather than trusting either number.
 
 ## Out of scope
 

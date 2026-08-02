@@ -25,10 +25,15 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**Phase 1 is IN PROGRESS. As of 2026-08-02 every story except 1.3b is DONE: 1.1, 1.2, 1.4, 1.5,
-1.7, 1.3a, 1.6a and 1.6b. Story 1.3b's agent and prompt exist and are close, but 1.3 CANNOT BE
-TICKED — the golden suite is not yet a reliable gate. It is the ONLY thing between here and the
-phase gate. See § Next session.**
+**🟡 PHASE 1: ALL SEVEN STORIES ARE DONE as of 2026-08-02 — 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7.
+The PHASE GATE is what remains, and 4 of its 5 conditions are met. The open one is #4: a real
+resume uploaded through the deployed Netlify URL producing a level Karthik agrees with. That is
+his to judge and cannot be delegated. See § Next session.**
+
+**Story 1.3 is ticked on a CONSCIOUS ACCEPTANCE of three flapping golden cases, not on a clean
+run.** That is Karthik's decision of 2026-08-02, with the cost and the reopening conditions written
+into Decisions below and PHASE-1-SPEC § 1.3. **Do not read a ticked 1.3 as a trustworthy golden
+gate** — prompt changes to this agent need the 6-8 pair A/B, not a suite run.
 
 **Session 8 update (2026-08-02). Two stories closed, and the golden suite finally measured.**
 
@@ -84,7 +89,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **every story done except 1.3b.** 1.3b is committed (`27bb749`) but not tickable while **three of eight** golden cases flap (01, 02, 05) | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
+| 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -114,12 +119,14 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 - [x] 1.1 ~~Anonymous sign-in and scoped RLS policies~~ — done 2026-07-31. Cross-session denial proven on all six tables with real JWTs through PostgREST, re-proven independently. Output below
 - [x] 1.2 ~~Resume upload and text extraction~~ — done 2026-07-31. 18 tests. **Deviates from ARCHITECTURE §1 deliberately** (backend-proxied upload, reasoning in Decisions) and **shipped three em-dashes into candidate-facing copy**, now fixed and guarded
-- [ ] 1.3 Resume Analyst agent — **split in two, see Decisions 2026-07-31**
+- [x] 1.3 ~~Resume Analyst agent~~ — **DONE 2026-08-02. Split in two, see Decisions 2026-07-31.**
+  Ticked on a **conscious acceptance of three flapping cases**, not on a clean run — Karthik's call,
+  with the cost and the reopening conditions written into PHASE-1-SPEC § 1.3 and Decisions below
   - [x] 1.3a ~~golden fixtures + assertion harness~~ — done 2026-07-31. 8 fixtures, 23 offline tests, suite deliberately RED. **Independent probe found the spec's most important assertion passing vacuously on all eight cases; fixed and re-falsified.** Output below
-  - [ ] 1.3b the agent itself — `app/agents/resume_analyst.py` exists and is close. **The case-01
-    fix is now VALIDATED against a live control and COMMITTED (`27bb749`, session 7).** Still not
-    tickable: **at least two of the eight cases flap**, case 01 has a *second* over-flagging mode
-    the fix does not address, and cases 03-08 could not be run on `deep` today. Output below
+  - [x] 1.3b ~~the agent itself~~ — done 2026-08-02. `app/agents/resume_analyst.py`, with the
+    case-01 fix **validated against a live control and committed (`27bb749`)**. All eight cases ran
+    on `deep` with zero 429s on 2026-08-02: **37 passed, 1 failed.** Ticked with **three flaps
+    (01, 02, 05) consciously accepted** — see PHASE-1-SPEC § 1.3 for the cost and what reopens it
 - [x] 1.4 ~~`level_candidate` → `confirm_level`, the first real interrupt~~ — **DONE 2026-08-02.**
   Built and committed `aa3a756` in session 7; closed in session 8 by the two measurements it was
   short of. **The single-call assertion is now FALSIFIED, not merely green** — the wrong graph logs
@@ -154,6 +161,59 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### PHASE GATE #1 — `make test` DID NOT PASS, and the reason is structural, 2026-08-02
+
+**Do not record this as a pass. It is not one.** But all eight failures are quota, and classifying
+them is the only reason that is knowable:
+
+```
+8 failed, 122 passed, 21 warnings in 815.16s (0:13:35)
+
+golden 05,06,07,08   4 x TPD 429 on gpt-oss-120b   Used 198515 / 198375 / 198235 / 198095
+test_resume_analyst  1 x TPD 429 on gpt-oss-120b   Used 197406, Requested 4442
+test_llm retry       1 x TPD 429 on gpt-oss-120b   Used 197393, Requested 7516
+confirm_level        1 x TPM 429 on gpt-oss-20b    Used 4722, Requested 7202
+test_llm raw_rate    AssertionError -- see below, ALSO quota
+
+ZERO genuine assertion failures.
+```
+
+**🔴 THE STRUCTURAL FINDING: `make test` CANNOT PASS on a day when any other LLM work has
+happened, and it is not close.** `make test-api` runs `pytest tests`, which **includes
+`tests/golden/`**. So one `make test` costs the golden suite (~32,000 on `deep`) plus
+`test_llm.py`'s ten-sample structured-output test plus everything else. Session 8 had already spent
+~92,000 on `deep` before this run started, and `deep` ended at **198,515 / 200,000**.
+
+**The gate condition as written is only achievable as the FIRST thing done on a fresh daily
+budget.** Run it before any other work, not before handover as CLAUDE.md currently advises for a
+paid tier. The Makefile now carries this warning at the `test-api` target.
+
+**🔴 A HARNESS DEFECT THAT MANUFACTURES A FALSE MODEL-QUALITY SIGNAL, and it is the most dangerous
+thing in this run.** `tests/test_llm.py:112`:
+
+```
+AssertionError: deep scored 0/10, below the 5 floor measured 2026-07-30.
+  Failures: ['#1 RateLimitError', '#2 RateLimitError', '#3 RateLimitError',
+             '#4 RateLimitError', '#5 RateLimitError', '#6 RateLimitError',
+             '#7 RateLimitError', '#8 RateLimitError', '#9 RateLimitError',
+             '#10 RateLimitError']
+```
+
+**Every one of the ten samples was a 429, and the test reports it as a structured-output quality
+collapse.** A future session reading only the headline would conclude `deep` regressed from 7-9/10
+to 0/10 and might switch models on it. The evidence is visible in the `Failures:` list, so a
+careful reader catches it — but the assertion message is written to be believed.
+
+**Not fixed, deliberately: verifying a fix needs `deep` budget that no longer exists today.** The
+fix is to classify `RateLimitError` separately and `pytest.skip` rather than assert a score, the
+same shape as the pacing and typography-fold fixes. **This is the third harness defect on this
+project that manufactures a failure rather than hiding one** — and unlike the other two, this one
+manufactures a *plausible* failure, which is worse.
+
+**What DID pass, and it is most of the suite: 122 tests.** Every RLS policy test, every upload and
+extraction test, all seven surviving Phase 0 tests, 7 of 8 `test_confirm_level.py`, and golden
+cases 01-04 before the budget ran out.
 
 ### 1.7 Phase 0 scaffolding — observed output, session 8, 2026-08-02
 
@@ -993,9 +1053,25 @@ the fix was not reverted on that evidence.
 
 **The honest headline is that the suite got worse, again: three of eight cases flap, not two, and
 they are three different bugs.** That is the second session running where careful measurement made
-the picture worse rather than better, which is the suite doing its job. **1.3b is now the only open
-story in Phase 1**, and § Next session puts a design question to Karthik about what the golden gate
-should be, rather than spending more budget on prompt prose.
+the picture worse rather than better, which is the suite doing its job.
+
+**Karthik's call on that: accept the three flaps, tick 1.3, and take the model-quality question
+into Phase 2**, where the Case Architect gives an independent signal. Written up in Decisions with
+its cost — every future prompt change to this agent needs the 6-8 pair A/B rather than a suite run
+— and with four named conditions that reopen it. **All seven Phase 1 stories are now ticked.**
+
+**Then the phase gate was attempted and did NOT pass, which is where the session ends honestly.**
+`make test` came back 8 failed / 122 passed. **All eight failures are quota and zero are assertion
+failures**, but that is not a pass. The structural reason is worth carrying: `pytest tests`
+includes `tests/golden/`, so a full run costs ~50,000 `deep` tokens on top of the ~92,000 the
+session had already spent, and `deep` finished at 198,515/200,000. **`make test` and any
+investigation cannot share a day** — it has to be the first thing run on a fresh budget.
+
+**One of those eight failures is a harness defect that manufactures a false model-quality signal**,
+and it is the most dangerous artefact found this session: `test_llm.py:112` reports
+`deep scored 0/10, below the 5 floor` when all ten samples were `RateLimitError`. A future session
+could switch models on that headline. Recorded, not fixed — verifying the fix needs `deep` budget
+that no longer exists today.
 
 **Session 7 — 2026-08-01. The case-01 prompt fix is validated and committed (`27bb749`). The suite
 got measurably less trustworthy, and that is the finding worth carrying.**
@@ -1614,8 +1690,43 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**EVERY PHASE 1 STORY IS DONE EXCEPT 1.3b.** 1.1, 1.2, 1.4, 1.5, 1.7, 1.3a, 1.6a and 1.6b are all
-ticked and committed. **1.3b is the only thing between here and the phase gate.**
+**🔴 EVERY PHASE 1 STORY IS DONE. 1.1 through 1.7, all ticked and committed as of 2026-08-02.**
+
+**What remains is the PHASE GATE, and only one of its five conditions is open:**
+
+```
+1  make test passes, both legs, output pasted        🔴 OPEN — 8 failed, 122 passed.
+                                                     ALL 8 are quota, zero assertion
+                                                     failures. Must be RE-RUN on a
+                                                     fresh budget, FIRST THING
+2  make golden pass rate recorded                    ✅ 37/38 on deep, zero 429s
+3  cross-session RLS denial proven empirically       ✅ story 1.1, six tables
+4  a real resume through the deployed Netlify URL
+   produces a level Karthik agrees with              🔴 OPEN — HIS, not delegable
+5  design foundation implemented, not specified      ✅ story 1.5
+```
+
+**TWO things to do next session, in this order.**
+
+**FIRST, before anything else touches an LLM — re-run the full suite on a fresh daily budget:**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q --tb=line
+```
+
+**`deep` ended 2026-08-02 at 198,515 / 200,000**, so this needs a genuinely fresh bucket — roughly
+24 hours, since it refills at ~138 tokens/min. **`make test` costs ~50,000+ on `deep` alone**
+because `pytest tests` includes `tests/golden/`. Do not spend anything on `deep` before it.
+Expect `130 passed`. **Classify every failure before believing it** — on 2026-08-02 all 8 were
+quota, and one of them wore an `AssertionError` claiming `deep scored 0/10`.
+
+**SECOND, ASK KARTHIK to do #4.** It is not a code task. The confirmation screen only became
+reachable on 2026-08-02 and **nobody has seen it in a browser.** Point him at
+`https://pmaiinterviewpanel.netlify.app`, warn him the backend cold-starts in 32-42s, and have him
+upload his own resume and a few others.
+
+**If both close, Phase 1 is complete and the next work is writing `docs/specs/PHASE-2-SPEC.md`
+before starting it**, per CLAUDE.md § What to update, and when.
 
 **`git status` IS CLEAN** as of session 8's commits. Nothing dirty to pick up.
 
@@ -1632,11 +1743,17 @@ is unchanged and must stay 60.
 
 ---
 
-**🔴 BUDGET: session 8 spent ~92,000 of `deep`'s 200,000 and only a few thousand of `fast`'s.**
-Rolling window, refilling ~138 tokens/min ≈ 8,300/hour. Nothing is at the cap, unlike session 7.
+**🔴 BUDGET: `deep` ENDED SESSION 8 AT 198,515 / 200,000 — exhausted.** `fast` has budget but hit
+TPM (not TPD) twice on unpaced live tests. Rolling window, refilling ~138 tokens/min ≈ 8,300/hour,
+so a full bucket is ~24h away.
 
-**Everything cheap is already done. What is left is the expensive, open-ended part**, and it is one
-question: **can the golden suite be made a reliable gate, and if not, what do we ship instead?**
+**The spend, so the next session can budget honestly:** ~32,000 golden run · ~60,000 case-05 A/B ·
+~50,000+ the full `make test` (which re-runs golden inside it). **The lesson is that `make test`
+and any investigation cannot share a day.**
+
+**That question is now SETTLED, and settled by decision rather than by measurement.** Karthik
+accepted the three flaps on 2026-08-02 and 1.3 is ticked. See Decisions. **Do not reopen it with
+more prompt edits** unless one of the named reopening conditions fires.
 
 **THE STATE OF THE SUITE, measured properly for the first time on 2026-08-02:**
 
@@ -1668,12 +1785,10 @@ pairs an A/B can only resolve a case that flaps near 50/50. Case 05 flaps less o
 4 pairs there buys an inconclusive result for a third of a day. **Budget 6-8 pairs, or do not
 spend.**
 
-**A question worth putting to Karthik before more budget goes into prompt edits:** three
-independent flaps at ~25-50% each may mean this model cannot hold an 8-case suite green in one run
-at all, in which case the gate should be redefined — for example N-of-M sampling per case, or
-splitting the suite into "must always pass" and "known-variable" tiers — rather than chased with
-more prompt prose. **That is a design decision about what the golden suite IS, and it is his call,
-not something to solve with another 60k of tokens.**
+**ASKED AND ANSWERED 2026-08-02.** The options put to Karthik were: tier the suite, k-of-n
+sampling, keep fixing prompts, or accept and move to Phase 2. **He chose accept and move on**, and
+the reasoning plus the reopening conditions are in Decisions. Phase 2's Case Architect is the
+tiebreak on whether this is a prompt problem or a model problem.
 
 **Do NOT relax the case-02 assertion to fold case.** Session 6 deliberately kept
 `recapitalized fabrication still rejected` as a control on the typography fold; folding case
@@ -1862,6 +1977,39 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-08-02 (session 8) · STORY 1.3 IS TICKED WITH THREE FLAPPING GOLDEN CASES CONSCIOUSLY
+ACCEPTED. THE GOLDEN SUITE IS NOT A CLEAN GATE, AND THAT IS A DECISION.**
+
+Karthik's call, taken with the full table in front of him. Cases 01, 02 and 05 flap on `deep`
+against byte-identical input, in three unrelated modes. The alternatives considered and rejected
+were: tiering the suite into strict and known-variable halves, redefining a pass as k-of-n
+sampling, and continuing to chase each flap with 6-8 pair A/Bs.
+
+**Why accepting is defensible rather than a shrug:**
+
+- The three modes are unrelated, so there is no single edit to find, and case 01's fix already
+  revealed a second mode behind the first.
+- **Every flap is a variance failure, not a correctness failure a candidate would see.**
+  `assessed_level` is schema-constrained and has never been violated in any measured run on either
+  model. No quote has ever been fabricated except as a typography artefact. The uncertainty flag is
+  over-eager, never silent — the safe direction for a confirmation UI, since the candidate is asked
+  to check something that was already right.
+- One validated prompt change costs 60,000-100,000 tokens against a 200,000/day/model ceiling, and
+  the most recent such spend returned p ≈ 0.44.
+- **Phase 2's Case Architect is the first independent signal on whether `deep` is the right model**,
+  which is a more likely root cause than prompt prose. ARCHITECTURE §4's model assignment has been
+  formally open since 2026-07-30 and neither model has been stable across days.
+
+**THE COST, which is real: every future prompt change to this agent is unfalsifiable by a single
+golden run.** A green run may be the flap and a red run may be the flap. Prompt changes to the
+Resume Analyst must go through the alternating A/B at **6-8 pairs**, never through the suite alone.
+**This does not relax CLAUDE.md's rule that golden cases pass before a prompt change is committed —
+it changes what "pass" is measured by for this one agent.**
+
+**WHAT REOPENS IT:** a flap moving `assessed_level` by more than one level · any fabricated quote
+that is not a typography artefact · a case going red *consistently* rather than intermittently ·
+Phase 2's Case Architect showing the same variance, which would make it a model problem.
 
 **2026-08-02 (session 8) · `app/graph/skeleton.py` AND THE `/skeleton/*` ROUTES ARE PERMANENT TEST
 INFRASTRUCTURE, NOT SCAFFOLDING. PHASE-1-SPEC § 1.7's DELETE LIST IS STRUCK IN PART.**

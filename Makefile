@@ -24,8 +24,14 @@ dev-web:
 ## Everything: backend pytest + frontend vitest.
 test: test-api test-web
 
-## pytest only. backend/tests/test_llm.py hits the real NVIDIA endpoint and is
-## marked @pytest.mark.live — deselect with: make test-api PYTEST_ARGS="-m 'not live'"
+## pytest only. Live tests hit the real GROQ endpoint (not NVIDIA — the provider
+## moved 2026-07-31, see DEV-STATE § Decisions) and are marked @pytest.mark.live.
+## Deselect with: make test-api PYTEST_ARGS="-m 'not live'"
+##
+## NOTE: `pytest tests` includes tests/golden/, so this target runs the eight
+## Resume Analyst golden cases on `deep` too — about 32,000 tokens of a 200,000
+## per-model DAILY budget. Use the `golden` target to run them deliberately, and
+## PYTEST_ARGS="-m 'not live'" while iterating.
 test-api:
 	cd backend && $(VENV_PYTHON) -m pytest tests -v $(PYTEST_ARGS)
 
