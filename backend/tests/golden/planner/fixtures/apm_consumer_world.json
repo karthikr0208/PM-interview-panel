@@ -1,0 +1,68 @@
+{
+  "assessed_level": "APM",
+  "case_world": {
+    "company": {
+      "name": "Ferngrove Media",
+      "one_line": "A mobile app where young creators share short cooking videos with their followers.",
+      "stage": "series_b",
+      "employees": 187,
+      "founded_year": 2020
+    },
+    "market": {
+      "description": "Short-form recipe video sharing among Gen Z home cooks, competing for attention against general short-video platforms.",
+      "size_usd": "$2.8B",
+      "growth_rate_pct": 14.6,
+      "competitors": [
+        {
+          "name": "Skillet Social",
+          "positioning": "General short-video app with a large but unfocused cooking category",
+          "relative_strength": "Ten times the daily active users, but recipes are buried in a mixed feed"
+        },
+        {
+          "name": "Whisk & Co",
+          "positioning": "Recipe-first app with structured ingredient lists and grocery integration",
+          "relative_strength": "Stronger retention among users who already cook regularly"
+        },
+        {
+          "name": "Tablescape",
+          "positioning": "Creator monetization platform for food influencers",
+          "relative_strength": "Better creator payouts, pulling top creators away from Ferngrove"
+        }
+      ]
+    },
+    "metrics": {
+      "arr_usd": "$18.3M",
+      "yoy_growth_pct": 41.2,
+      "gross_margin_pct": 76.5,
+      "monthly_churn_pct": 3.8,
+      "customer_count": 41000
+    },
+    "situation": {
+      "prompt": "Ferngrove's Discover feed shows new users a mix of trending videos during their first session, but only 11.3% of new signups return on day 2, well below the 19.0% day-2 return rate for users who follow at least three creators in their first session. Should we redesign the first-session flow to push new users toward following creators immediately, or keep the current trending-first feed and improve recommendation quality instead?",
+      "tension": "Pushing new users to follow creators immediately adds friction before they have seen any content, and an earlier forced-follow experiment on another surface raised first-session drop-off rather than lowering it.",
+      "options": [
+        "Redesign onboarding to prompt following three creators before showing any feed",
+        "Keep the trending-first feed and invest in better first-session recommendation ranking",
+        "Run a hybrid: show trending content immediately but surface a lightweight follow prompt after the third video"
+      ],
+      "constraints": [
+        "No net-new headcount for this quarter",
+        "Cannot add another onboarding screen without design review sign-off",
+        "Must ship before Whisk & Co's grocery-integration launch next quarter"
+      ],
+      "leadership_belief": "The exec team believes the drop in day-2 return is a content-discovery problem, not a social-graph problem, and wants ranking improvements prioritized."
+    },
+    "supporting_facts": [
+      "Day-2 return rate for new signups is 11.3%, versus 19.0% for users who follow at least three creators in their first session.",
+      "Ferngrove has 41,000 paying subscribers out of roughly 2.4 million monthly active users.",
+      "The onboarding flow currently shows a trending-content feed within 8 seconds of signup, with no follow prompt.",
+      "Whisk & Co is launching grocery-list integration next quarter, which Ferngrove does not have.",
+      "Skillet Social has roughly ten times Ferngrove's daily active users but a lower share of cooking-specific watch time.",
+      "Tablescape pays top creators 22% more per thousand views than Ferngrove's creator fund.",
+      "An earlier forced-follow experiment on Ferngrove's search surface reduced first-session completion by 6.4 percentage points.",
+      "Gross margin is 76.5%, driven mostly by low video-hosting costs relative to subscription revenue.",
+      "Monthly churn among paying subscribers is 3.8%.",
+      "The design team has one open headcount for Q3, already allocated to a creator-payments project."
+    ]
+  }
+}

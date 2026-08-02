@@ -1,0 +1,70 @@
+{
+  "assessed_level": "GPM",
+  "case_world": {
+    "company": {
+      "name": "Northaven Financial",
+      "one_line": "Financial software company operating a payments product, a lending product, and a business-banking product for small and midsize businesses.",
+      "stage": "public",
+      "employees": 2400,
+      "founded_year": 2013
+    },
+    "market": {
+      "description": "Small-business financial software spanning payments processing, working-capital lending, and business banking, sold to SMBs directly and through partner referrals.",
+      "size_usd": "$14.2B",
+      "growth_rate_pct": 11.7,
+      "competitors": [
+        {
+          "name": "Suretrade Capital",
+          "positioning": "Payments-first player expanding into lending",
+          "relative_strength": "Larger payments volume and lower processing fees"
+        },
+        {
+          "name": "Ledgerbridge",
+          "positioning": "Lending-focused fintech with bank partnerships",
+          "relative_strength": "Faster underwriting decisions, approving loans in under a day"
+        },
+        {
+          "name": "Coverstone Bank",
+          "positioning": "Traditional bank with a digital SMB banking product",
+          "relative_strength": "Deposit insurance and brand trust that a fintech cannot match"
+        }
+      ]
+    },
+    "metrics": {
+      "arr_usd": "$312.4M",
+      "yoy_growth_pct": 16.8,
+      "gross_margin_pct": 63.2,
+      "monthly_churn_pct": 1.4,
+      "customer_count": 58000
+    },
+    "situation": {
+      "prompt": "Northaven's three product lines are growing at different rates: payments revenue grew 24.6% year over year, lending grew 6.1%, and business banking grew 31.9% but remains the smallest of the three at $28M ARR. The board has asked where next year's incremental headcount, 40 open roles across the portfolio, should go to maximize combined revenue growth without increasing the combined loss ratio in lending.",
+      "tension": "Business banking has the highest growth rate but the smallest revenue base, so headcount there has the least proven leverage; lending has the largest revenue base but the slowest growth, and adding headcount there does nothing to fix the growth problem the board is actually asking about.",
+      "options": [
+        "Concentrate the 40 roles in business banking to compound its growth rate while it is still small enough to move fast",
+        "Split headcount proportionally to each product's current revenue contribution",
+        "Move roles to payments, the largest and most consistently profitable line, and let banking and lending grow organically"
+      ],
+      "constraints": [
+        "Total headcount growth across the portfolio is capped at 40 roles by the board",
+        "Lending's loss ratio cannot increase without triggering a covenant review with Northaven's warehouse lenders",
+        "Business banking's engineering team has said it cannot productively absorb more than 15 new engineers this year"
+      ],
+      "leadership_belief": "The CFO believes payments should get the majority of new headcount because it is the most profitable line today, without separating today's profitability from where growth will come from next year."
+    },
+    "supporting_facts": [
+      "Payments revenue grew 24.6% year over year; lending grew 6.1%; business banking grew 31.9%.",
+      "Business banking ARR is $28M, the smallest of the three product lines.",
+      "The board has approved 40 incremental headcount roles across the portfolio for next year.",
+      "Lending's loss ratio is governed by a covenant with Northaven's warehouse lenders that caps how much it can rise.",
+      "Business banking's engineering team has said it cannot productively absorb more than 15 new engineers this year.",
+      "Northaven has 58,000 customers across all three product lines combined.",
+      "Suretrade Capital processes a larger volume of payments than Northaven at lower per-transaction fees.",
+      "Ledgerbridge approves loan applications in under a day, versus Northaven's average of 3.4 days.",
+      "Coverstone Bank offers FDIC deposit insurance that Northaven's business banking product does not.",
+      "Gross margin across the combined portfolio is 63.2%.",
+      "Monthly churn across the portfolio is 1.4%, lowest in the payments line and highest in lending.",
+      "Total company ARR is $312.4M, with payments as the largest single contributor."
+    ]
+  }
+}

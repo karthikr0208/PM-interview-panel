@@ -1,0 +1,61 @@
+{
+  "assessed_level": "PM",
+  "case_world": {
+    "company": {
+      "name": "Palewell Software",
+      "one_line": "Project-tracking software for small consulting firms and agencies.",
+      "stage": "seed",
+      "employees": 14,
+      "founded_year": 2024
+    },
+    "market": {
+      "description": "Project tracking for small professional-services firms, a crowded but fragmented market.",
+      "size_usd": "$680.5M",
+      "growth_rate_pct": 9.4,
+      "competitors": [
+        {
+          "name": "Trackbench",
+          "positioning": "Established incumbent with a broad feature set",
+          "relative_strength": "Much larger install base and brand recognition"
+        },
+        {
+          "name": "Fieldnote Ops",
+          "positioning": "Newer entrant targeting the same small-agency segment",
+          "relative_strength": "Cheaper pricing tier that undercuts Palewell on cost-sensitive deals"
+        }
+      ]
+    },
+    "metrics": {
+      "arr_usd": "$412.6K",
+      "yoy_growth_pct": 62.3,
+      "gross_margin_pct": 74.1,
+      "monthly_churn_pct": 4.6,
+      "customer_count": 38
+    },
+    "situation": {
+      "prompt": "Palewell has 38 paying customers and no dedicated support team; when a customer's time-tracking export breaks, the founder personally fixes it, and it has happened 4 times this quarter. Do you invest engineering time in a self-serve export repair tool, or hire the company's first support hire?",
+      "tension": "There is no answer that is obviously right: hiring solves it faster, but permanently adds a fixed cost that a 14-person seed company has not budgeted for.",
+      "options": [
+        "Hire the company's first dedicated support person",
+        "Build a self-serve export repair tool instead of hiring",
+        "Document the manual fix and defer both until the next funding round"
+      ],
+      "constraints": [
+        "No budget approved for a new hire this quarter",
+        "One engineer is available for two weeks before returning to the core roadmap",
+        "The founder cannot keep personally fixing exports past this quarter"
+      ],
+      "leadership_belief": "The founder believes this is a one-off rough edge that will disappear as the export code matures, though it has recurred every few weeks since launch."
+    },
+    "supporting_facts": [
+      "The time-tracking export has broken 4 times this quarter, each requiring the founder to fix it manually.",
+      "Palewell has 38 paying customers and $412.6K in ARR.",
+      "Monthly churn is 4.6%, the highest of any month since launch.",
+      "One engineer is available for two weeks before returning to core roadmap work.",
+      "Trackbench has a materially larger install base among small consulting firms.",
+      "Fieldnote Ops undercuts Palewell's pricing for cost-sensitive deals.",
+      "No budget has been approved for a new support hire this quarter.",
+      "Palewell has 14 employees total and no dedicated support function."
+    ]
+  }
+}

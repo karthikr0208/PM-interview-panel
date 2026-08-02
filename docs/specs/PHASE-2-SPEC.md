@@ -153,15 +153,23 @@ a manual detection. **Detect it here, where it is cheap.**
 
 ---
 
-### 2.5 Planner golden fixtures and assertion harness — written BLIND
+### 2.5 Planner golden fixtures and assertion harness — written BLIND — ✅ DONE 2026-08-02
 
 **Acceptance**
-- [ ] Fixtures at `backend/tests/golden/planner/`, taking a `(assessed_level, case_world)` input
-- [ ] **Deliberately RED**, lazy import, same structure as 2.2
-- [ ] **The grounding assertion: every question must be answerable from the case world.** Approximate it mechanically — for example, entities named in a question must appear in the case world — and give it a positive control that rejects a question naming an entity that does not exist
-- [ ] Rubric dimensions are covered by the plan, asserted against the PRD's list rather than a copy
-- [ ] Vacuity floor: an empty plan, or a plan of generic questions that would suit any case, must FAIL
-- [ ] Every denial assertion has a positive control
+- [x] Fixtures at `backend/tests/golden/planner/`, taking a `(assessed_level, case_world)` input — **five HAND-WRITTEN case worlds**, since 2.2's fixtures are candidate profiles, not worlds. Each named after its 2.2 counterpart
+- [x] **Deliberately RED**, lazy import, same structure as 2.2 — proven by running: 5 errors, all `ModuleNotFoundError`, 0.05s, zero tokens
+- [x] **The grounding assertion: every question must be answerable from the case world** — `grounded_in` set-membership against the world, with a positive control rejecting `Northwind Logistics`, an entity no world contains
+- [x] Rubric dimensions are covered by the plan, asserted against the PRD's list rather than a copy
+- [x] Vacuity floor — **and the trap it guards was demonstrated, not assumed.** `missing_grounding([], world)` returns `[]`, so an empty `grounded_in` passes the membership check vacuously; `empty_grounded_in` is the separate floor that catches it and runs first
+- [x] Every denial assertion has a positive control — ten rows, each with an accepting and a rejecting test
+- [x] **The cross-world control works**, and it is the cheapest high-value test in the phase: a plan grounded in `apm_consumer_world` passes against its own world and FAILS against `gpm_portfolio_world`
+- [x] **The five hand-written worlds all pass story 2.2's universal assertions** — a free cross-suite positive control proving 2.2's checks accept a world a human considers good. **None needed relaxing**
+
+**Budget measured, and it is NOT a blocker.** The spec's ~1,200-token estimate for a case world was
+pessimistic; the largest real fixture is **937 tokens**. That leaves **max prompt ≈ 2,904 tokens
+≈ 12,197 characters**, workable but **~22% tighter than the Case Architect's ~15,557**, as expected
+since `case_world` is roughly 5x `candidate_profile`. **Story 2.6 must treat ~12,000 characters as
+a hard ceiling, not a target.**
 
 ---
 

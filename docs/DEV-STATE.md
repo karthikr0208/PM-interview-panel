@@ -105,7 +105,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 |---|---|---|---|
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | **7 written 2026-08-02, blind, deliberately RED** on `ModuleNotFoundError` only (proven by running, free). 44 offline assertion tests | — no prompt yet. **Ceiling: ~15,557 chars** |
-| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 defined in the spec, **not yet written** (story 2.5, blind) | — no prompt yet |
+| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | **5 written 2026-08-02, blind, deliberately RED** on `ModuleNotFoundError` only (proven by running). 43 offline assertion tests | — no prompt yet. **Ceiling: ~12,197 chars** |
 | Interviewer | ⬜ (Phase 3) | — | — |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
@@ -245,6 +245,72 @@ is the same shape as the three false passes this project has caught by hand.
 half of the banned-name control can only be checked against free text (`supporting_facts`,
 `situation.leadership_belief`). If `CaseWorld` later gains an exec or persona field, point
 `contains_banned_register_name` at it directly.
+
+### 2.5 Planner golden suite — observed output, session 8, 2026-08-02
+
+Delegated, re-verified independently. **Fourth Phase 2 story with zero LLM calls.**
+
+```
+offline pytest   104 passed, 77 deselected  ->  147 passed, 82 deselected
+                 +43 offline, +5 live, and no other file's count moved
+collection       48 tests, clean
+RED-ness         5 errors in 0.05s, every one:
+                 ModuleNotFoundError: No module named 'app.agents.planner'
+```
+
+**MY OWN PROBE, from scratch, on the three properties the suite rests on:**
+
+```
+Q1  missing_grounding([], world) -> []                    <- the 1.3a trap is REAL
+    empty_grounded_in([empty, populated]) -> [0]          <- and the floor catches it
+Q2  'Ferngrove Media' vs its OWN world -> missing []
+    'Ferngrove Media' vs the GPM world -> missing ['Ferngrove Media']
+Q3  'What would you do?'                        -> generic=True
+    'Ferngrove Media is losing activation...'   -> generic=False
+```
+
+**🔴 Q1 IS THE ONE THAT MATTERS AND IT IS THE BEST-HANDLED VACUITY CASE THIS PROJECT HAS PRODUCED.**
+The suite does not merely have a floor — **it has a test that DEMONSTRATES the trap exists**
+(`test_missing_grounding_is_vacuously_empty_on_an_empty_grounded_in_list`) alongside the test that
+catches it. That is strictly better than story 1.3a's fix, which added a floor without pinning the
+vacuity it was guarding against. If someone later "simplifies" the floor away, a test fails that
+explains exactly why it existed.
+
+**A free cross-suite positive control, and it is a genuinely new idea in this project.** The five
+hand-written case worlds are asserted to pass **story 2.2's** universal assertions. That proves two
+things at once: the Planner is tested against realistic input, and 2.2's checks accept a world a
+human considers good. **All five passed with nothing relaxed.** Every previous control here has been
+about denial; this one is about a *suite* not being over-strict, which is the failure mode that
+gets assertions tuned away.
+
+**BUDGET MEASURED, NOT A BLOCKER — and the spec's own estimate was pessimistic.**
+
+```
+largest real case world   senior_pm_platform_world   3,937 chars   937 tokens
+spec's estimate                                                  ~1,200 tokens
+max prompt = 8000 - 4096 - 1000 input  =  2,904 tokens  ~12,197 characters
+_PACE_SECONDS = 90
+```
+
+**~12,200 characters is ~22% tighter than the Case Architect's ~15,557**, as expected since
+`case_world` is roughly 5x `candidate_profile`. **Story 2.6 must treat ~12,000 as a hard ceiling,
+not a target.** The Planner was flagged in its spec as the agent most likely to be structurally
+unable to run on the free tier; **it fits, with room, and that question is now closed.**
+
+**A REGEX TRAP THE AGENT CAUGHT IN ITS OWN WORK, worth recording because it is easy to repeat.**
+Its round-number check used `\b(?:0|25|50|75|100)\s?%`, which **false-positived on `19.0%`** — a
+legitimate organic figure — because `\b` sees a word boundary immediately after the decimal point,
+so the trailing `0%` matched as the banned standalone `0%`. Fixed to
+`(?<![\d.])(?:0|25|50|75|100)(?!\d)\s?%`. **The suite caught it before the story landed**, which is
+the blind-fixture discipline doing exactly what it exists for.
+
+**Two deviations from the brief, both ratified:**
+- `GoldenCase.check` takes `(result, case_world)` rather than `(result)` as the Case Architect's
+  does. Correct: the Planner's case-specific checks need the world to check against, not the output
+  in isolation.
+- The genericness term set includes `market.size_usd` and `market.growth_rate_pct` beyond the
+  spec's literal enumeration. **This only makes the check more lenient** — more ways for a question
+  to prove it is specific — and never weakens rejection of a truly generic one. Ratified.
 
 ### PHASE GATE #1 — `make test` DID NOT PASS, and the reason is structural, 2026-08-02
 
@@ -1851,22 +1917,27 @@ DONE 2026-08-02   docs/specs/PHASE-2-SPEC.md                     no LLM
 DONE 2026-08-02   docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md no LLM  (story 2.1)
 DONE 2026-08-02   docs/specs/agents/AGENT-PLANNER-SPEC.md        no LLM  (story 2.4)
 DONE 2026-08-02   backend/tests/golden/case_architect/           no LLM  (story 2.2, BLIND)
-NEXT              backend/tests/golden/planner/ fixtures         no LLM  (story 2.5, BLIND)
-STILL AVAILABLE   fix tests/test_llm.py:112                      no LLM to verify - inject a
+DONE 2026-08-02   backend/tests/golden/planner/                  no LLM  (story 2.5, BLIND)
+ONLY ONE LEFT     fix tests/test_llm.py:112                      no LLM to verify - inject a
                                                                  RateLimitError and assert it
                                                                  SKIPS rather than reporting 0/10
 ```
 
-**Story 2.5 is next and it is the same shape as 2.2**, which went cleanly. Build it against
-AGENT-PLANNER-SPEC §5, and reuse story 2.2's case-world fixtures as its inputs so a `CaseWorld`
-schema change breaks both suites loudly rather than one silently.
+**🔴 THE ZERO-QUOTA QUEUE IS ESSENTIALLY EMPTY.** Four Phase 2 stories done without a single
+LLM call, and both blind golden suites are built and verified. **Everything else in Phase 2 — 2.3,
+2.6, 2.7 — needs `deep`**, and so do both remaining Phase 1 gate items.
 
-**Two things 2.2 learned that 2.5 should inherit:**
-1. **Run the live tests to prove the RED-ness.** The lazy import fails before any LLM call, so it
-   costs nothing and beats inferring it from reading. 7 errors in 0.07s.
-2. **Compute the TPM ceiling BEFORE the prompt.** For the Planner this matters more than for any
-   other agent, because its input is the whole `case_world` — see AGENT-PLANNER-SPEC §6, which
-   estimates ~7,800 of an 8,000 budget. **It may not fit at all.**
+**The two prompt ceilings are the most actionable thing these stories produced**, and both were
+computed before a prompt exists rather than discovered after:
+
+```
+Case Architect   ~3,704 tokens   ~15,557 chars     input is candidate_profile
+Planner          ~2,904 tokens   ~12,197 chars     input is the whole case_world
+```
+
+**Treat both as hard ceilings, not targets.** A single request over 8,000 TPM can never succeed at
+any pacing, regardless of `_PACE_SECONDS`. The Resume Analyst's shipped prompt is ~12,200 chars for
+comparison, so **the Planner has essentially no headroom over an already-shipped prompt.**
 
 **Stories 2.1, 2.2, 2.4 and 2.5 are ALL zero-quota by design** — they are the spec-and-blind-
 fixtures half of each agent, and Phase 1 proved that half is where the leverage is. **A day with no

@@ -1,0 +1,74 @@
+{
+  "assessed_level": "Senior PM",
+  "case_world": {
+    "company": {
+      "name": "Ridgeline Cloud",
+      "one_line": "Developer platform providing managed message-queue infrastructure for mid-size engineering teams.",
+      "stage": "growth",
+      "employees": 640,
+      "founded_year": 2017
+    },
+    "market": {
+      "description": "Managed message-queueing and event-streaming infrastructure, competing against both open-source self-hosted options and hyperscaler-native services.",
+      "size_usd": "$5.6B",
+      "growth_rate_pct": 19.3,
+      "competitors": [
+        {
+          "name": "Streamvault",
+          "positioning": "Hyperscaler-native managed Kafka, bundled into AWS billing",
+          "relative_strength": "Zero procurement friction for teams already committed to AWS"
+        },
+        {
+          "name": "Queuebase",
+          "positioning": "Open-source-first with a paid managed tier",
+          "relative_strength": "Free self-hosted tier undercuts Ridgeline for cost-sensitive teams"
+        },
+        {
+          "name": "Fluxpoint",
+          "positioning": "Enterprise event-streaming suite with compliance certifications",
+          "relative_strength": "Only credible option for regulated customers needing SOC 2 Type II plus HIPAA"
+        },
+        {
+          "name": "Lanternq",
+          "positioning": "Developer-experience-focused newer entrant",
+          "relative_strength": "Faster time-to-first-message in trials, winning greenfield teams"
+        }
+      ]
+    },
+    "metrics": {
+      "arr_usd": "$47.6M",
+      "yoy_growth_pct": 33.1,
+      "gross_margin_pct": 68.4,
+      "monthly_churn_pct": 1.9,
+      "customer_count": 380
+    },
+    "situation": {
+      "prompt": "Fluxpoint just announced HIPAA compliance certification, closing the one gap that has kept Ridgeline out of healthcare deals, but Ridgeline's own compliance work is 4 months from complete. Meanwhile, Lanternq is winning greenfield developer teams on setup speed, a segment Ridgeline has historically owned. Where do you focus the platform roadmap for the next two quarters?",
+      "tension": "Compliance work and developer-experience work draw on the same small platform-infra team, and neither investment shows results for at least one full quarter, so committing to one is a real bet against the other.",
+      "options": [
+        "Accelerate compliance certification and accept slower developer-experience improvements",
+        "Prioritize setup-speed and onboarding work to defend the greenfield segment, and slip compliance further",
+        "Split the team and run both in parallel at reduced velocity on each"
+      ],
+      "constraints": [
+        "The platform-infra team is 9 engineers total, already at capacity",
+        "The board has flagged healthcare as a named growth vector for next year's plan",
+        "Cannot hire before the next funding milestone, expected in 5 months"
+      ],
+      "leadership_belief": "The VP of Sales believes healthcare is the bigger prize because average deal size in that vertical is roughly triple Ridgeline's current average, but has not accounted for the sales cycle length in regulated accounts."
+    },
+    "supporting_facts": [
+      "Fluxpoint received HIPAA certification last month; Ridgeline's own certification work is estimated at 4 months from completion.",
+      "Lanternq's median time from signup to first successful message is 6 minutes, versus Ridgeline's 22 minutes.",
+      "Ridgeline has lost 3 greenfield developer-team deals to Lanternq in the past two quarters, each citing setup friction.",
+      "The platform-infra team has 9 engineers, all currently allocated to existing roadmap commitments.",
+      "Average deal size in healthcare accounts Ridgeline has pursued is roughly triple the company-wide average deal size.",
+      "Regulated-industry sales cycles at Ridgeline's two comparable enterprise deals took 9 and 11 months respectively.",
+      "Streamvault's AWS-bundled billing has been cited as the reason for 40% of the competitive losses Ridgeline has logged this year.",
+      "Queuebase's free self-hosted tier is cited in exit interviews as a factor in a third of Ridgeline's self-serve churn.",
+      "The next funding milestone is expected in 5 months, after which additional infra headcount becomes possible.",
+      "Monthly churn is 1.9%, lower than the prior year's 3.1%, attributed to the enterprise segment's longer contracts.",
+      "The board's growth plan for next year explicitly names healthcare as a target vertical."
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "assessed_level": "PM",
+  "case_world": {
+    "company": {
+      "name": "Circuitway Analytics",
+      "one_line": "B2B SaaS platform helping mid-market logistics companies forecast warehouse staffing needs.",
+      "stage": "series_a",
+      "employees": 68,
+      "founded_year": 2022
+    },
+    "market": {
+      "description": "Workforce forecasting software sold to mid-market logistics and 3PL operators managing seasonal staffing swings.",
+      "size_usd": "$1.4B",
+      "growth_rate_pct": 22.9,
+      "competitors": [
+        {
+          "name": "Palletform",
+          "positioning": "Warehouse management suite with a bolt-on staffing module",
+          "relative_strength": "Already embedded in customers' existing WMS, higher switching cost to displace"
+        },
+        {
+          "name": "Shiftwise",
+          "positioning": "Point solution for hourly workforce scheduling across industries",
+          "relative_strength": "Cheaper entry price, wins price-sensitive SMB deals"
+        },
+        {
+          "name": "Northtrail Ops",
+          "positioning": "Enterprise workforce planning suite",
+          "relative_strength": "Deeper forecasting models, but a six-month implementation cycle"
+        }
+      ]
+    },
+    "metrics": {
+      "arr_usd": "$6.1M",
+      "yoy_growth_pct": 58.3,
+      "gross_margin_pct": 71.8,
+      "monthly_churn_pct": 2.4,
+      "customer_count": 94
+    },
+    "situation": {
+      "prompt": "Circuitway's forecasting module is accurate for customers with a single warehouse, but activation drops sharply for customers running more than three sites: only 34.7% of multi-site customers reach their first accurate forecast within 30 days, versus 81.2% of single-site customers. What do you do about the multi-site segment, which is 46% of the pipeline this quarter?",
+      "tension": "Multi-site customers are the larger pipeline opportunity, but fixing multi-site forecasting accuracy could mean rebuilding the model architecture rather than a targeted product fix, with no guarantee it resolves activation.",
+      "options": [
+        "Rebuild the forecasting engine to natively model multi-site inventory transfer",
+        "Ship a manual override tool that lets multi-site customers correct forecasts site by site",
+        "De-prioritize multi-site customers this quarter and focus onboarding investment on single-site accounts"
+      ],
+      "constraints": [
+        "Engineering has 2 backend engineers available for the next two quarters",
+        "Sales has already booked $1.2M in multi-site pipeline assuming the feature ships",
+        "Cannot slip the Q3 board commitment to grow logo count 25% without a new segment strategy"
+      ],
+      "leadership_belief": "The CEO believes multi-site accuracy is an onboarding and training problem, not a modeling problem, because the few multi-site customers who succeeded had unusually hands-on onboarding."
+    },
+    "supporting_facts": [
+      "Multi-site customers reach their first accurate forecast within 30 days only 34.7% of the time, versus 81.2% for single-site customers.",
+      "Multi-site opportunities are 46% of this quarter's sales pipeline by dollar value.",
+      "Circuitway has 94 paying customers and $6.1M in ARR.",
+      "Palletform is bundled into the WMS software already used by roughly a third of Circuitway's target accounts.",
+      "Shiftwise undercuts Circuitway's list price by roughly 30% on comparable deal sizes.",
+      "Northtrail Ops requires a six-month implementation, which has cost it deals against Circuitway in competitive bids.",
+      "Engineering has 2 backend engineers available who are not already committed to other roadmap items.",
+      "Sales has booked $1.2M in pipeline this quarter that assumes multi-site forecasting improves.",
+      "The three multi-site customers who succeeded received more than 10 hours of hands-on onboarding each, versus an average of 2 hours company-wide.",
+      "Monthly churn is 2.4%, concentrated among multi-site accounts that never reached an accurate forecast."
+    ]
+  }
+}
