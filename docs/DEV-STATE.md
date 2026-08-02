@@ -104,7 +104,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
-| Case Architect | ⬜ (Phase 2) | — | — |
+| Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 defined in the spec, **not yet written** (story 2.2, blind) | — no prompt yet |
 | Planner | ⬜ (Phase 2) | — | — |
 | Interviewer | ⬜ (Phase 3) | — | — |
 | Evaluator | ⬜ (Phase 4) | — | — |
@@ -1764,14 +1764,20 @@ that needs no model budget at all, and it is the highest-leverage kind:
 
 ```
 DONE 2026-08-02   docs/specs/PHASE-2-SPEC.md                     no LLM
-STILL AVAILABLE   docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md no LLM  (story 2.1)
-STILL AVAILABLE   backend/tests/golden/case_architect/ fixtures  no LLM  (story 2.2, BLIND)
+DONE 2026-08-02   docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md no LLM  (story 2.1)
+NEXT              backend/tests/golden/case_architect/ fixtures  no LLM  (story 2.2, BLIND)
 STILL AVAILABLE   docs/specs/agents/AGENT-PLANNER-SPEC.md        no LLM  (story 2.4)
 STILL AVAILABLE   backend/tests/golden/planner/ fixtures         no LLM  (story 2.5, BLIND)
 STILL AVAILABLE   fix tests/test_llm.py:112                      no LLM to verify - inject a
                                                                  RateLimitError and assert it
                                                                  SKIPS rather than reporting 0/10
 ```
+
+**Story 2.2 is the next one and it is the highest-leverage thing on this list.** It writes the
+fixtures and assertions blind, before any prompt exists. The Case Architect spec §5 already
+specifies the seven fixtures, the universal assertions, **and the positive control that must go RED
+for each one** — that pairing is the direct lesson of story 1.3a, where a denial assertion with no
+floor passed on all eight cases while the agent quoted nothing.
 
 **Stories 2.1, 2.2, 2.4 and 2.5 are ALL zero-quota by design** — they are the spec-and-blind-
 fixtures half of each agent, and Phase 1 proved that half is where the leverage is. **A day with no

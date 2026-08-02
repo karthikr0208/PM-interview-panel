@@ -55,14 +55,22 @@ cannot share a day with anything else.** This phase adds two more golden suites 
 Ordered by dependency. The spec-then-blind-fixtures-then-agent shape is deliberate and is the one
 thing in this phase that must not be collapsed for speed.
 
-### 2.1 `AGENT-CASE-ARCHITECT-SPEC.md`, written before the prompt
+### 2.1 `AGENT-CASE-ARCHITECT-SPEC.md`, written before the prompt — ✅ DONE 2026-08-02
 
 **Acceptance**
-- [ ] `docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md` exists and defines the output schema as a Pydantic model sketch, field by field, with which fields are required
-- [ ] It states the **side effects that belong to the node** (`agent_events` rows, the `case_worlds` write) and records that the agent function itself is pure
-- [ ] It defines 5-10 golden cases spanning **all four levels**, since a GPM's case world should differ in scope from an APM's, and says what each asserts
-- [ ] It names the **two design rules that bind this prompt**: no fake-round numbers, no generic placeholder names. See below
-- [ ] It states what makes a case world *bad* in a way a test can check, not only what makes it good
+- [x] `docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md` exists and defines the output schema as a Pydantic model sketch, field by field, with which fields are required — §2, six models
+- [x] It states the **side effects that belong to the node** (`agent_events` rows, the `case_worlds` write) and records that the agent function itself is pure — §1
+- [x] It defines 5-10 golden cases spanning **all four levels**, since a GPM's case world should differ in scope from an APM's, and says what each asserts — §5, seven fixtures, plus §3's scope-by-level table
+- [x] It names the **two design rules that bind this prompt**: no fake-round numbers, no generic placeholder names — §4, and §5 pairs each with the positive control that must go red
+- [x] It states what makes a case world *bad* in a way a test can check, not only what makes it good — §5's universal-assertion table, §5's internal-consistency section, and §7's failure-mode table
+
+**Written before the prompt exists, deliberately.** Story 2.2's fixtures are written against this
+document and blind to the prompt, so the prompt cannot be tuned against them.
+
+**The one field to read §2 for is `supporting_facts`.** It is 8-15 atomic statements and it is what
+the Interviewer answers clarifying questions from in Phase 3. Without it, a clarifying question
+forces improvisation, which is ARCHITECTURE §9's "Interviewer contradicts the case world" failure
+and its only listed detection is manual.
 
 **🔴 The two v1 AI-tells that reach past the UI into this agent's prompt** (ARCHITECTURE §8, via
 CLAUDE.md). They bind harder here than anywhere else in the product:
