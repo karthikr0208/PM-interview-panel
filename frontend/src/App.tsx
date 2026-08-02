@@ -1,5 +1,4 @@
 import { WarningCircle } from '@phosphor-icons/react'
-import HealthCheck from './HealthCheck'
 import { IconStandard } from './lib/icons'
 import { useCandidateSession } from './lib/session'
 import { useLevelAssessment } from './lib/levelAssessment'
@@ -94,13 +93,6 @@ function App() {
         conversation={renderConversation()}
         evaluation={<EvaluationColumn />}
       />
-      {/* Phase 0 scaffolding. Not deleted here -- story 1.7 removes it, only
-          after 1.4 is verified against the real level_candidate/confirm_level
-          nodes above. Kept rendered, out of the primary flow, per that
-          story's own constraint. */}
-      <div className="border-t border-border p-4">
-        <HealthCheck />
-      </div>
     </IconStandard>
   )
 }

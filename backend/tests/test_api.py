@@ -154,18 +154,6 @@ def test_health_returns_ok() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_start_returns_session_id_and_interrupt_payload(
-    session_ids: Callable[[str], None],
-) -> None:
-    with _running_app() as base_url:
-        response = httpx.post(f"{base_url}/skeleton/start", timeout=30)
-    assert response.status_code == 200
-    body = response.json()
-    assert body["session_id"], f"no session_id in {body}"
-    session_ids(body["session_id"])
-    assert body["interrupt"]["question"], f"no interrupt question in {body}"
-
-
 def test_resume_continues_after_the_process_is_torn_down_and_rebuilt(
     session_ids: Callable[[str], None],
 ) -> None:
@@ -225,16 +213,6 @@ async def test_get_state_next_reflects_pause_then_completion(
 
     finished = await graph.aget_state(config)
     assert finished.next == (), f"expected a finished graph, got next={finished.next}"
-
-
-def test_resume_404s_for_an_unknown_session_id() -> None:
-    with _running_app() as base_url:
-        response = httpx.post(
-            f"{base_url}/skeleton/resume",
-            json={"session_id": "no-such-session", "reply": "anything"},
-            timeout=10,
-        )
-    assert response.status_code == 404
 
 
 def test_cors_preflight_rejects_unlisted_origin_and_allows_the_configured_one() -> None:

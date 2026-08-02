@@ -1,16 +1,15 @@
 """Story 0.6: interrupt and resume on the two-node skeleton graph.
 
-The load-bearing test in this file is
-`test_llm_call_fires_exactly_once_across_interrupt_and_resume`. Everything
-else here is scaffolding around it.
-
-Why it is load-bearing: on resume LangGraph re-runs the interrupting node
-from the top, not from the `interrupt()` line. Every candidate answer in
-Phase 3 goes through exactly this cycle, so a node that does work above its
-own `interrupt()` would burn a duplicate LLM call and double-count the turn
-on every single answer — against a 40 RPM ceiling, and with no error to
-notice. Proving the property here costs one nano call. Debugging it in
-Phase 3 costs a phase.
+Story 1.7 (delete the Phase 0 scaffolding) removed this file's former
+load-bearing test, `test_llm_call_fires_exactly_once_across_interrupt_and_resume`
+-- its property is now asserted against the real graph by
+`test_confirm_level.py::test_resume_analyst_llm_call_fires_exactly_once_across_the_confirm_cycle`.
+The three tests remaining here were left in place because no test in
+`test_confirm_level.py` asserts their specific properties: that
+`build_skeleton_graph` attaches the real Postgres checkpointer (not
+`MemorySaver`), and that raw `checkpoints` rows land in Postgres per node.
+See DEV-STATE for the coverage map story 1.7 produced. Deleting them, and
+`app/graph/skeleton.py` itself, is deferred pending that decision.
 
 Marked `live` for the same reason as test_checkpointer.py: these hit the real
 Supabase project over the session pooler, and `ask_something` hits the real
@@ -20,7 +19,6 @@ Fixtures (`conn`, `checkpointer`, `thread_ids`) come from conftest.py.
 
 from __future__ import annotations
 
-import logging
 from typing import Callable
 
 import psycopg
@@ -40,21 +38,6 @@ def _config(thread_id: str) -> dict:
     return {"configurable": {"thread_id": thread_id}}
 
 
-def _llm_calls(caplog: pytest.LogCaptureFixture) -> list[str]:
-    """Every line `app/llm.py` logs per call, from story 0.2's rate-limit log.
-
-    Counting the log rather than patching the client is deliberate: it asserts
-    against the same record that will be used to watch the 40 RPM ceiling in
-    production, so a change that made the log stop reflecting reality would
-    fail here too.
-    """
-    return [
-        record.getMessage()
-        for record in caplog.records
-        if record.name == "app.llm" and record.getMessage().startswith("llm_call")
-    ]
-
-
 def test_graph_compiles_with_the_postgres_checkpointer(
     checkpointer: AsyncPostgresSaver,
 ) -> None:
@@ -63,37 +46,6 @@ def test_graph_compiles_with_the_postgres_checkpointer(
     assert not isinstance(graph.checkpointer, MemorySaver), (
         "MemorySaver hides the stateless-HTTP bugs story 0.7 exists to catch"
     )
-
-
-async def test_ainvoke_runs_to_the_interrupt_and_returns_its_payload(
-    checkpointer: AsyncPostgresSaver, thread_ids: Callable[[], str]
-) -> None:
-    graph = build_skeleton_graph(checkpointer)
-    result = await graph.ainvoke(INITIAL_STATE, _config(thread_ids()))
-
-    assert "__interrupt__" in result, f"graph did not pause; keys were {sorted(result)}"
-    payload = result["__interrupt__"][0].value
-    assert payload["question"], "the interrupt payload carried no question"
-
-
-async def test_command_resume_makes_interrupt_return_the_passed_value(
-    checkpointer: AsyncPostgresSaver, thread_ids: Callable[[], str]
-) -> None:
-    """`interrupt()` returning the resumed value is what carries a candidate's
-    answer into graph state. Asserted on the message the node built from that
-    return value, not on the return value itself, since the node is the only
-    thing that ever sees it."""
-    graph = build_skeleton_graph(checkpointer)
-    config = _config(thread_ids())
-    answer = "I would start by segmenting the users before touching the roadmap."
-
-    await graph.ainvoke(INITIAL_STATE, config)
-    resumed = await graph.ainvoke(Command(resume=answer), config)
-
-    assert "__interrupt__" not in resumed, "graph paused a second time instead of finishing"
-    assert any(
-        getattr(message, "content", None) == answer for message in resumed["messages"]
-    ), "the resumed value never reached state"
 
 
 async def test_get_state_next_is_the_paused_node(
@@ -141,43 +93,4 @@ async def test_checkpoint_rows_land_after_each_node(
         after_resume = cur.fetchone()[0]
     assert after_resume > while_paused, (
         f"resume wrote no new checkpoint: {while_paused} -> {after_resume}"
-    )
-
-
-async def test_llm_call_fires_exactly_once_across_interrupt_and_resume(
-    checkpointer: AsyncPostgresSaver,
-    thread_ids: Callable[[], str],
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """THE test of story 0.6. See the module docstring.
-
-    **The call count is the only assertion that catches the violation, and
-    that is not obvious.** Measured against a deliberately wrong graph (LLM
-    call above `interrupt()` in the same node): two LLM calls, but
-    `turn_count` still 1, because LangGraph discards the state writes of a
-    node that interrupted and applies them only on the run that completes.
-    So the damage from breaking this rule is duplicated *side effects* —
-    burned rate budget, doubled external writes, doubled emitted events — not
-    corrupted state, and state assertions cannot detect it. Output in
-    DEV-STATE § Decisions 2026-07-30.
-
-    `turn_count` is kept as a cheap correctness check on the state math, not
-    as a second line of defence.
-    """
-    graph = build_skeleton_graph(checkpointer)
-    config = _config(thread_ids())
-
-    with caplog.at_level(logging.INFO, logger="app.llm"):
-        await graph.ainvoke(INITIAL_STATE, config)
-        calls_at_pause = _llm_calls(caplog)
-        resumed = await graph.ainvoke(Command(resume="my answer"), config)
-        calls_after_resume = _llm_calls(caplog)
-
-    assert len(calls_at_pause) == 1, f"expected one call before the pause, got {calls_at_pause}"
-    assert len(calls_after_resume) == 1, (
-        "ask_something re-ran on resume — the constraint the conduct loop rests on is broken."
-        f" Calls: {calls_after_resume}"
-    )
-    assert resumed["turn_count"] == 1, (
-        f"turn_count was incremented {resumed['turn_count']} times across one interrupt cycle"
     )

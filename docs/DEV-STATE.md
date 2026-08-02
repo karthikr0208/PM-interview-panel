@@ -25,15 +25,29 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**Phase 1 is IN PROGRESS. As of 2026-08-02 stories 1.1, 1.2, 1.4, 1.5, 1.3a, 1.6a and 1.6b are done
-and committed. Only 1.3b and the 1.7 cleanup remain. Story 1.3b's agent and prompt exist and are
-close, but 1.3 CANNOT BE TICKED — the golden suite is not yet a reliable gate. See § Next session.**
+**Phase 1 is IN PROGRESS. As of 2026-08-02 every story except 1.3b is DONE: 1.1, 1.2, 1.4, 1.5,
+1.7, 1.3a, 1.6a and 1.6b. Story 1.3b's agent and prompt exist and are close, but 1.3 CANNOT BE
+TICKED — the golden suite is not yet a reliable gate. It is the ONLY thing between here and the
+phase gate. See § Next session.**
 
-**Session 8 update (2026-08-02): story 1.4 is CLOSED.** Both measurements it was short of are now
-taken. **The single-call assertion — the phase's most important — has been observed FAILING against
-a deliberately wrong graph**, so it is no longer correct-by-inspection, and the 8 live tests were
-re-run independently rather than inherited from the agent. 1.6b's two unmounted boxes are reachable
-as a result. Output below.
+**Session 8 update (2026-08-02). Two stories closed, and the golden suite finally measured.**
+
+**Story 1.4 is CLOSED.** Both missing measurements are taken. **The single-call assertion — the
+phase's most important — has been observed FAILING against a deliberately wrong graph**, so it is
+no longer correct-by-inspection, and the 8 live tests were re-run rather than inherited. 1.6b's two
+unmounted boxes are reachable as a result.
+
+**Story 1.7 is CLOSED with its scope REDUCED, and the reduction is the interesting part.** The
+spec's delete list was wrong: 1.4's tests do **not** replace story 0.7's two-OS-process proof, so
+`skeleton.py` and both `/skeleton/*` routes are kept permanently as a test harness. Deleting to the
+list would have destroyed the evidence retiring this architecture's central stateless-HTTP risk and
+left a green suite behind.
+
+**🔴 The golden suite ran all eight cases on `deep` with ZERO 429s for the first time — 37 passed,
+1 failed.** Every prior full run lost most cases to quota, so this is the first genuine measurement
+of the suite. **The feared regression from the case-01 fix did NOT happen** (`assessed_level` fires
+on case 05 in 9 of 9 observations, and case 06 passed). But case 05 has a *third* distinct flap:
+its level lands on `APM` sometimes. **Three of eight cases now flap, not two.**
 
 **Session 7 update (2026-08-01, later the same day): the case-01 prompt fix is VALIDATED and
 COMMITTED (`27bb749`), and the suite is measurably less trustworthy than session 6 thought.** The
@@ -70,7 +84,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.4, 1.5, 1.3a, 1.6a, 1.6b done**; **only 1.3b and 1.7 remain.** 1.3b is committed (`27bb749`) but not tickable while two of eight golden cases flap | PHASE-1-SPEC.md | 2026-08-02 — 93 live tests, **60 offline, 74 vitest** |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **every story done except 1.3b.** 1.3b is committed (`27bb749`) but not tickable while **three of eight** golden cases flap (01, 02, 05) | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -84,7 +98,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
-| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). **Not yet a reliable gate — 2 of 8 flap on `deep`: case 01 on `years_pm_experience`, case 02 on re-capitalization** | 2026-08-01 `27bb749`, validated against a control |
+| Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ⬜ (Phase 2) | — | — |
 | Planner | ⬜ (Phase 2) | — | — |
 | Interviewer | ⬜ (Phase 3) | — | — |
@@ -119,7 +133,11 @@ Specs are written at the top of the phase that builds each agent, not up front.
     identities plus a service-role control.** Session-per-upload defect fixed and falsified.
     ~~**Two boxes are built and tested but NOT mounted**~~ → **both mounted and reachable as of
     2026-08-02**, by 1.4's `aa3a756`. A residual Realtime startup race is recorded. Output below
-- [ ] 1.7 Delete the Phase 0 scaffolding — **one item struck early, see Decisions 2026-07-31**
+- [x] 1.7 ~~Delete the Phase 0 scaffolding~~ — **DONE 2026-08-02, SCOPE REDUCED.** The delete list
+  was wrong: 1.4's tests do NOT replace story 0.7's two-OS-process proof, so `skeleton.py` and both
+  `/skeleton/*` routes are **kept as a permanent test harness** on Karthik's call. 5 of 12 Phase 0
+  tests deleted, 7 kept and re-run green. `HealthCheck.tsx` deleted in full. See Decisions
+  2026-08-02 and the output below
 
 ### Phase 0 stories — all complete, kept for the record
 
@@ -136,6 +154,141 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.7 Phase 0 scaffolding — observed output, session 8, 2026-08-02
+
+Delegated to a Sonnet agent with the coverage map as a named trap. **The agent contradicted its
+brief and was right — the fourth time on this project.** The brief carried the phase spec's delete
+list; the list was wrong.
+
+**THE FINDING: story 1.4 does not replace story 0.7.** Verified by me directly rather than taken
+from the agent's report:
+
+```
+test_confirm_level.py   @pytest.fixture(scope="module")  ->  ONE TestClient(app)
+                        no uvicorn, no subprocess, no Popen anywhere in the file
+test_api.py:7           "Why a subprocess and not a rebuilt TestClient: a fresh
+                        TestClient(app) over [the same process] does not prove [it]"
+```
+
+The property at risk is checkpoint state surviving a full OS-process teardown, which is what
+retired this architecture's central stateless-HTTP risk in Phase 0. **Nothing in 1.4 asserts it.**
+Deleting per the list would have removed the proof and left a green suite.
+
+**Karthik's call: keep the skeleton as a permanent harness.** Recorded under Decisions.
+
+**What was actually deleted — 5 of 12 Phase 0 tests, all `live`-marked:**
+
+```
+test_interrupt.py   3 deleted (ainvoke-to-interrupt, Command resume, single-LLM-call)
+                    3 KEPT   (checkpointer identity, raw checkpoints rows,
+                              post-resume aget_state().next == ())
+test_api.py         2 deleted (start returns payload, resume 404s)
+                    4 KEPT   (health, THE cross-process resume, get_state across
+                              processes, CORS preflight)
+frontend            HealthCheck.tsx deleted + its mount; no test referenced it
+skeleton.py         UNTOUCHED, and both /skeleton/* routes UNTOUCHED
+```
+
+**Verified by me, not inherited:**
+
+```
+offline pytest       60 passed, 70 deselected      (deselected 75 -> 70 = the 5 live deletions;
+                                                    the 60 is unchanged, as it must be)
+import app.main      import ok                     <- no dangling import
+kept live tests      7 passed in 40.22s            <- test_interrupt.py + test_api.py, both edited
+vitest               74 passed (9 files)           <- unchanged
+npm run build        clean, index-D0ALTn0n.js 427.60 kB / gzip 121.05 kB
+npx oxlint           exit=0
+```
+
+**The kept live tests are the ones that mattered to re-run.** The agent edited both files and
+removed tests from them; a broken fixture or a stale import would only show under `-m live`. They
+cost almost nothing to check — `skeleton.py` calls `get_llm("fast")` with `max_tokens=120` and a
+tiny prompt, which is why Phase 0's tests were always cheap.
+
+The agent also corrected three docstrings that had become false: `main.py`'s claim that the
+skeleton routes are deleted in 1.7, `build.py`'s claim that `skeleton.py` can be deleted whole, and
+`test_interrupt.py`'s naming of a now-deleted test as the file's load-bearing one. Correct, and
+beyond what was asked.
+
+### 1.3b golden suite on `deep`, and the case-05 attribution — session 8, 2026-08-02
+
+**THE FIRST GOLDEN RUN ON `deep` WITH ZERO 429s.** Every previous full run lost most of its cases
+to quota, so this is the first time all eight were actually measured in one pass. No file changed
+to produce it; the budget had simply refilled.
+
+```
+01 . · 02 . · 03 . · 04 . · 05 F · 06 . · 07 . · 08 .
+1 failed, 37 passed in 526.32s (0:08:46)
+retry_fired=False on every case, both previously and again here
+FAILED test_golden_case[05_title_scope_mismatch]
+  cases.py:70  AssertionError: APM
+```
+
+**Cases 02 and 08 both PASSED**, which is worth stating plainly: the case-02 recapitalization
+failure recorded on 2026-08-01 did not reproduce. That is a third independent confirmation that
+case 02 flaps rather than fails consistently.
+
+**Case 05 failed on line 70, the LEVEL assertion — not the uncertainty one.** The model returned
+`APM` for a resume whose title says Group PM, where the case accepts `{PM, Senior PM}`. This is the
+case DEV-STATE named on 2026-08-01 as the one the committed case-01 fix could plausibly have
+suppressed, and the fix's added boundary is APM-flavoured, so the direction was suspicious enough
+to attribute rather than assume.
+
+**THE ATTRIBUTION — an alternating A/B, `deep`, run with the arms DELIBERATELY INVERTED.**
+`ab_prompt_control.py` compares working tree against `git show HEAD:`, so the pre-fix prompt
+(`27bb749~1`) was checked out into the working tree. **The script's labels therefore mean the
+opposite of their names, and its own `VALIDATED` exit line is meaningless here and was discarded:**
+
+```
+prompt chars   FIX=11600  CONTROL=12204  delta=-604
+  FIX     = working tree = the PRE-FIX prompt
+  CONTROL = HEAD         = the COMMITTED fix
+
+ # variant   level  low_confidence_fields                      verdict
+ 1 CONTROL   APM    ['assessed_level']                         FAIL  APM
+ 2 FIX       PM     ['assessed_level']                         PASS
+ 3 CONTROL   PM     ['assessed_level']                         PASS
+ 4 FIX       PM     ['assessed_level']                         PASS
+ 5 CONTROL   PM     ['assessed_level','years_pm_experience']   PASS
+ 6 FIX       PM     ['assessed_level','years_pm_experience']   PASS
+ 7 CONTROL   PM     ['assessed_level']                         PASS
+ 8 FIX       PM     ['assessed_level']                         PASS
+
+COMMITTED fix   3 pass / 1 fail        PRE-FIX prompt   4 pass / 0 fail
+```
+
+**🔴 THE FEARED REGRESSION DID NOT HAPPEN, and this is a real measured answer rather than a shrug.**
+The specific risk was that the committed fix suppresses the `assessed_level` trigger on case 05.
+**`assessed_level` was flagged in 8 of 8 A/B runs, and in the golden failure too — 9 of 9.** The
+trigger fires exactly as it should on the case that needs it. Case 06, the other case that needs
+the trigger to fire, passed in the golden run with `assessed_level` in its flags. **05 and 06 are
+confirmed unregressed on the thing that was actually at risk.**
+
+**What remains is a THIRD flap, and it is a different mode from the other two.** Case 05's *level*
+lands on `APM` sometimes. Counting every observation of each prompt on this fixture:
+
+```
+COMMITTED fix    2 fail / 5 observations     (golden run + A/B arm)
+PRE-FIX prompt   0 fail / 4 observations
+```
+
+**That is not enough to blame the fix.** Fisher's exact on 2/5 versus 0/4 is p ≈ 0.44 — nowhere
+near the p ≈ 0.05 the case-01 validation reached, and this project has already recorded three false
+passes taken from weaker evidence than that. **Do not revert the fix on this table.** The honest
+statement is: case 05 flaps on `deep`, the fix is not shown to have caused it, and it is not
+cleared either.
+
+**So three of eight cases now flap, not two.** 01 (`years_pm_experience`), 02 (recapitalization),
+05 (level → APM). Each is a different failure mode, which argues against one prompt edit fixing
+them and against the flap being one bug.
+
+**Budget spent this session on `deep`: ~32k on the golden run plus ~60k on the A/B, ~92k of
+200,000.** The A/B costing a third of a day to return p ≈ 0.44 is itself worth recording: **at this
+flap rate, 4 pairs is underpowered.** A case failing ~25-40% of the time needs more pairs than one
+that flaps ~50/50, and the case-01 validation got its p ≈ 0.05 only because its control failed
+twice. Budget 6-8 pairs for the next attribution, or expect to learn nothing.
 
 ### 1.4 CLOSED — the two missing measurements, session 8, 2026-08-02
 
@@ -798,6 +951,52 @@ See the Decisions entry below.
 
 ## Last session
 
+**Session 8 — 2026-08-02. Stories 1.4 and 1.7 closed. Phase 1 is one story from its gate, and the
+golden suite was measured honestly for the first time.**
+
+**1.4's two missing measurements were the cheap part and both landed.** The single-call assertion —
+the phase's most important, and until today green but never seen to fail — was driven against a
+deliberately wrong graph and **logged 2 `outcome=ok` records, failing as it must.** The `at pause:
+1` line is what makes that meaningful: it proves the wrong graph was running normally up to the
+interrupt, so the second record is a genuine re-execution rather than a broken probe. Then the 8
+live tests were re-run rather than inherited from session 7's agent. One of them 429'd on TPM and
+was re-run alone; **classifying before believing it is the only reason that was not recorded as a
+defect**, and it is the fifth time on this project that a red run was quota.
+
+**1.7 was delegated, and the agent contradicted its brief and was right — the fourth time.** The
+phase spec's delete list assumed 1.4's tests replace story 0.7's. **They do not.**
+`test_confirm_level.py` runs its whole file against one module-scoped `TestClient`; `test_api.py`
+spawns two real uvicorn processes, and its own docstring already explains why a rebuilt
+`TestClient` proves nothing about state surviving a dying interpreter. Deleting to the list would
+have removed the evidence retiring this architecture's central risk **and left a fully green suite
+behind.** Karthik's call: keep `skeleton.py` and both `/skeleton/*` routes as permanent test
+infrastructure. The 5 genuinely redundant tests went; 7 stayed and were re-run green.
+
+**The reusable lesson is written into Decisions: a story that deletes tests must produce a coverage
+map first**, old test → the new test asserting the same property or `UNREPLACED`, and must stop
+rather than delete anything `UNREPLACED`. A spec's delete list is a hypothesis about the
+replacement, written before it existed. This was caught only because the brief named it as a trap
+in advance.
+
+**Then the golden suite ran all eight cases on `deep` with zero 429s — the first time that has ever
+happened.** 37 passed, 1 failed. Every previous "full" run lost most cases to quota, so this is the
+first run that measured the prompt rather than the rate limiter. **Cases 02 and 08 both passed**,
+confirming 02 flaps rather than fails consistently.
+
+**Case 05 failed on the level, not the flag, and it was attributed rather than assumed.** An
+alternating A/B with the arms deliberately inverted — pre-fix prompt in the working tree, committed
+prompt as HEAD — established the thing that actually mattered: **the committed case-01 fix did NOT
+suppress the `assessed_level` trigger. It fired 9 times out of 9.** 05 and 06 are unregressed on
+the risk DEV-STATE flagged. But the level flap itself came back 2 fail / 5 versus 0 fail / 4,
+p ≈ 0.44, which attributes nothing. **Recorded as unattributed rather than blamed on the fix**, and
+the fix was not reverted on that evidence.
+
+**The honest headline is that the suite got worse, again: three of eight cases flap, not two, and
+they are three different bugs.** That is the second session running where careful measurement made
+the picture worse rather than better, which is the suite doing its job. **1.3b is now the only open
+story in Phase 1**, and § Next session puts a design question to Karthik about what the golden gate
+should be, rather than spending more budget on prompt prose.
+
 **Session 7 — 2026-08-01. The case-01 prompt fix is validated and committed (`27bb749`). The suite
 got measurably less trustworthy, and that is the finding worth carrying.**
 
@@ -1415,69 +1614,66 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-**Stories 1.1, 1.2, 1.5, 1.3a, 1.6a and 1.6b are DONE and committed. Stories 1.3b and 1.4 are BUILT
-AND COMMITTED BUT NOT TICKED** — each is one measurement short, and both measurements need model
-budget. Remaining: **finish 1.3b and 1.4's verification → 1.7.**
+**EVERY PHASE 1 STORY IS DONE EXCEPT 1.3b.** 1.1, 1.2, 1.4, 1.5, 1.7, 1.3a, 1.6a and 1.6b are all
+ticked and committed. **1.3b is the only thing between here and the phase gate.**
 
-**`git status` IS CLEAN.** Session 7 committed `27bb749` (the case-01 prompt fix) and `aa3a756`
-(story 1.4). Nothing dirty to pick up.
+**`git status` IS CLEAN** as of session 8's commits. Nothing dirty to pick up.
 
 **Run these three first (~1 min), before anything else:**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 60 passed, 75 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 60 passed, 70 deselected
 cd frontend && npm test -- --run                                          # expect 74 passed
 curl -s https://pm-interview-panel.onrender.com/health                    # {"status":"ok"}, 32-42s if cold
 ```
 
----
-
-**🔴 BOTH MODELS WERE AT THEIR DAILY CAP WHEN SESSION 7 ENDED** (`deep` 199,325/200,000, `fast`
-199,086/200,000).
-
-**It is a ROLLING window, not a midnight reset**, refilling at ~138 tokens/min ≈ 8,300/hour. So
-plan against elapsed hours, not the date:
-
-```
-~2h   ~17k    the falsify probe (~15k) and nothing else
-~8h   ~66k    falsify + the 8 live tests of test_confirm_level.py, both on `fast`
-~24h  ~199k   effectively a full bucket - the only point at which a full golden
-              run on `deep` (~32k) plus real flap work both fit in one day
-```
-
-**The two buckets are independent**, so `fast` work and `deep` work do not compete. Spend in this
-order:
-
-**FIRST, and it is cheap (~2 calls on `fast`): falsify story 1.4's single-call assertion.** It is
-the phase's most important assertion and it has never been seen to fail.
-
-```
-backend/.venv/Scripts/python.exe backend/scripts/falsify_single_call.py
-```
-
-**Expect the wrong graph to log 2 `outcome=ok` records** (exit 0). If it logs 1 (exit 2), the
-assertion is vacuous and 1.4 is not done regardless of how green the suite looks.
-
-**SECOND (~8 calls on `fast`): re-run `tests/test_confirm_level.py -m live` yourself.** Session 7
-only has the agent's word for those 8. Then **1.4 can be ticked.**
-
-**THIRD (~32k on `deep`): the full golden suite**, to confirm the committed case-01 fix regressed
-nothing — especially **05 and 06, which need the `assessed_level` trigger to FIRE** and are the
-cases the fix could plausibly have suppressed. Cases 03-08 have not run since it landed.
-
-**FOURTH, and it is open-ended: the two remaining golden flaps.** Details below.
+**Note the 70.** It was 75 until story 1.7 deleted five `live`-marked Phase 0 tests. The 60 offline
+is unchanged and must stay 60.
 
 ---
 
-**1.3b — WHAT IS LEFT, and it is not what session 6 described.** The case-01 `assessed_level` fix
-is committed and validated. **Two known flaps remain, and they are different bugs:**
+**🔴 BUDGET: session 8 spent ~92,000 of `deep`'s 200,000 and only a few thousand of `fast`'s.**
+Rolling window, refilling ~138 tokens/min ≈ 8,300/hour. Nothing is at the cap, unlike session 7.
+
+**Everything cheap is already done. What is left is the expensive, open-ended part**, and it is one
+question: **can the golden suite be made a reliable gate, and if not, what do we ship instead?**
+
+**THE STATE OF THE SUITE, measured properly for the first time on 2026-08-02:**
+
+```
+full run on `deep`   37 passed, 1 failed, ZERO 429s        <- the first honest full run
+retry_fired          False on every case, every run, both models
+```
+
+**Three of eight cases flap, and they are three DIFFERENT bugs.** That last point matters: it
+argues against one prompt edit fixing them, and against "the flap" being a single thing.
 
 ```
 case 01   over-flags 'years_pm_experience'   on an APM rotational fixture the prompt
                                              EXPLICITLY excludes from that trigger
 case 02   returns "cut checkout abandonment..." where the fixture has a
                                              sentence-initial "Cut ..."   (one character)
+case 05   assessed_level lands on APM        where the case accepts {PM, Senior PM}.
+                                             NEW on 2026-08-02. The uncertainty flag is
+                                             FINE here - 9 of 9 - it is the level that moves
 ```
+
+**Do not re-run the attribution on case 05.** It was done, it cost ~60k, and it returned p ≈ 0.44.
+What it did establish is worth keeping: **the committed case-01 fix did NOT suppress the
+`assessed_level` trigger** on 05 or 06, which was the specific regression risk. That question is
+closed; the level flap is not.
+
+**Before spending anything on a flap, read § Decisions 2026-08-02 on statistical power.** At 4
+pairs an A/B can only resolve a case that flaps near 50/50. Case 05 flaps less often than that, so
+4 pairs there buys an inconclusive result for a third of a day. **Budget 6-8 pairs, or do not
+spend.**
+
+**A question worth putting to Karthik before more budget goes into prompt edits:** three
+independent flaps at ~25-50% each may mean this model cannot hold an 8-case suite green in one run
+at all, in which case the gate should be redefined — for example N-of-M sampling per case, or
+splitting the suite into "must always pass" and "known-variable" tiers — rather than chased with
+more prompt prose. **That is a design decision about what the golden suite IS, and it is his call,
+not something to solve with another 60k of tokens.**
 
 **Do NOT relax the case-02 assertion to fold case.** Session 6 deliberately kept
 `recapitalized fabrication still rejected` as a control on the typography fold; folding case
@@ -1666,6 +1862,56 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**2026-08-02 (session 8) · `app/graph/skeleton.py` AND THE `/skeleton/*` ROUTES ARE PERMANENT TEST
+INFRASTRUCTURE, NOT SCAFFOLDING. PHASE-1-SPEC § 1.7's DELETE LIST IS STRUCK IN PART.**
+
+The spec assumed story 1.4's tests replace story 0.6/0.7's. They do not. `test_api.py` spawns **two
+separate uvicorn OS processes** and proves a checkpoint written by the first is resumed by the
+second; `test_confirm_level.py` runs its whole file against **one module-scoped `TestClient`**, and
+`test_api.py`'s own docstring already explains why a rebuilt `TestClient` in the same process is
+not a substitute — the interpreter never dies, so nothing is proven about state that must survive
+one dying.
+
+That property is the entire reason this project uses a Postgres checkpointer and forbids
+`MemorySaver`. **Deleting the skeleton would have deleted the only evidence for it, and left a
+fully green suite behind.** Karthik's call: keep it.
+
+Consequences, so nobody re-litigates this:
+- `skeleton.py`, `/skeleton/start`, `/skeleton/resume`, and the 7 surviving Phase 0 tests join
+  `config.py`'s validation, the lifespan checkpointer, the CORS setup and `conftest.py` on the
+  **do-not-delete** list.
+- The 5 Phase 0 tests whose property 1.4 genuinely does assert were deleted, so the redundancy is
+  gone without the proof going with it.
+- **The debt is real and is deferred, not cancelled:** the cross-process proof covers the *skeleton*
+  graph, not the real one. A later phase could change how the real graph checkpoints and this proof
+  would not notice. Porting it onto 1.4's `/session/{id}/level` routes is the honest fix.
+
+**The general lesson, which is the reusable part: a story that deletes tests must produce a
+coverage map first — old test → the new test asserting the same property, or `UNREPLACED` — and
+must stop rather than delete anything marked `UNREPLACED`.** The delete list in a spec was written
+before the replacement existed and is a hypothesis about it, not a record of it. This was caught
+only because the brief named it as a trap in advance.
+
+**2026-08-02 (session 8) · AN ALTERNATING A/B AT 4 PAIRS IS UNDERPOWERED FOR A CASE THAT FLAPS
+BELOW ~50%. SIZE THE PROBE TO THE FLAP RATE, NOT TO THE BUDGET.**
+
+The case-05 attribution cost ~60,000 `deep` tokens — a third of the model's day — and returned
+2 fail / 5 versus 0 fail / 4, which is Fisher's exact p ≈ 0.44. It answered the narrow question it
+was aimed at (the `assessed_level` trigger still fires, 9 of 9) but could not attribute the level
+flap either way.
+
+Case 01's validation reached p ≈ 0.05 on the same 4 pairs **only because its control failed twice**,
+which it could do because that case flaps ~50/50. Case 05 flaps less often, so the same spend buys
+less power. **Budget 6-8 pairs for the next attribution on a sub-50% flap, or accept that the run
+will be inconclusive and do not spend at all.** An inconclusive A/B is not a cheap result; it is a
+third of a day.
+
+Also recorded: **running the A/B with the arms inverted works but its exit line lies.** To test
+whether a *committed* change caused a regression, the pre-fix prompt goes in the working tree, so
+the script's `FIX` column is the OLD prompt and `CONTROL` is the committed one. The table stays
+valid; `VALIDATED`/`NOT VALIDATED` must be ignored. Restore with
+`git checkout -- backend/app/agents/resume_analyst.py` before doing anything else.
 
 **2026-08-01 (session 7) · A PROMPT CHANGE AIMED AT A FLAPPING CASE IS VALIDATED BY AN
 *ALTERNATING* A/B, NOT BY N CONSECUTIVE GREEN RUNS. This is now the method for this project.**

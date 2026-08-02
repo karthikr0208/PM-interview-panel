@@ -3,9 +3,17 @@ driving `app.graph.skeleton.build_skeleton_graph` across two separate HTTP
 requests. Story 1.2 adds the first real routes, /session and
 /session/{id}/resume, independent of the skeleton graph. Story 1.4 adds
 /session/{id}/level and /session/{id}/level/confirm, driving the real graph
-(`app.graph.build.build_graph`) across its first interrupt. The skeleton
-routes are deleted in story 1.7, once 1.4's routes and a UI exercising them
-(1.6) replace them.
+(`app.graph.build.build_graph`) across its first interrupt.
+
+Story 1.7 (delete the Phase 0 scaffolding) kept these two routes rather than
+deleting them: `tests/test_api.py::test_resume_continues_after_the_process_is_torn_down_and_rebuilt`
+and `::test_get_state_next_reflects_pause_then_completion` prove checkpoint
+state survives a full OS-process teardown and rebuild across two genuinely
+separate uvicorn processes, and nothing in `tests/test_confirm_level.py`
+asserts that property -- its HTTP-level tests share one in-process
+`TestClient` for the whole module. Deleting the routes would have deleted the
+only test of that property with no replacement. Deferred pending a decision;
+see DEV-STATE.
 """
 
 from __future__ import annotations

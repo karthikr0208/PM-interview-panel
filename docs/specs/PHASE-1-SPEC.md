@@ -97,8 +97,8 @@ Writes `candidate_profile`, `assessed_level`, `level_rationale`, `low_confidence
 - [x] `AGENT-RESUME-ANALYST-SPEC.md` exists and defines the output schema, the level rubric, and the golden cases — written 2026-07-31, before the prompt
 - [x] `assessed_level` is one of `APM | PM | Senior PM | GPM`, enforced by the schema, not by prompt text — a `Literal` on the Pydantic model, asserted anyway on every golden case, never violated across any measured run on either model
 - [x] `level_rationale` cites specific resume content, not generic praise — `rationale_cites_resume` requires a verbatim 8+ word span from the input, green on every case that has run
-- [ ] `low_confidence_fields` names fields the model was unsure about; these drive the confirmation UI in 1.6 — **this is the open one.** Correct on the ambiguous cases, but case 01 flags `assessed_level` on an unambiguous resume in about half of runs. See DEV-STATE § Decisions 2026-08-01
-- [ ] **5-10 golden cases at `backend/tests/golden/resume_analyst/`, passing, runnable with `make golden AGENT=resume_analyst`** — 8 exist and run; not yet green in one run, and blocked by the flap above rather than by missing work
+- [ ] `low_confidence_fields` names fields the model was unsure about; these drive the confirmation UI in 1.6 — **this is the open one.** Correct on the ambiguous cases, but case 01 flags `assessed_level` on an unambiguous resume in about half of runs. See DEV-STATE § Decisions 2026-08-01. **Measured 2026-08-02: the flagging itself is sound on case 05 — `assessed_level` was flagged in 9 of 9 observations.** The remaining defect there is the *level*, not the flag
+- [ ] **5-10 golden cases at `backend/tests/golden/resume_analyst/`, passing, runnable with `make golden AGENT=resume_analyst`** — 8 exist and run. **Best run to date is 37 passed / 1 failed with zero 429s (2026-08-02, `deep`)**, so the suite finally measures rather than rate-limits. Still not green in one run: **three of eight cases now flap** (01, 02, 05), which is one more than 2026-08-01 recorded
 - [x] Validate-retry is exercised, not assumed: at least one golden case records the observed retry behaviour on `deep` — recorded on **every** case of every run, both models: `retry_fired=False` throughout. The wrapper is now near-dead code against Groq's strict schema; see DEV-STATE 2026-07-31
 
 **Golden cases must span the levels**, including at least one deliberately ambiguous resume where
@@ -173,19 +173,39 @@ the name must be chosen properly first. See Blockers in DEV-STATE.
 
 ---
 
-### 1.7 Delete the Phase 0 scaffolding
+### 1.7 Delete the Phase 0 scaffolding — ✅ DONE 2026-08-02, SCOPE REDUCED
 
 Only after 1.6 is verified. Deleting earlier removes the working reference before the replacement
 is proven.
 
-- [ ] `backend/app/graph/skeleton.py`
-- [ ] `backend/tests/test_interrupt.py` — its assertions now live against the real graph in 1.4
-- [ ] `/skeleton/start` and `/skeleton/resume` from `app/main.py`, and their tests in `test_api.py`
-- [ ] `frontend/src/HealthCheck.tsx` and its mount in `App.tsx`
-- [ ] The Vite starter content in `App.tsx`
+**🔴 THE DELETE LIST BELOW WAS WRONG, and finding that out is what this story actually bought.**
+It assumed story 1.4's tests replace story 0.6/0.7's. **They do not.** `test_api.py` proves
+`interrupt()` / `Command(resume=...)` survives across **two separate uvicorn OS processes**;
+`test_confirm_level.py` runs the whole file against **one module-scoped `TestClient`**, and
+`test_api.py`'s own docstring already records why a rebuilt `TestClient` is not a substitute.
+Deleting on the original list would have destroyed the evidence that retired this architecture's
+central stateless-HTTP risk. **Karthik's call 2026-08-02: keep the skeleton as a permanent
+process-level test harness.** See DEV-STATE § Decisions 2026-08-02.
+
+- [x] ~~`backend/app/graph/skeleton.py`~~ — **STRUCK. Kept deliberately as a test harness**, not as
+  scaffolding. Its only callers are the four surviving Phase 0 tests
+- [x] `backend/tests/test_interrupt.py` — **3 of 6 tests deleted**, the ones whose property 1.4 does
+  assert. **3 kept**: checkpointer-identity, raw `checkpoints`-table rows, and the post-resume
+  `aget_state().next == ()` check, none of which exist elsewhere
+- [x] ~~`/skeleton/start` and `/skeleton/resume` from `app/main.py`~~ — **STRUCK, both routes kept**,
+  because the surviving cross-process tests call them. **2 of 6 `test_api.py` tests deleted**; the
+  cross-process pair, `/health`, and the CORS preflight are kept
+- [x] `frontend/src/HealthCheck.tsx` and its mount in `App.tsx` — deleted in full
+- [x] The Vite starter content in `App.tsx` — already gone, removed by 1.6a
 
 **Do not delete** `app/config.py`'s validation, the lifespan checkpointer, the CORS setup, or
-anything in `tests/conftest.py`. Those are permanent.
+anything in `tests/conftest.py`. Those are permanent. **`app/graph/skeleton.py` and the four
+surviving Phase 0 tests now join that list.**
+
+**The debt this leaves, stated so it is not forgotten:** the cross-process proof covers the
+*skeleton* graph, not the real one. If a later phase changes how the real graph is checkpointed,
+that proof will not notice. Porting it onto 1.4's `/session/{id}/level` routes is the honest fix
+and is deferred, not cancelled.
 
 ---
 

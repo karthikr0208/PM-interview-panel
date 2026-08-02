@@ -3,8 +3,12 @@ first two nodes: `level_candidate` (the Resume Analyst) and `confirm_level`
 (the first real `interrupt()`).
 
 Story 0.6's two-node skeleton is deliberately not here: it lives in
-`skeleton.py` so it can be deleted whole once story 1.7 lands. This file's
-rule below is what that skeleton exists to prove.
+`skeleton.py`. Story 1.7 (delete the Phase 0 scaffolding) kept it rather
+than deleting it whole -- `tests/test_api.py` still has two tests proving
+checkpoint state survives a full OS-process teardown/rebuild across two
+separate uvicorn processes, a property nothing in `test_confirm_level.py`
+asserts. Deferred pending a decision; see DEV-STATE. This file's rule below
+is what that skeleton exists to prove.
 
 The full graph (level_candidate -> confirm_level -> ... -> coach_report) is
 built incrementally across Phases 1-5. Only the first two nodes exist today.
