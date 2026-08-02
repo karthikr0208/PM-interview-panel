@@ -118,9 +118,22 @@ degrades gracefully** — the most diagnostic question must not be last.
 
 ## 5. Golden cases
 
-**Written blind in story 2.5.** Input is `(assessed_level, case_world)`. **Fixtures should reuse
-case worlds from story 2.2's fixtures** so the two suites compose and a change to the `CaseWorld`
-schema breaks both loudly rather than one silently.
+**Written blind in story 2.5.** Input is `(assessed_level, case_world)`.
+
+**🔴 Corrected 2026-08-02: story 2.2's fixtures are candidate *profiles*, the Case Architect's
+INPUT. They are not case worlds and cannot be reused directly here.** The Planner's fixtures must
+be **hand-written case worlds** conforming to §2 of the Case Architect spec — which is correct for
+blindness anyway, since a generated world would require the agent that does not exist yet.
+
+**Two requirements that tie the suites together instead:**
+
+1. **Name each fixture after the 2.2 scenario it corresponds to** (`apm_consumer_world` for
+   `apm_consumer`, and so on), so the two suites describe the same seven situations.
+2. **Every hand-written case world MUST pass the Case Architect's own universal assertions** in
+   `tests/golden/case_architect/assertions.py`. This is free, needs no LLM, and buys two things: it
+   proves the Planner is being tested against realistic input, and it is a **positive control on
+   2.2's assertions themselves** — a hand-built world a human considers good should pass them, and
+   if it does not, one of the two suites is wrong.
 
 | # | Fixture | Asserts |
 |---|---|---|
