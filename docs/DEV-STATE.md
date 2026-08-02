@@ -90,7 +90,7 @@ toggle no script can flip.** See Blockers.
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
-| 2 Case Architect + Planner | ⬜ not started | — | — |
+| 2 Case Architect + Planner | ⬜ not started — **spec written 2026-08-02, before starting it**, per CLAUDE.md. 7 stories, both agents, spec-then-blind-fixtures-then-agent shape | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
@@ -1753,8 +1753,30 @@ It is not a code task. The confirmation screen only became reachable on 2026-08-
 seen it in a browser.** Point him at `https://pmaiinterviewpanel.netlify.app`, warn him the backend
 cold-starts in 32-42s, and have him upload his own resume and a few others.
 
-**If both close, Phase 1 is complete and the next work is writing `docs/specs/PHASE-2-SPEC.md`
-before starting it**, per CLAUDE.md § What to update, and when.
+**If both close, Phase 1 is complete.** ~~and the next work is writing `docs/specs/PHASE-2-SPEC.md`
+before starting it~~ — **PHASE-2-SPEC.md is already WRITTEN, 2026-08-02**, while `deep` was
+exhausted. Phase 2 is unblocked and can start the moment Phase 1's gate closes.
+
+---
+
+**🟢 ZERO-QUOTA WORK AVAILABLE, if `deep` is exhausted again.** Session 8 proved there is real work
+that needs no model budget at all, and it is the highest-leverage kind:
+
+```
+DONE 2026-08-02   docs/specs/PHASE-2-SPEC.md                     no LLM
+STILL AVAILABLE   docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md no LLM  (story 2.1)
+STILL AVAILABLE   backend/tests/golden/case_architect/ fixtures  no LLM  (story 2.2, BLIND)
+STILL AVAILABLE   docs/specs/agents/AGENT-PLANNER-SPEC.md        no LLM  (story 2.4)
+STILL AVAILABLE   backend/tests/golden/planner/ fixtures         no LLM  (story 2.5, BLIND)
+STILL AVAILABLE   fix tests/test_llm.py:112                      no LLM to verify - inject a
+                                                                 RateLimitError and assert it
+                                                                 SKIPS rather than reporting 0/10
+```
+
+**Stories 2.1, 2.2, 2.4 and 2.5 are ALL zero-quota by design** — they are the spec-and-blind-
+fixtures half of each agent, and Phase 1 proved that half is where the leverage is. **A day with no
+`deep` budget is a good day to do them**, and doing them early means Phase 2's expensive half
+arrives with its gate already built.
 
 **`git status` IS CLEAN** as of session 8's commits. Nothing dirty to pick up.
 
