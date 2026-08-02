@@ -25,9 +25,15 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**Phase 1 is IN PROGRESS as of 2026-08-01. Stories 1.1, 1.2, 1.5, 1.3a, 1.6a and 1.6b are done and
-committed. Only 1.4 and the 1.7 cleanup remain. Story 1.3b's agent and prompt exist and are close,
-but 1.3 CANNOT BE TICKED — the golden suite is not yet a reliable gate. See § Next session.**
+**Phase 1 is IN PROGRESS. As of 2026-08-02 stories 1.1, 1.2, 1.4, 1.5, 1.3a, 1.6a and 1.6b are done
+and committed. Only 1.3b and the 1.7 cleanup remain. Story 1.3b's agent and prompt exist and are
+close, but 1.3 CANNOT BE TICKED — the golden suite is not yet a reliable gate. See § Next session.**
+
+**Session 8 update (2026-08-02): story 1.4 is CLOSED.** Both measurements it was short of are now
+taken. **The single-call assertion — the phase's most important — has been observed FAILING against
+a deliberately wrong graph**, so it is no longer correct-by-inspection, and the 8 live tests were
+re-run independently rather than inherited from the agent. 1.6b's two unmounted boxes are reachable
+as a result. Output below.
 
 **Session 7 update (2026-08-01, later the same day): the case-01 prompt fix is VALIDATED and
 COMMITTED (`27bb749`), and the suite is measurably less trustworthy than session 6 thought.** The
@@ -64,7 +70,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.5, 1.3a, 1.6a, 1.6b done**; **1.3b (`27bb749`) and 1.4 (`aa3a756`) built and committed but NOT ticked**, each one measurement short and both blocked on daily token budget; 1.7 remains | PHASE-1-SPEC.md | 2026-08-01 — 93 live tests, **60 offline, 74 vitest** |
+| 1 Resume Analyst + design foundation | 🟡 in progress — **1.1, 1.2, 1.4, 1.5, 1.3a, 1.6a, 1.6b done**; **only 1.3b and 1.7 remain.** 1.3b is committed (`27bb749`) but not tickable while two of eight golden cases flap | PHASE-1-SPEC.md | 2026-08-02 — 93 live tests, **60 offline, 74 vitest** |
 | 2 Case Architect + Planner | ⬜ not started | — | — |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -100,11 +106,10 @@ Specs are written at the top of the phase that builds each agent, not up front.
     fix is now VALIDATED against a live control and COMMITTED (`27bb749`, session 7).** Still not
     tickable: **at least two of the eight cases flap**, case 01 has a *second* over-flagging mode
     the fix does not address, and cases 03-08 could not be run on `deep` today. Output below
-- [ ] 1.4 `level_candidate` → `confirm_level`, the first real interrupt — **BUILT AND COMMITTED
-  (`aa3a756`), NOT TICKED.** Structure, offline suite, vitest, build, lint, residue and design
-  rules all verified independently. **The 8 live tests are the agent's run only, and the
-  single-call assertion is UNFALSIFIED** — both models hit the daily cap before the wrong-graph
-  probe could run. Output below
+- [x] 1.4 ~~`level_candidate` → `confirm_level`, the first real interrupt~~ — **DONE 2026-08-02.**
+  Built and committed `aa3a756` in session 7; closed in session 8 by the two measurements it was
+  short of. **The single-call assertion is now FALSIFIED, not merely green** — the wrong graph logs
+  2 `outcome=ok` records. 8 live tests re-run independently. Output below
 - [x] 1.5 ~~Design foundation~~ — done 2026-07-31. All nine boxes. **`make test-web` runs for the first time in the project.** Two deviations found in verification, both below
 - [ ] 1.6 Upload and confirmation UI — **split in two.** 1.6b brought forward ahead of 1.4 on
   2026-08-01: 1.4 needs model budget that is exhausted, 1.6b needs none. See Decisions
@@ -112,8 +117,8 @@ Specs are written at the top of the phase that builds each agent, not up front.
   - [x] 1.6b ~~confirmation screen, orchestration column states, Realtime on `agent_events`~~ —
     done 2026-08-01. 66 vitest tests (33 → 66). **Realtime under RLS PROVEN with two real
     identities plus a service-role control.** Session-per-upload defect fixed and falsified.
-    **Two boxes are built and tested but NOT mounted** — the confirmation screen needs 1.4's real
-    data, and a residual Realtime startup race is recorded. Output below
+    ~~**Two boxes are built and tested but NOT mounted**~~ → **both mounted and reachable as of
+    2026-08-02**, by 1.4's `aa3a756`. A residual Realtime startup race is recorded. Output below
 - [ ] 1.7 Delete the Phase 0 scaffolding — **one item struck early, see Decisions 2026-07-31**
 
 ### Phase 0 stories — all complete, kept for the record
@@ -131,6 +136,67 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 1.4 CLOSED — the two missing measurements, session 8, 2026-08-02
+
+**Story 1.4 is DONE.** Session 7 built and committed it (`aa3a756`) but could not tick it: the 8
+live tests were the Sonnet agent's run only, and the single-call assertion had never been observed
+failing. Both models were at their daily cap. Both are now measured, and no code changed to do it.
+
+**🔴 THE ONE THAT MATTERS — the single-call assertion is FALSIFIED.** `falsify_single_call.py`
+builds the WRONG graph, with the LLM call placed above `interrupt()` in the same node, which is
+precisely the bug CLAUDE.md's load-bearing rule exists to prevent, and applies the real test's own
+`outcome=ok` counting to it:
+
+```
+WRONG graph (LLM call above interrupt, same node)
+  outcome=ok records at pause       : 1
+  outcome=ok records after resume   : 2
+  assertion 'exactly 1 across the cycle' -> FAILS as it must
+  residue: sessions rows for this thread = 0
+EXITCODE=0
+```
+
+**The `at pause : 1` line is what makes the `after resume : 2` mean anything** — it proves the
+wrong graph was executing normally up to the interrupt, so the second record is the node genuinely
+re-running from the top rather than an artefact of a broken probe. Same shape as story 1.1's
+`A/own = 1` column and 1.3a's positive control. This project has now caught three false passes on
+assertions that could not fail; this one was checked before it could become the fourth.
+
+**Then the 8 live tests, re-run by me rather than inherited:**
+
+```
+tests/test_confirm_level.py -m live    7 passed, 1 failed in 184.51s
+  FAILED test_command_resume_carries_the_candidates_level_into_state
+  -> 429 tokens per minute (TPM): Limit 8000, Used 3505, Requested 5144
+  -> ZERO assertion failures
+
+same test, re-run alone                1 passed in 9.88s
+```
+
+**Classified before believed, and it was quota.** That is the fifth time on this project that a
+red golden/live run was rate limiting rather than a defect. `test_confirm_level.py` has **no pacing
+between tests at all** — the same harness gap the golden suite had before `_PACE_SECONDS` went to
+60. One case requests ~5100 tokens against an 8000 TPM bucket refilling at 133/sec, so two
+back-to-back live tests collide by arithmetic. **Recorded as a known harness gap, not fixed**: it
+manufactures failures rather than hiding them, and it is loud. Fix it if the file grows.
+
+**Residue after everything, queried directly:**
+
+```
+sessions 0 · resumes 0 · agent_events 0 · transcript_turns 0
+answer_evaluations 0 · case_worlds 0 · checkpoints (distinct threads) 0
+```
+
+**A warning that fires on every live run, chased down and benign.** `pydantic/main.py:426
+UserWarning: Expected 'none' but got 'ResumeAnalysis'`. It is not our state or our checkpointer:
+`InterviewState.candidate_profile` is a `dict` and the node calls `.model_dump()` before writing,
+so a `ResumeAnalysis` never enters state. It comes from the OpenAI SDK's parsed-response model,
+where `parsed` is declared `None`-typed. Upstream noise. Recorded so the next session does not
+spend budget re-diagnosing it.
+
+**Baselines at the start of the session, all matching session 7:** offline `60 passed, 75
+deselected` · vitest `74 passed (9 files)` · `git status` clean at `0f9fd8b`.
 
 ### 1.4 level_candidate → confirm_level — observed output, session 7, 2026-08-01
 

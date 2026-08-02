@@ -111,16 +111,16 @@ Phase 2, but the profile summary this agent writes is candidate-visible.
 
 ---
 
-### 1.4 `level_candidate` → `confirm_level`, the first real interrupt
+### 1.4 `level_candidate` → `confirm_level`, the first real interrupt — ✅ DONE 2026-08-02
 
 The Phase 0 skeleton becomes the real thing. `build.py` gets its first two nodes.
 
 **Acceptance**
-- [ ] `level_candidate` runs the Resume Analyst and writes its four fields to state
-- [ ] `confirm_level` **contains only `interrupt()` and its return** — no LLM call, no counter, no write above that line, ever
-- [ ] A candidate's correction to the level is carried into state by the resume value and persisted to `sessions.level`
-- [ ] Accepting the assessed level unchanged also works, and is distinguishable from a correction
-- [ ] **The Resume Analyst's LLM call fires exactly once across the confirm cycle**, asserted against `app/llm.py`'s call log
+- [x] `level_candidate` runs the Resume Analyst and writes its four fields to state — built `aa3a756`, 8 live tests re-run independently 2026-08-02
+- [x] `confirm_level` **contains only `interrupt()` and its return** — no LLM call, no counter, no write above that line, ever. Verified by reading `build.py:145-153`, not by a green test
+- [x] A candidate's correction to the level is carried into state by the resume value and persisted to `sessions.level`
+- [x] Accepting the assessed level unchanged also works, and is distinguishable from a correction
+- [x] **The Resume Analyst's LLM call fires exactly once across the confirm cycle**, asserted against `app/llm.py`'s call log — **and the assertion has now been FALSIFIED**, not merely passed: the wrong graph logs 2 `outcome=ok` records and the assertion fails as it must. `backend/scripts/falsify_single_call.py`, exit 0, 2026-08-02
 
 That last box is the Phase 0 constraint doing its job for real. **Assert on the call log, never on
 state.** DEV-STATE 2026-07-30 records why: LangGraph discards the state writes of a node that
@@ -161,8 +161,8 @@ feeds: the orchestration column has one agent in it, and the right column is emp
 - [x] Orchestration column shows the Resume Analyst with the four states distinguished **by shape as well as colour**: `○` waiting, `◉` active and pulsing, `●` done, `⚠` error — done 2026-08-01 in 1.6b. Triple-encoded in practice: shape, colour, **and** a text label, plus `role="status" aria-live="polite"`
 - [x] Agent activity reads as plain language ("read your resume and assessed a level"), **never raw JSON** — done 2026-08-01 in 1.6b. Backend `summary` rendered verbatim when present, plain-language fallback copy otherwise
 - [x] Live updates arrive via Supabase Realtime on `agent_events`, not by polling — done 2026-08-01 in 1.6b. **Proven with two real anonymous identities and a service-role control**: A receives its own row, never B's. One residual startup race recorded in DEV-STATE and at the top of `lib/agentEvents.ts`
-- [ ] Confirmation screen shows the profile, the level, and the rationale, and lets the candidate correct the level — **BUILT AND TESTED IN 1.6b BUT NOT MOUNTED.** Nothing produces a real `ResumeAnalysis` until 1.4's `level_candidate`; mounting it against fixture data would show a candidate fabricated results about their own resume. **Story 1.4 mounts it** via the `onConfirm` contract already on the component
-- [ ] **Fields in `low_confidence_fields` are visually marked as uncertain**, so the candidate knows what to check rather than being asked to verify everything equally — built and tested in 1.6b, unreachable for the same reason as the box above
+- [x] Confirmation screen shows the profile, the level, and the rationale, and lets the candidate correct the level — built and tested in 1.6b, **mounted by 1.4 (`aa3a756`) and reachable as of 2026-08-02.** The chain is verified link by link: vitest covers the component, `App.tsx` mounts it on the `onConfirm` contract, and 8 live tests prove the correction reaches `sessions.level`. **No single test drives the whole browser path** — that is phase-gate item 4
+- [x] **Fields in `low_confidence_fields` are visually marked as uncertain**, so the candidate knows what to check rather than being asked to verify everything equally — same evidence chain and the same caveat as the box above
 - [x] Errors read as plain language with a details disclosure, not a stack trace — done 2026-07-31 in 1.6a. The backend's own `detail` string is surfaced verbatim, because those strings are already written for the candidate
 - [x] Labels sit above inputs. No placeholder-as-label — done 2026-07-31 in 1.6a
 - [x] Works at ≥1280px, the design target; below that it collapses to single-column without breaking — done 2026-07-31 in 1.6a. Three columns at `xl`, stacking to one below it with the conversation first
