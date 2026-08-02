@@ -1955,6 +1955,34 @@ cd backend && $env:GOLDEN_ROLE="fast"
 Phase 3**: Interviewer plus the conduct loop, asking 2-3 of the planned questions rather than all
 of them. `PHASE-3-SPEC.md` needs writing first, and writing it costs nothing.
 
+### The remaining plan, deliberately thin — do not expand it
+
+**Target: the whole pipeline demoable end to end.** Simplest working version of every agent, then
+deepen only what looks weakest. Each phase should cost ~15,000 tokens of verification, not 150,000.
+
+```
+2.3 / 2.6   Case Architect + Planner agents          IN FLIGHT, uncommitted
+2.7         both agents in the orchestration column   no LLM
+3           Interviewer + conduct loop, asking 2-3 planned questions, not 5-7.
+            interrupt #2 (`await_candidate`) is the only structural risk here and
+            Phase 0 already proved the pattern
+4           Evaluator + a scorecard over the 5 PRD dimensions
+5           Coach, one report over the transcript
+6 / 7       ONLY what a demo needs. Cold-start pinger, error states, a walkthrough.
+            Everything else in ARCHITECTURE §6-7 is out of scope unless it shows
+```
+
+**Write each `PHASE-<N>-SPEC.md` before starting it — that is free and it is what keeps scope
+honest. But write them THIN.** Phase 1's spec has seven stories and took four sessions; Phases 3-5
+should be two or three stories each.
+
+**Per phase, the whole gate is:** offline suite green · one golden case smoke on `fast` · the chain
+runs end to end · it looks right to Karthik.
+
+**The temptation to resist:** every phase will surface something that *could* be measured properly.
+Two of eight cases flapping, a startup race, an assertion that might be vacuous. **Record it and
+move on.** The only ones worth stopping for are those that would make a demo visibly break.
+
 **BUDGET AT SESSION END:** `deep` **EXHAUSTED at 198,515/200,000**, refilling ~138/min so a full
 bucket is ~24h. `fast` had ~120,000 when the agent started and it made an unknown number of calls.
 **Assume `fast` is partly spent; a 429 saying "tokens per day" means stop.**

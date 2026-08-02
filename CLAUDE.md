@@ -20,10 +20,28 @@ constraint, not a preference.
 
 ---
 
+## 🔴 THE CALIBRATION, BEFORE ANYTHING ELSE
+
+**This is a PORTFOLIO artifact demonstrating multi-agent orchestration. It is not a production
+system and nobody uses it daily.** Decided 2026-08-02. **This supersedes every phase gate, every
+"must pass before" rule below, and ARCHITECTURE §4.**
+
+**Build to "it runs end to end and looks right."** One golden case as a smoke test, not the full
+set. No A/B prompt validation. No flap attribution. No full live suite as a gate. Agents default to
+`fast`. Roughly 15,000 tokens of verification per phase, not 150,000.
+
+**Do not chase perfection here, and do not quietly reintroduce it.** Several rules further down
+this file were written for a production regime and are explicitly struck where they conflict. If a
+rule below would cost tens of thousands of tokens to satisfy, it no longer applies.
+
+**Two things still bind, because they are free:** never claim a pass you did not run, and classify
+a 429 before calling it a defect. Those are why the numbers in DEV-STATE can be trusted.
+
 ## 🔴 Start of every session — before anything else
 
-1. Read **`docs/DEV-STATE.md`**. It is the source of truth for what is done and what is
-   next. Trust it over your own inference from the codebase.
+1. Read **`docs/DEV-STATE.md`** — **the top three sections are enough** (§ Now, § Phase status,
+   and the first block of § Next session). The file is 3,000+ lines and most of it is a historical
+   record of measurements, not instructions. Do not read it end to end.
 2. Read the spec for the current phase: `docs/specs/PHASE-<N>-SPEC.md`
 3. If working on an agent, read `docs/specs/agents/AGENT-<NAME>-SPEC.md`
 4. Read the **Decisions & deviations** section of DEV-STATE carefully. Reality has diverged
@@ -177,12 +195,14 @@ actually intend to make or it measures nothing.
 
 **A green run is one sample, not a measurement.** `temperature=0` narrows run-to-run variance on
 these MoE models and does not remove it — golden case 01 flaps PASS/FAIL on `deep` against
-identical input. Before trusting that a prompt change worked, sample the affected case several
-times, and **run the control** (the same case with the change reverted) or a green run may be
-telling you nothing. See DEV-STATE § Decisions 2026-08-01.
+identical input. **Know this so you do not misread a red run as a regression.**
 
-**Golden cases must pass before any agent prompt change is committed.** Prompt edits are
-otherwise unfalsifiable — the output "seems fine" and a dimension silently regresses.
+~~Before trusting that a prompt change worked, sample the affected case several times and run the
+control.~~ · ~~**Golden cases must pass before any agent prompt change is committed.**~~
+**BOTH RELAXED 2026-08-02 — portfolio calibration.** Sampling a case several times plus a control
+costs 60,000-100,000 tokens per prompt change, which is production discipline this project does not
+need. **Change the prompt, run ONE golden case, read the output, move on.** See DEV-STATE
+§ Decisions 2026-08-02.
 
 **No em-dashes in user-facing UI copy.** Per the design skill's AI-tells list. Docs are
 exempt; anything a candidate reads is not.
