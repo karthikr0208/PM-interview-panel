@@ -179,11 +179,34 @@ test_llm raw_rate    AssertionError -- see below, ALSO quota
 ZERO genuine assertion failures.
 ```
 
-**🔴 THE STRUCTURAL FINDING: `make test` CANNOT PASS on a day when any other LLM work has
-happened, and it is not close.** `make test-api` runs `pytest tests`, which **includes
-`tests/golden/`**. So one `make test` costs the golden suite (~32,000 on `deep`) plus
-`test_llm.py`'s ten-sample structured-output test plus everything else. Session 8 had already spent
-~92,000 on `deep` before this run started, and `deep` ended at **198,515 / 200,000**.
+**🔴 THE STRUCTURAL FINDING: `make test` NEEDS MOST OF A FRESH DAY ON `deep`, AND CANNOT SHARE
+THAT DAY WITH ANYTHING ELSE — INCLUDING PHASE GATE #4.** `make test-api` runs `pytest tests`, which
+**includes `tests/golden/`**.
+
+**The cost, reconstructed from the observed counters rather than estimated:**
+
+```
+before make test     ~92,000    golden run ~32k + case-05 A/B ~60k
+deep daily cap        200,000
+headroom              ~108,000
+make test consumed    ALL of it, and STILL 429'd on golden 05-08
+                      and on test_llm's ten samples
+
+so a COMPLETING run needs MORE than 108,000. By composition:
+  8 golden cases          ~7,500 each      ~60,000
+  test_structured_output_raw_pass_rate[deep]  10 samples   ~50,000
+  test_retry_wrapper_converges + test_resume_analyst       ~12,000
+                                            TOTAL  ~120,000-130,000 on `deep`
+```
+
+**An earlier note in this file said ~50,000. That was wrong and is corrected here** — it was taken
+from the golden suite's cost alone and missed `test_llm.py`'s ten-sample test, which is the single
+most expensive thing in the suite.
+
+**Consequence for planning: gate #1 and gate #4 COMPETE for the same bucket.** Every resume Karthik
+uploads through the deployed URL runs `level_candidate` on `deep` (production default, ~5,000 a
+resume), so three resumes is ~15,000. **Do gate #1 first on a fresh bucket, then gate #4 with what
+is left, or do them on separate days.**
 
 **The gate condition as written is only achievable as the FIRST thing done on a fresh daily
 budget.** Run it before any other work, not before handover as CLAUDE.md currently advises for a
@@ -1714,16 +1737,21 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 cd backend && .venv/Scripts/python.exe -m pytest tests -q --tb=line
 ```
 
-**`deep` ended 2026-08-02 at 198,515 / 200,000**, so this needs a genuinely fresh bucket — roughly
-24 hours, since it refills at ~138 tokens/min. **`make test` costs ~50,000+ on `deep` alone**
-because `pytest tests` includes `tests/golden/`. Do not spend anything on `deep` before it.
-Expect `130 passed`. **Classify every failure before believing it** — on 2026-08-02 all 8 were
-quota, and one of them wore an `AssertionError` claiming `deep scored 0/10`.
+**`deep` ended 2026-08-02 at 198,515 / 200,000**, so this needs a genuinely fresh bucket — a full
+24 hours, since it refills at ~138 tokens/min. **`make test` costs ~120,000-130,000 on `deep`
+alone**, measured, because `pytest tests` includes both `tests/golden/` and `test_llm.py`'s
+ten-sample structured-output test. **Spend NOTHING on `deep` before it.** Expect `130 passed`.
+**Classify every failure before believing it** — on 2026-08-02 all 8 were quota, and one of them
+wore an `AssertionError` claiming `deep scored 0/10`.
 
-**SECOND, ASK KARTHIK to do #4.** It is not a code task. The confirmation screen only became
-reachable on 2026-08-02 and **nobody has seen it in a browser.** Point him at
-`https://pmaiinterviewpanel.netlify.app`, warn him the backend cold-starts in 32-42s, and have him
-upload his own resume and a few others.
+**SECOND, ASK KARTHIK to do #4** — and note it competes for the same bucket, since every resume he
+uploads runs `level_candidate` on `deep` at ~5,000 a go. After a full `make test` there is roughly
+70,000 left, which is ~14 resumes. Fine, but not unlimited, and **if `make test` has to be re-run
+the same day there is no room for both.**
+
+It is not a code task. The confirmation screen only became reachable on 2026-08-02 and **nobody has
+seen it in a browser.** Point him at `https://pmaiinterviewpanel.netlify.app`, warn him the backend
+cold-starts in 32-42s, and have him upload his own resume and a few others.
 
 **If both close, Phase 1 is complete and the next work is writing `docs/specs/PHASE-2-SPEC.md`
 before starting it**, per CLAUDE.md § What to update, and when.

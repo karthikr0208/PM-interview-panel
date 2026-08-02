@@ -28,10 +28,13 @@ test: test-api test-web
 ## moved 2026-07-31, see DEV-STATE § Decisions) and are marked @pytest.mark.live.
 ## Deselect with: make test-api PYTEST_ARGS="-m 'not live'"
 ##
-## NOTE: `pytest tests` includes tests/golden/, so this target runs the eight
-## Resume Analyst golden cases on `deep` too — about 32,000 tokens of a 200,000
-## per-model DAILY budget. Use the `golden` target to run them deliberately, and
-## PYTEST_ARGS="-m 'not live'" while iterating.
+## 🔴 COST: `pytest tests` includes tests/golden/, so this target runs the eight
+## Resume Analyst golden cases AND test_llm.py's ten-sample structured-output
+## test on `deep`. Measured 2026-08-02: ~120,000-130,000 tokens against a
+## 200,000 per-model DAILY cap. It needs MOST OF A FRESH DAY and cannot share
+## one with any other `deep` work. Run it FIRST, or not at all.
+##   iterating          -> PYTEST_ARGS="-m 'not live'"   (60 tests, ~4s, free)
+##   golden on purpose  -> make golden AGENT=resume_analyst
 test-api:
 	cd backend && $(VENV_PYTHON) -m pytest tests -v $(PYTEST_ARGS)
 
