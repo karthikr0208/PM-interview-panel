@@ -1906,42 +1906,39 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## 🔴🔴 READ THIS FIRST — SESSION 8 ENDED MID-STORY, WITH UNCOMMITTED WORK IN THE TREE
 
-**`git status` is NOT clean, and that is expected.** A Sonnet agent was building stories 2.3 and
-2.6 when the session ended. It had written files but had **not finished verifying them**, and its
-report never arrived. **Nothing about them is confirmed. Do not trust these files, and do not
-assume they work:**
+**`git status` is NOT clean, and that is expected.** A Sonnet agent built stories 2.3 and 2.6; its
+files are in the tree, uncommitted. **Its own report never arrived — it stopped waiting on its own
+smoke test — so its work was checked by me directly instead:**
 
 ```
-?? backend/app/agents/case_architect.py     WRITTEN, UNVERIFIED
-?? backend/app/agents/planner.py            WRITTEN, UNVERIFIED
- M backend/app/graph/build.py               MODIFIED, UNVERIFIED
+?? backend/app/agents/case_architect.py     WRITTEN, structurally sound, output UNVERIFIED
+?? backend/app/agents/planner.py            WRITTEN, structurally sound, output UNVERIFIED
+ M backend/app/graph/build.py               MODIFIED, imports and compiles
 ```
 
-**Last good commit is `c7558a5`.** Everything through story 2.5 is committed and verified.
-
-**Do this first (all free, no LLM):**
+**What I verified myself, all free:**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"    # was 147 passed
-cd backend && .venv/Scripts/python.exe -c "import app.graph.build; print('graph imports ok')"
-git diff backend/app/graph/build.py
+offline suite     147 passed, 82 deselected     <- unchanged, no regressions
+graph imports     ok, both nodes wired
+case_architect    2,831 chars  (ceiling 15,557)   comfortable
+planner           3,045 chars  (ceiling 12,197)   comfortable
 ```
 
-Then judge: if the two agents look complete and the graph imports, carry on and smoke them. **If
-they look half-written, `git checkout -- backend/app/graph/build.py` and delete the two untracked
-files rather than debugging someone else's abandoned draft.** Rebuilding them from
-`docs/specs/agents/*.md` is roughly an hour and the specs are complete.
-
-**Before running either agent, check the two ceilings** — this is the likeliest way to waste
-budget:
+**So this is NOT an abandoned half-draft — do not throw it away.** Both prompts came in far under
+their ceilings, which was the risk flagged before the build. **The only thing unverified is whether
+the agents produce output that passes their golden cases**, and that could not be tested:
 
 ```
-print(len(case_architect._SYSTEM_PROMPT))   MUST be under ~15,557
-print(len(planner._SYSTEM_PROMPT))          MUST be under ~12,197
+smoke on `fast`   1 failed in 92.87s
+  429 tokens per day (TPD): Limit 200000, Used 198811, Requested 5664
+  ZERO assertion failures. Quota, not a defect.
 ```
 
-A single request over 8,000 TPM can never succeed, at any pacing, because Groq bills
-`prompt + input + max_tokens` and `max_tokens=4096`.
+**Last good commit is `7066a0c`.** Everything through story 2.5 plus all docs is committed.
+
+**FIRST THING NEXT SESSION — the two smokes, on a fresh budget.** They are the only outstanding
+work on 2.3/2.6. If they pass, commit the three files and move to 2.7.
 
 **Smoke them one case each, on `fast`, and do NOT run the full suites:**
 
@@ -1983,9 +1980,17 @@ runs end to end · it looks right to Karthik.
 Two of eight cases flapping, a startup race, an assertion that might be vacuous. **Record it and
 move on.** The only ones worth stopping for are those that would make a demo visibly break.
 
-**BUDGET AT SESSION END:** `deep` **EXHAUSTED at 198,515/200,000**, refilling ~138/min so a full
-bucket is ~24h. `fast` had ~120,000 when the agent started and it made an unknown number of calls.
-**Assume `fast` is partly spent; a 429 saying "tokens per day" means stop.**
+**🔴 BUDGET AT SESSION END: BOTH MODELS ARE EXHAUSTED. Measured, not estimated.**
+
+```
+deep (gpt-oss-120b)   198,515 / 200,000
+fast (gpt-oss-20b)    198,811 / 200,000    <- spent by the 2.3/2.6 build
+```
+
+Rolling window, ~138 tokens/min each, so **a genuinely full bucket on either is ~24 hours away.**
+Nothing LLM-driven is possible before then. **The zero-quota queue is empty too** — everything left
+in Phase 2 needs a model. If you arrive before the buckets refill, the only useful work is writing
+`PHASE-3-SPEC.md`, thin, which costs nothing.
 
 ---
 
