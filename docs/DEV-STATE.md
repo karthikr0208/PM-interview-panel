@@ -25,6 +25,14 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
+**🔴 SESSION 8 ENDED MID-STORY. `git status` is dirty on purpose — two half-built agent files and a
+modified `build.py`, none verified. The first block of § Next session tells you exactly what to do
+with them. Last good commit: `c7558a5`.**
+
+**🔴 CALIBRATION CHANGED 2026-08-02: this is a PORTFOLIO artifact, not a production system.**
+Sanity-level verification (~15k a phase, not ~150k), agents default to `fast`, build targets a thin
+end-to-end slice. **This supersedes every phase gate and ARCHITECTURE §4.** See Decisions.
+
 **🟡 PHASE 1: ALL SEVEN STORIES ARE DONE as of 2026-08-02 — 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7.
 The PHASE GATE is what remains, and 4 of its 5 conditions are met. The open one is #4: a real
 resume uploaded through the deployed Netlify URL producing a level Karthik agrees with. That is
@@ -90,7 +98,7 @@ toggle no script can flip.** See Blockers.
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
-| 2 Case Architect + Planner | ⬜ not started — **spec written 2026-08-02, before starting it**, per CLAUDE.md. 7 stories, both agents, spec-then-blind-fixtures-then-agent shape | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | — |
+| 2 Case Architect + Planner | 🟡 in progress — **2.1, 2.2, 2.4, 2.5 DONE 2026-08-02, all at zero token cost.** Both contracts written before either prompt; both blind golden suites built and RED. **2.3 + 2.6 half-built and UNCOMMITTED** — see the top of § Next session. 2.7 not started | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-02 — 147 offline, 12 golden fixtures |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
@@ -1184,8 +1192,41 @@ See the Decisions entry below.
 
 ## Last session
 
-**Session 8 — 2026-08-02. Stories 1.4 and 1.7 closed. Phase 1 is one story from its gate, and the
-golden suite was measured honestly for the first time.**
+**Session 8 — 2026-08-02. Phase 1 finished, Phase 2 half-built, and the project's verification
+regime was deliberately scaled DOWN. That last one is the most important thing in this entry.**
+
+**🔴 THE HEADLINE: THIS IS A PORTFOLIO ARTIFACT, NOT A PRODUCTION SYSTEM.** Karthik's call, late in
+the session, and it supersedes every phase gate and ARCHITECTURE §4. The rigor built over sessions
+1-8 was calibrated for production — it is why one `make test` cost 108,000 tokens and why the daily
+cap kept driving the schedule rather than the work. **Verification drops to sanity level (~15k a
+phase, not ~150k), agents default to `fast`, and the build targets a thin end-to-end slice.** Full
+entry under Decisions. The golden suites stay as a portfolio asset; they simply stop being a gate.
+
+**Phase 1 is DONE.** All seven stories. 1.4 closed by falsifying the single-call assertion against
+a deliberately wrong graph (2 `outcome=ok` records, failing as it must) and re-running its 8 live
+tests. 1.3 ticked on a conscious acceptance of three flapping cases. 1.7 closed with its **scope
+reduced**, which was the session's best catch: the spec's delete list would have destroyed story
+0.7's two-OS-process proof, which 1.4's tests do not replace. **Only Karthik's own eyeball on a
+real resume remains, and it does not block the build.**
+
+**Phase 2 is half-built, and four of its stories cost ZERO tokens.** PHASE-2-SPEC, both agent
+contracts written before either prompt, and both blind golden suites — 12 fixtures, 87 offline
+assertion tests, both deliberately RED on `ModuleNotFoundError` only, proven by running rather than
+inferred. **The Planner suite's vacuity handling is the best this project has produced**: it has a
+test demonstrating the trap exists next to the test that catches it, so a future simplification
+fails with an explanation.
+
+**Two prompt ceilings were computed BEFORE either prompt existed**, which is the most actionable
+thing these stories produced: Case Architect ~15,557 chars, Planner ~12,197 chars. A single request
+over 8,000 TPM can never succeed at any pacing.
+
+**The golden suite also ran all eight cases on `deep` with zero 429s for the first time** — 37
+passed, 1 failed. The feared regression from the case-01 fix did NOT happen (`assessed_level` fired
+9 of 9). But case 05 has a third, unrelated flap, so three of eight flap rather than two. That
+finding is what led to the acceptance decision, and then to the calibration decision.
+
+**Session 8 (earlier) — stories 1.4 and 1.7 closed. Phase 1 one story from its gate, and the
+golden suite measured honestly for the first time.**
 
 **1.4's two missing measurements were the cheap part and both landed.** The single-call assertion —
 the phase's most important, and until today green but never seen to fail — was driven against a
@@ -1862,6 +1903,63 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 `probe_models.py`, `probe_candidates.py`, `probe_structured.py`.
 
 ## Next session — start here
+
+## 🔴🔴 READ THIS FIRST — SESSION 8 ENDED MID-STORY, WITH UNCOMMITTED WORK IN THE TREE
+
+**`git status` is NOT clean, and that is expected.** A Sonnet agent was building stories 2.3 and
+2.6 when the session ended. It had written files but had **not finished verifying them**, and its
+report never arrived. **Nothing about them is confirmed. Do not trust these files, and do not
+assume they work:**
+
+```
+?? backend/app/agents/case_architect.py     WRITTEN, UNVERIFIED
+?? backend/app/agents/planner.py            WRITTEN, UNVERIFIED
+ M backend/app/graph/build.py               MODIFIED, UNVERIFIED
+```
+
+**Last good commit is `c7558a5`.** Everything through story 2.5 is committed and verified.
+
+**Do this first (all free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"    # was 147 passed
+cd backend && .venv/Scripts/python.exe -c "import app.graph.build; print('graph imports ok')"
+git diff backend/app/graph/build.py
+```
+
+Then judge: if the two agents look complete and the graph imports, carry on and smoke them. **If
+they look half-written, `git checkout -- backend/app/graph/build.py` and delete the two untracked
+files rather than debugging someone else's abandoned draft.** Rebuilding them from
+`docs/specs/agents/*.md` is roughly an hour and the specs are complete.
+
+**Before running either agent, check the two ceilings** — this is the likeliest way to waste
+budget:
+
+```
+print(len(case_architect._SYSTEM_PROMPT))   MUST be under ~15,557
+print(len(planner._SYSTEM_PROMPT))          MUST be under ~12,197
+```
+
+A single request over 8,000 TPM can never succeed, at any pacing, because Groq bills
+`prompt + input + max_tokens` and `max_tokens=4096`.
+
+**Smoke them one case each, on `fast`, and do NOT run the full suites:**
+
+```
+cd backend && $env:GOLDEN_ROLE="fast"
+.venv/Scripts/python.exe -m pytest "tests/golden/case_architect/test_golden.py::test_golden_case[apm_consumer]" -q -s
+.venv/Scripts/python.exe -m pytest "tests/golden/planner/test_golden.py::test_golden_case[apm_consumer_world]" -q -s
+```
+
+**Then 2.7** (both agents in the orchestration column, reusing 1.6b's Realtime), and **then a thin
+Phase 3**: Interviewer plus the conduct loop, asking 2-3 of the planned questions rather than all
+of them. `PHASE-3-SPEC.md` needs writing first, and writing it costs nothing.
+
+**BUDGET AT SESSION END:** `deep` **EXHAUSTED at 198,515/200,000**, refilling ~138/min so a full
+bucket is ~24h. `fast` had ~120,000 when the agent started and it made an unknown number of calls.
+**Assume `fast` is partly spent; a 429 saying "tokens per day" means stop.**
+
+---
 
 **🔴 EVERY PHASE 1 STORY IS DONE. 1.1 through 1.7, all ticked and committed as of 2026-08-02.**
 
