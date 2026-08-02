@@ -1867,17 +1867,23 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 **What remains is the PHASE GATE, and only one of its five conditions is open:**
 
+**🔴 THE GATE WAS RELAXED 2026-08-02 — portfolio calibration, see Decisions.** Condition 1 is no
+longer a blocker:
+
 ```
-1  make test passes, both legs, output pasted        🔴 OPEN — 8 failed, 122 passed.
-                                                     ALL 8 are quota, zero assertion
-                                                     failures. Must be RE-RUN on a
-                                                     fresh budget, FIRST THING
+1  make test passes, both legs                       ⬜ STRUCK as a gate. 122 passed and all 8
+                                                     failures were quota. ~120-130k to re-run,
+                                                     which is not what this project is for
 2  make golden pass rate recorded                    ✅ 37/38 on deep, zero 429s
 3  cross-session RLS denial proven empirically       ✅ story 1.1, six tables
 4  a real resume through the deployed Netlify URL
    produces a level Karthik agrees with              🔴 OPEN — HIS, not delegable
 5  design foundation implemented, not specified      ✅ story 1.5
 ```
+
+**Phase 1 is DONE but for Karthik's own eyeball (#4), and #4 is not a blocker on building
+Phase 2** — it is a "does the level look right" judgement that can happen any time the deployed app
+is up. **Do not hold the build for it.**
 
 **TWO things to do next session, in this order.**
 
@@ -2193,6 +2199,50 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🔴 2026-08-02 (session 8) · THIS IS A PORTFOLIO ARTIFACT, NOT A PRODUCTION SYSTEM. VERIFICATION
+DROPS TO SANITY LEVEL, AGENTS DEFAULT TO `fast`, AND THE BUILD TARGETS A THIN END-TO-END SLICE.
+KARTHIK'S CALL, AND IT SUPERSEDES EVERY PHASE GATE AND ARCHITECTURE §4.**
+
+The product exists to demonstrate multi-agent orchestration in a portfolio. It is not for daily
+use. The verification regime built through sessions 1-8 was calibrated for production and is the
+reason a single `make test` cost 108,000 tokens and the daily cap kept driving the schedule.
+
+**The new standard, per phase:**
+
+| Dropped | Kept |
+|---|---|
+| Full live suite as a gate (~120-130k) | **Offline suite** — ~150 tests, 4s, free |
+| All 8 golden cases per agent (~32-60k) | **One golden case as a smoke** (~7k) |
+| Alternating A/B to validate a prompt (~60k) | Read the output. Change it if it looks wrong |
+| Flap attribution, Fisher's exact, control arms | Nothing. Variance is acceptable in a demo |
+| Every acceptance box blocking the gate | **Gate = it runs end to end and looks right** |
+
+Roughly 150k tokens per phase down to ~15k.
+
+**The golden suites STAY. They are a portfolio asset, not overhead** — blind fixtures with positive
+controls, and the story of an assertion that passed vacuously on all eight cases, is exactly the
+evals discipline worth showing. They are written, committed, and free to run offline. **They simply
+stop being a gate that blocks progress.**
+
+**The tradeoff, stated once: a prompt change can now silently regress and surface during a demo.**
+Accepted, because the walkthrough is scripted and the suites remain available when something looks
+wrong.
+
+**Two consequences that change the code, not just the process:**
+
+1. **Agents default to `fast` (`openai/gpt-oss-20b`), not `deep`.** ARCHITECTURE §4's assignment is
+   superseded. The buckets are independent so this roughly doubles usable budget, and `fast`
+   measured 10/10 on structured output where `deep` was 7-9/10. Move an individual agent to `deep`
+   only if its output visibly reads thin — the Case Architect's world and the Coach's report are
+   the two a viewer actually reads, so they are the likeliest exceptions.
+2. **The build targets a THIN END-TO-END SLICE.** Simplest working version of every remaining
+   agent — a case world, 2-3 questions rather than a full 45-minute plan, a scorecard, a short
+   coach note — so the whole pipeline is demoable. Deepen whichever part looks weakest afterwards.
+   **Phase 2's remaining stories are re-cut accordingly; it no longer runs to its original gate.**
+
+**What this does NOT relax:** never claim a pass that was not run, and classify a 429 before
+calling it a defect. Those cost nothing and are why the numbers in this file can be trusted.
 
 **2026-08-02 (session 8) · STORY 1.3 IS TICKED WITH THREE FLAPPING GOLDEN CASES CONSCIOUSLY
 ACCEPTED. THE GOLDEN SUITE IS NOT A CLEAN GATE, AND THAT IS A DECISION.**

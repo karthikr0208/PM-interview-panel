@@ -189,6 +189,24 @@ exempt; anything a candidate reads is not.
 
 ---
 
+## 🔴 Calibration — read this before the three tiers below
+
+**This is a portfolio artifact, not a production system.** Decided 2026-08-02; see DEV-STATE
+§ Decisions. The tiers below were written for production and are now **scaled down deliberately**:
+
+- **Gate a phase on "it runs end to end and looks right"**, not on every acceptance box.
+- **One golden case as a smoke test (~7k tokens), not the full set (~32-60k).**
+- **No A/B prompt validation, no flap attribution, no statistical power.** Read the output; change
+  it if it looks wrong.
+- **`make test` is not a gate.** The free offline loop is `pytest tests -m "not live"`.
+- **Agents default to `fast`.** ARCHITECTURE §4's `deep` assignment is superseded.
+
+**Still binding, because they cost nothing:** never claim a pass you did not run, and classify a
+429 before calling it a defect.
+
+**The golden suites stay** — they are a portfolio asset showing real evals discipline. They are
+just no longer a blocker.
+
 ## Testing & verification — three tiers
 
 Every phase has all three. They answer different questions and live in different places.

@@ -210,19 +210,18 @@ sits in the register v1 §7 bans. Decided 2026-07-31, still binding.
 
 ---
 
-## Phase gate
+## Phase gate — RE-CUT 2026-08-02 for the portfolio calibration
 
-Do not start Phase 3 until every box above is ticked and these hold:
+**Superseded. The original gate is struck.** See DEV-STATE § Decisions 2026-08-02. This is a
+portfolio artifact and the build targets a thin end-to-end slice, so the gate is:
 
-1. `make test` passes, with output pasted into `DEV-STATE.md`. **Run it FIRST on a fresh daily
-   budget** — it is ~120,000-130,000 tokens on `deep` and cannot share a day.
-2. `make golden AGENT=case_architect` and `make golden AGENT=planner` both recorded, with pass
-   rates and any flaps stated honestly rather than re-run until green.
-3. **The immutability rule is proven by a rejected second write**, not by inspection.
-4. **A case world you read and believe.** Generate three at different levels and judge whether a PM
-   would accept the company as real. This is the phase's equivalent of Phase 1's "does the level
-   look right", and it has no objective answer.
-5. The question plan for one of those worlds is one you would actually ask.
+1. **`pytest tests -m "not live"` green** — free, 4 seconds.
+2. **One golden case per agent as a smoke**, on `fast`. Not the full set. ~7k tokens each.
+3. **The chain runs end to end**: one resume produces a level, a case world, and a question plan.
+4. **A case world you read and believe.** Still the one that matters, and still yours to judge.
+
+~~`make test`~~ · ~~full golden suites~~ · ~~immutability proven by a rejected write~~ — all struck
+as gates. The immutability assertion is still worth *writing*; it just does not block the phase.
 
 ---
 
