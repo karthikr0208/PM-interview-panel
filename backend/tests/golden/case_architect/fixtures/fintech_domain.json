@@ -1,0 +1,17 @@
+{
+  "assessed_level": "Senior PM",
+  "candidate_profile": {
+    "years_pm_experience": 7.1,
+    "domains": ["fintech", "consumer lending"],
+    "product_types": ["consumer lending app", "risk-scoring engine"],
+    "company_contexts": ["Ledgerline Financial, a mid-size consumer lending company"],
+    "scope_evidence": [
+      "owned the underwriting decision surface at Ledgerline Financial end to end",
+      "set strategy for the risk-scoring product line"
+    ],
+    "notable_outcomes": [
+      "cut average underwriting decision time from 46 hours to 9 hours"
+    ],
+    "people_leadership": "mentors one APM"
+  }
+}

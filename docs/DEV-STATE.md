@@ -104,7 +104,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
-| Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 defined in the spec, **not yet written** (story 2.2, blind) | — no prompt yet |
+| Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | **7 written 2026-08-02, blind, deliberately RED** on `ModuleNotFoundError` only (proven by running, free). 44 offline assertion tests | — no prompt yet. **Ceiling: ~15,557 chars** |
 | Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 defined in the spec, **not yet written** (story 2.5, blind) | — no prompt yet |
 | Interviewer | ⬜ (Phase 3) | — | — |
 | Evaluator | ⬜ (Phase 4) | — | — |
@@ -161,6 +161,90 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
 
 ---
+
+### 2.1 / 2.2 / 2.4 — Phase 2's zero-quota half, session 8, 2026-08-02
+
+**Three stories, no LLM calls at all.** Both agent contracts written before either prompt exists,
+and the Case Architect's golden suite written blind against its spec. This is the 1.3a discipline
+applied deliberately instead of discovered.
+
+```
+offline pytest   60 passed, 70 deselected  ->  104 passed, 77 deselected
+                 +44 offline (39 from the agent, +5 from my fix below)
+                 +7 deselected = the seven live golden cases
+collection       46 tests collected in 0.03s, clean
+```
+
+**🔴 THE RED-NESS IS PROVEN, NOT INFERRED, AND IT COST NOTHING.** The lazy import fails *before*
+any LLM call, so the live tests can be run for free to confirm the suite fails for exactly one
+reason:
+
+```
+7 errors in 0.07s
+ERROR test_golden_case[apm_consumer]  ... and six more
+E   ModuleNotFoundError: No module named 'app.agents.case_architect'
+```
+
+**Every one is that error and nothing else.** The agent inferred this from reading; running it is
+strictly better and free. Worth remembering for story 2.5.
+
+**MY OWN PROBE, written from scratch rather than by re-running the agent's tests**, aimed at
+1.3a's exact bug — does a lazy world pass vacuously?
+
+```
+LAZY world   -> rejected on all six string fields
+HONEST world -> rejected fields: []
+VERDICT: the floor rejects silence AND accepts effort
+```
+
+**Both halves matter.** A floor that rejected everything would also "pass" the first check and be
+useless. This is the third time this project has probed a denial assertion for a floor, and the
+first time the floor was already there.
+
+**🔴 THE PROBE FOUND A REAL GAP ANYWAY, in a place the vacuity floor deliberately does not cover.**
+`arr_usd` and `size_usd` are figures, not prose, so they are absent from `test_golden`'s
+vacuity-floor field list and reach `is_round_dollar_amount` unguarded:
+
+```
+BEFORE                                    AFTER
+arr_usd=''              ValueError        -> "metrics.arr_usd='' is not a parseable dollar amount"
+arr_usd='N/A'           ValueError        -> reported as a violation
+arr_usd='unknown'       ValueError        -> reported as a violation
+arr_usd='TBD'           ValueError        -> reported as a violation
+arr_usd='$18.6 million' ValueError        -> reported as a violation
+```
+
+**The gate held either way** — a ValueError still fails the case. What changed is the message.
+An unparseable ARR is an *agent* defect and must say so; a raw `ValueError` reads as a broken
+harness, **and on this project a confusing red has twice been the thing that got tuned away rather
+than fixed.** Fixed in `banned_round_numbers` rather than in `is_round_dollar_amount`, which is
+deliberately pinned to raise by its own test. Five parametrized tests added, 99 -> 104.
+
+**🔴 A HARD CEILING STORY 2.3 MUST RESPECT, computed before the prompt is written.** Groq reports
+`Requested = prompt + input + max_tokens`, `max_tokens=4096` in `app/llm.py`, against an **8,000
+TPM** bucket. **A single request over 8,000 can never succeed, at any pacing.**
+
+```
+max prompt for the Case Architect   ~3,704 tokens  ~15,557 characters
+Resume Analyst's prompt today       ~2,900 tokens  ~12,200 characters
+headroom                            ~27%
+_PACE_SECONDS                       90  (projection, not a measured header, so padded
+                                         above the 59.3s the arithmetic gives)
+```
+
+**27% is not much**, and AGENT-CASE-ARCHITECT-SPEC §2 is a six-model schema with a long constraints
+section. **Story 2.3 must measure the real prompt against this ceiling before tuning anything else.**
+
+**The agent's own process caught one bug, which is worth recording as evidence the method works.**
+Its first positive control for `implied_acv_implausible` used spec §5's example of 2 customers and
+$40M ARR — and *passed*, because a $20M implied ACV is below a `max_acv=50M` default. The control
+could not fail. It tightened the ceiling and re-ran. **That is Trap 2 working as designed**, and it
+is the same shape as the three false passes this project has caught by hand.
+
+**One deviation to carry into 2.3:** the schema has no structured person field, so the "John Doe"
+half of the banned-name control can only be checked against free text (`supporting_facts`,
+`situation.leadership_belief`). If `CaseWorld` later gains an exec or persona field, point
+`contains_banned_register_name` at it directly.
 
 ### PHASE GATE #1 — `make test` DID NOT PASS, and the reason is structural, 2026-08-02
 
@@ -1766,18 +1850,23 @@ that needs no model budget at all, and it is the highest-leverage kind:
 DONE 2026-08-02   docs/specs/PHASE-2-SPEC.md                     no LLM
 DONE 2026-08-02   docs/specs/agents/AGENT-CASE-ARCHITECT-SPEC.md no LLM  (story 2.1)
 DONE 2026-08-02   docs/specs/agents/AGENT-PLANNER-SPEC.md        no LLM  (story 2.4)
-IN FLIGHT         backend/tests/golden/case_architect/ fixtures  no LLM  (story 2.2, BLIND)
-STILL AVAILABLE   backend/tests/golden/planner/ fixtures         no LLM  (story 2.5, BLIND)
+DONE 2026-08-02   backend/tests/golden/case_architect/           no LLM  (story 2.2, BLIND)
+NEXT              backend/tests/golden/planner/ fixtures         no LLM  (story 2.5, BLIND)
 STILL AVAILABLE   fix tests/test_llm.py:112                      no LLM to verify - inject a
                                                                  RateLimitError and assert it
                                                                  SKIPS rather than reporting 0/10
 ```
 
-**Story 2.2 is the next one and it is the highest-leverage thing on this list.** It writes the
-fixtures and assertions blind, before any prompt exists. The Case Architect spec §5 already
-specifies the seven fixtures, the universal assertions, **and the positive control that must go RED
-for each one** — that pairing is the direct lesson of story 1.3a, where a denial assertion with no
-floor passed on all eight cases while the agent quoted nothing.
+**Story 2.5 is next and it is the same shape as 2.2**, which went cleanly. Build it against
+AGENT-PLANNER-SPEC §5, and reuse story 2.2's case-world fixtures as its inputs so a `CaseWorld`
+schema change breaks both suites loudly rather than one silently.
+
+**Two things 2.2 learned that 2.5 should inherit:**
+1. **Run the live tests to prove the RED-ness.** The lazy import fails before any LLM call, so it
+   costs nothing and beats inferring it from reading. 7 errors in 0.07s.
+2. **Compute the TPM ceiling BEFORE the prompt.** For the Planner this matters more than for any
+   other agent, because its input is the whole `case_world` — see AGENT-PLANNER-SPEC §6, which
+   estimates ~7,800 of an 8,000 budget. **It may not fit at all.**
 
 **Stories 2.1, 2.2, 2.4 and 2.5 are ALL zero-quota by design** — they are the spec-and-blind-
 fixtures half of each agent, and Phase 1 proved that half is where the leverage is. **A day with no

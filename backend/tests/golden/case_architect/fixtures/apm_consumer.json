@@ -1,0 +1,17 @@
+{
+  "assessed_level": "APM",
+  "candidate_profile": {
+    "years_pm_experience": 1.4,
+    "domains": ["consumer mobile", "social"],
+    "product_types": ["consumer mobile apps"],
+    "company_contexts": ["late-stage startup"],
+    "scope_evidence": [
+      "owned the onboarding flow for the iOS app",
+      "ran the notification opt-in experiment across three cohorts"
+    ],
+    "notable_outcomes": [
+      "lifted day-7 retention from 24.1% to 27.6%"
+    ],
+    "people_leadership": null
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "assessed_level": "PM",
+  "candidate_profile": {
+    "years_pm_experience": 1.5,
+    "domains": ["developer tools"],
+    "product_types": ["internal engineering tooling"],
+    "company_contexts": ["mid-size tech company", "8 years as a backend engineer before transitioning into product"],
+    "scope_evidence": [
+      "owns the internal deployment tooling surface end to end",
+      "set the roadmap for migrating the team off the legacy CI system"
+    ],
+    "notable_outcomes": [
+      "cut average deploy time from 38 minutes to 11 minutes"
+    ],
+    "people_leadership": null
+  }
+}

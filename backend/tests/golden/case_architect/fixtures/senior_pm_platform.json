@@ -1,0 +1,17 @@
+{
+  "assessed_level": "Senior PM",
+  "candidate_profile": {
+    "years_pm_experience": 6.8,
+    "domains": ["developer platform", "infrastructure"],
+    "product_types": ["internal platform APIs", "billing infrastructure"],
+    "company_contexts": ["growth-stage company"],
+    "scope_evidence": [
+      "owns the billing and metering platform used by all six product lines",
+      "set the multi-quarter migration strategy off the legacy metering system"
+    ],
+    "notable_outcomes": [
+      "reduced platform incident rate by 41% while onboarding two new product lines"
+    ],
+    "people_leadership": "mentors two APMs embedded in adjacent teams"
+  }
+}

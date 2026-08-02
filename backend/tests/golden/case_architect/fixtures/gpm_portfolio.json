@@ -1,0 +1,17 @@
+{
+  "assessed_level": "GPM",
+  "candidate_profile": {
+    "years_pm_experience": 10.2,
+    "domains": ["fintech", "consumer payments", "SMB lending"],
+    "product_types": ["consumer payments app", "SMB lending product", "merchant dashboard"],
+    "company_contexts": ["public company"],
+    "scope_evidence": [
+      "owns the payments and lending portfolio across three product lines",
+      "accountable for the combined P&L of the portfolio"
+    ],
+    "notable_outcomes": [
+      "grew portfolio revenue 34% year over year while holding headcount flat"
+    ],
+    "people_leadership": "manages a team of five PMs across the three product lines"
+  }
+}

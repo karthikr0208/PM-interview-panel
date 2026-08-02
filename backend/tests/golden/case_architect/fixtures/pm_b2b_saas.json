@@ -1,0 +1,17 @@
+{
+  "assessed_level": "PM",
+  "candidate_profile": {
+    "years_pm_experience": 3.6,
+    "domains": ["B2B SaaS", "workflow automation"],
+    "product_types": ["web dashboard", "REST API"],
+    "company_contexts": ["Series B startup"],
+    "scope_evidence": [
+      "owns the reporting and analytics surface end to end",
+      "sets the quarterly roadmap for that surface independently of the wider platform team"
+    ],
+    "notable_outcomes": [
+      "cut churn in the mid-market segment from 4.8% to 3.1% monthly"
+    ],
+    "people_leadership": null
+  }
+}

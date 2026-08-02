@@ -86,19 +86,19 @@ fiction they must believe, so a tell here costs more than it does in a level rat
 
 ---
 
-### 2.2 Case Architect golden fixtures and assertion harness — written BLIND
+### 2.2 Case Architect golden fixtures and assertion harness — written BLIND — ✅ DONE 2026-08-02
 
 **This story must not read the prompt, because the prompt does not exist yet.** Same split as story
 1.3a, for the same reason, and that split is what caught 1.3a's vacuity bug.
 
 **Acceptance**
-- [ ] 5-10 fixtures at `backend/tests/golden/case_architect/`, each a `(assessed_level, candidate_profile)` input, spanning all four levels
-- [ ] `cases.py`, `assertions.py`, `test_golden.py`, `test_assertions.py`, mirroring the Resume Analyst's layout
-- [ ] **The suite is deliberately RED**, failing only on `ModuleNotFoundError` for the agent module, with the import **lazy inside a fixture** so `pytest -m "not live"` still collects cleanly
-- [ ] **Every denial assertion has a positive control** proving it can fail. A probe that feeds a deliberately bad case world must go red on each one
-- [ ] **A vacuity floor**, the direct lesson of 1.3a: an empty or near-empty case world must FAIL, not pass by having nothing to object to
-- [ ] `_PACE_SECONDS` computed from the expected prompt size against the 8,000 TPM bucket, not copied from the Resume Analyst's 60
-- [ ] Asserts no fake-round numbers and no banned-register names, with the positive control showing both checks reject a violating world
+- [x] 5-10 fixtures at `backend/tests/golden/case_architect/`, each a `(assessed_level, candidate_profile)` input, spanning all four levels — 7 fixtures as JSON, per spec §5
+- [x] `cases.py`, `assertions.py`, `test_golden.py`, `test_assertions.py`, mirroring the Resume Analyst's layout
+- [x] **The suite is deliberately RED**, failing only on `ModuleNotFoundError` for the agent module, with the import **lazy inside a fixture** so `pytest -m "not live"` still collects cleanly — **proven by RUNNING the live tests**, not inferred: 7 errors, all `ModuleNotFoundError`, in 0.07s at zero token cost, because the import fails before any call
+- [x] **Every denial assertion has a positive control** proving it can fail — each row of spec §5's table has an accepting test and a rejecting test
+- [x] **A vacuity floor**, the direct lesson of 1.3a — and **re-probed from scratch** rather than trusted: a lazy world is rejected on all six string fields, an honest one is accepted cleanly
+- [x] `_PACE_SECONDS` computed, not copied — **90s**, with the arithmetic in a comment. **And it produced a hard ceiling story 2.3 must respect: max prompt ≈ 3,704 tokens ≈ 15,557 characters**
+- [x] Asserts no fake-round numbers and no banned-register names, with positive controls on both
 
 **The assertion that will be hardest, and is worth the effort: internal consistency.** A case world
 that says the company has 40 employees in one field and describes a 200-person sales org in another
