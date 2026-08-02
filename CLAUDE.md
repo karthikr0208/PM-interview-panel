@@ -214,6 +214,18 @@ pasted the actual output into `DEV-STATE.md`. "The tests should pass" is not evi
 "Compiles" and "typechecks" are not evidence. A phase is handed over with observed output or
 it is not handed over.
 
+**🔴 But run tier 1 FIRST, not last — the natural reading of that rule is what broke on
+2026-08-02.** `make test` costs ~120,000-130,000 `deep` tokens of a 200,000 daily cap. A session
+that investigates all day and then runs the full suite at handover **will 429 partway through and
+have no gate output**, which is exactly what happened: 8 failed, 122 passed, all eight failures
+quota, zero assertion failures. **On this tier the full suite is the first thing you spend a fresh
+budget on, or it is the only thing you spend a day on.**
+
+**And classify every failure before believing it.** Three separate times a mostly-red run has been
+rate limiting, not defects. Once it wore an `AssertionError` reading `deep scored 0/10, below the
+5 floor` when all ten samples were `RateLimitError` — a message written to be believed. Grep the
+output for `tokens per day` and `tokens per minute` before concluding anything about the code.
+
 ## Commands
 
 **Use the venv, not the global interpreter.** `backend/.venv/Scripts/python.exe` on Windows,
@@ -248,11 +260,17 @@ backend/.venv/Scripts/python.exe backend/scripts/ab_prompt_control.py [case] [pa
 
 make dev-api                  # FastAPI with reload
 make dev-web                  # Vite dev server
-make test                     # pytest + vitest
-make test-api                 # pytest only
-make test-web                 # vitest only
+make test                     # pytest + vitest.  🔴 ~120,000-130,000 `deep` TOKENS, measured
+                              # 2026-08-02, against a 200,000 DAILY cap. `pytest tests` includes
+                              # tests/golden/ AND test_llm.py's ten-sample test. It needs MOST OF
+                              # A FRESH DAY and cannot share one with any other `deep` work.
+                              # RUN IT FIRST, or not at all. See DEV-STATE § PHASE GATE #1.
+make test-api                 # pytest only — same cost, same warning
+make test-web                 # vitest only — free, no LLM
 make golden                   # all agent golden cases
 make golden AGENT=evaluator   # one agent
+                              # while iterating, the free loop is:
+                              #   pytest tests -m "not live"     ~100 tests, ~4s, no LLM
 backend/.venv/Scripts/python.exe backend/scripts/migrate.py   # apply backend/migrations/*.sql
                               # Idempotent, safe to re-run. The ONLY way to change the schema —
                               # never the Supabase dashboard, or Render cannot recreate it.
