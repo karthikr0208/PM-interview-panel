@@ -205,6 +205,76 @@ not against a general feeling of vagueness.
 """
 
 
+# 🔴 THE FREE TIER'S 8,000 TPM CEILING IS A HARD CONSTRAINT ON THIS AGENT, and
+# it is the one place in the product where a REAL user input is unbounded.
+# Groq computes `Requested = prompt + input + max_tokens`, so all three have to
+# fit in 8,000 together. This prompt is ~3,050 tokens, which leaves roughly
+# 4,950 to split between the resume and the reply.
+#
+# Measured 2026-08-04 on a real 3-page CV: `Requested 8339, Limit 8000` — a 413
+# before the model read a word. At the old flat `max_tokens=4096` only ~854
+# tokens (~3,400 characters) were left for the resume, which is shorter than
+# essentially every real CV. Every golden fixture and the live tests'
+# SHORT_RESUME sit under that line, which is exactly why nine sessions of green
+# suites never caught it. See DEV-STATE § Decisions 2026-08-04.
+#
+# 🔴 max_tokens STAYS AT THE DEFAULT 4096, and lowering it is a trap.
+#
+# The obvious fix for the 413 is to shrink the reply reservation, since
+# `ResumeAnalysis` is a small object. It does not work: **gpt-oss models emit
+# reasoning tokens that count against `max_tokens` before the JSON begins.**
+# Measured 2026-08-04 on the same CV, in order: 1,600 -> 400
+# `json_validate_failed` ("Failed to validate JSON") twice; 2,600 -> 400 again
+# ("Failed to generate JSON", the truncation wording). 4,096 is what the golden
+# suites have always used and is the only value observed completing. The reply
+# reservation therefore has a FLOOR well above the schema's own size, and the
+# only lever left is the input.
+_MAX_OUTPUT_TOKENS = 4096
+
+# So the resume allowance is whatever the 8,000 TPM ceiling leaves, and it is
+# SMALL. Solved from two observed 413s rather than estimated:
+#
+#   Requested 8339, resume ~6,900 chars   |  fixed cost = ~3,015 tokens
+#   Requested 8161, resume  4,600 chars   |  (prompt + JSON schema + framing)
+#
+#   8,000 - 3,015 - 4,096 (reply) = ~890 tokens of resume  ~=  3,900 chars
+#
+# 3,000 keeps ~200 tokens of margin. Note the fixed cost is NOT just the
+# 12,204-character prompt: strict structured output sends the `ResumeAnalysis`
+# JSON schema in the request too, which is why char-count arithmetic on the
+# prompt alone under-predicts it.
+#
+# 🔴 **THIS IS A REAL QUALITY LIMIT, not just a safety margin.** ~3,000
+# characters is about one page, so a 15-year CV is levelled on its top third.
+# It is survivable only because resumes are reverse-chronological: the
+# truncation costs the OLDEST roles and keeps the current title and recent
+# scope, which are what decide a level. It is not good enough to leave alone.
+#
+# **The durable fix is a prompt diet.** ~3,015 of 8,000 tokens is 38% of the
+# entire per-request budget spent on our own instructions before the candidate
+# is heard, and every token freed there goes straight to the resume. Deferred
+# deliberately rather than attempted here: this prompt is the one Phase 1
+# gated on eight golden cases, three of which already flap, so rewriting it is
+# its own story with its own re-gate. See DEV-STATE § Decisions 2026-08-04.
+_MAX_RESUME_CHARS = 3_000
+
+
+def _fit_to_budget(resume_text: str) -> str:
+    """Trims `resume_text` to the TPM budget, at a line boundary where it can.
+
+    Cutting mid-sentence hands the model a fragment it may try to complete;
+    cutting at the last newline inside the window keeps whole bullets, which
+    is what the profile fields are extracted from.
+    """
+    if len(resume_text) <= _MAX_RESUME_CHARS:
+        return resume_text
+    window = resume_text[:_MAX_RESUME_CHARS]
+    cut = window.rfind("\n")
+    # Only prefer the line boundary when it is not throwing away most of the
+    # window -- a CV with no newlines at all must still be trimmed.
+    return window[:cut] if cut > _MAX_RESUME_CHARS // 2 else window
+
+
 async def analyse_resume(resume_text: str, *, role: Role = "deep") -> ResumeAnalysis:
     """Levels a candidate from resume text alone. Pure function: no DB, no
     session, no side effects — see module docstring.
@@ -217,9 +287,9 @@ async def analyse_resume(resume_text: str, *, role: Role = "deep") -> ResumeAnal
     if not resume_text or not resume_text.strip():
         raise ValueError("analyse_resume requires non-empty resume_text")
 
-    llm = get_llm(role).with_structured_output(ResumeAnalysis)
+    llm = get_llm(role, max_tokens=_MAX_OUTPUT_TOKENS).with_structured_output(ResumeAnalysis)
     messages = [
         ("system", _SYSTEM_PROMPT),
-        ("human", f"Resume text:\n\n{resume_text}"),
+        ("human", f"Resume text:\n\n{_fit_to_budget(resume_text)}"),
     ]
     return await llm.ainvoke(messages)

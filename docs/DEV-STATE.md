@@ -2578,6 +2578,87 @@ Phase 5.
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
 
+**🔴🔴 2026-08-04 (session 9) · THE DEPLOYED PRODUCT HAS BEEN BROKEN SINCE 2026-07-31, AND THE FREE
+TIER CANNOT LEVEL A REAL RESUME. Two separate defects, found by Karthik uploading his own CV.**
+
+**Defect 1 — the deployed backend is four days stale, and a stale `.env.example` is why.** The
+Netlify app returned `Not Found` on every upload. Measured directly against production:
+
+```
+curl .../openapi.json  ->  GET /health, POST /skeleton/start, POST /skeleton/resume
+```
+
+**Only Phase 0's routes.** No `/session`, so the frontend's first call 404s and the upload card
+renders FastAPI's `Not Found` verbatim. `/health` still returns 200 because **Render keeps serving
+the last healthy build when a deploy fails.** `origin/main` has had `/session` since 2026-07-31, so
+that deploy fired and died at startup — almost certainly `ConfigError` on the GROQ_* vars, because
+the Groq migration (`3644971`, 2026-07-31 18:34) renamed every model variable and **the Render
+dashboard was never updated.** Exactly CLAUDE.md's named trap: *"Rename an env var → ... Render
+dashboard"*.
+
+`backend/.env.example` still led with a full `NVIDIA_*` block, four days after `config.py` stopped
+naming any NVIDIA var. It was documentation for variables no code reads, and it is the most likely
+reason the dashboard holds the wrong set. **Deleted 2026-08-04**, model ids filled in, and the
+production `ALLOWED_ORIGINS` value noted inline. `git log -S` confirms `.env.example` was the only
+non-archive file still defining them.
+
+**Also: 28 commits were unpushed.** GitHub is behind local as well as Render being behind GitHub.
+
+**🔴 Defect 2, the worse one — A REAL RESUME DOES NOT FIT IN THE 8,000 TPM CEILING.**
+
+```
+Requested 8339, Limit 8000     Karthik's 3-page CV, max_tokens=4096
+```
+
+A 413, raised **before the model reads a word**. Groq computes
+`Requested = prompt + input + max_tokens`, and solving from two observed 413s gives a **fixed cost
+of ~3,015 tokens** — the 12,204-character system prompt PLUS the `ResumeAnalysis` JSON schema, which
+strict structured output also sends. With `max_tokens=4096` that leaves **~890 tokens, about 3,000
+characters, for the candidate's resume.**
+
+**Lowering `max_tokens` does NOT work, and this is the non-obvious part: gpt-oss models emit
+reasoning tokens that count against it before the JSON starts.** Measured in order on the same CV:
+1,600 → `json_validate_failed` twice ("Failed to validate JSON"); 2,600 → again ("Failed to
+**generate** JSON", the truncation wording); 4,096 → completes. **The reply reservation has a floor
+far above the schema's own size**, so the only lever is the input.
+
+Fixed by capping the resume at 3,000 characters at a line boundary (`_fit_to_budget`), which is
+strictly better than the alternative — the 413 fails the request completely, whereas truncation
+keeps the top of a reverse-chronological CV, where the level actually lives.
+
+**🔴 IT RUNS NOW, AND THE RESULT IS STILL WRONG. Do not read this as fixed.** On Karthik's real CV:
+
+```
+assessed_level      Senior PM
+years_pm_experience 3.5          <- he has 15 years; low_confidence flagged it
+domains             insurance, fintech, healthcare      <- correct
+company_contexts    large enterprise                    <- correct
+```
+
+**3.5 years is the truncation talking** — it is the Sun Life tenure, which is all that survives in
+3,000 characters. A 15-year career is being levelled on its most recent role, and `Senior PM` is
+arguably a level too low for the candidate. **Phase 1 gate #4 was never satisfiable**, and this is
+why.
+
+**The durable fix is a prompt diet, and it is deferred deliberately.** ~3,015 of 8,000 tokens is
+**38% of the entire per-request budget spent on our own instructions before the candidate is
+heard**, and every token freed there goes straight to the resume. Not attempted at the end of a long
+session: this is the prompt Phase 1 gated on eight golden cases, three of which already flap, so it
+is its own story with its own re-gate.
+
+**Two quality defects also visible in the live output, recorded and NOT chased:**
+
+- **The Planner shipped em-dashes into candidate-facing questions** (`"...startup—how would you"`),
+  which its own prompt bans and its own golden `no_dash_variants` assertion would catch. The golden
+  suite would have caught this; one smoked case did not.
+- **The Case Architect produced round dollar figures** (`arr_usd "$150M"`, `"$50M AI innovation
+  budget"`, `customer_count 500000`), which `is_round_dollar_amount` would flag. Same shape: real
+  output violating a rule the suite already encodes.
+
+Both argue the same thing: **one smoked golden case per agent is genuinely thinner than it looked.**
+That is an accepted cost of the portfolio calibration, not a surprise, but these are the first
+concrete examples of what it lets through.
+
 **🔴 2026-08-04 (session 9) · `app/llm.py` NOW RETRIES GROQ'S 400 `json_validate_failed`. It never
 did, and the docstring said it did.**
 

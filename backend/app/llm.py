@@ -265,12 +265,24 @@ class _LoggedStructured:
         return result, "" if result is not None else "the response was empty"
 
 
-def get_llm(role: Role) -> LoggingChatClient:
+DEFAULT_MAX_TOKENS = 4096
+
+
+def get_llm(role: Role, *, max_tokens: int = DEFAULT_MAX_TOKENS) -> LoggingChatClient:
     """Factory: 'fast' | 'deep' | 'backup' -> a logged chat client.
 
-    fast   = nemotron-3-nano-30b-a3b   — latency-critical turns (Interviewer)
-    deep   = nemotron-3-super-120b-a12b — quality-critical turns (everything else)
-    backup = gpt-oss-20b                — fallback if the primary 429s or 503s
+    Model ids come from `app/config.py` (Groq since 2026-07-31), not from the
+    role names below, which describe intent:
+
+    fast   — latency-critical turns (the Interviewer, and most agents since
+             the portfolio calibration of 2026-08-02)
+    deep   — quality-critical turns, and the Planner, whose schema `fast`
+             cannot hold at all (measured 2026-08-04)
+    backup — fallback if the primary 429s or 503s
+
+    `max_tokens` is a REQUEST-SIZE lever, not merely a reply cap -- see the
+    comment on the client below before changing it. Callers with a small
+    output schema and a large input should lower it.
     """
     # max_tokens is explicit because the default truncates mid-JSON on nested
     # schemas. Groq reports that as a 400 `json_validate_failed` with
@@ -293,11 +305,27 @@ def get_llm(role: Role) -> LoggingChatClient:
     # sits on a decision boundary is a coin flip no client parameter can fix.
     # Do NOT reach for `seed=` as the answer without reading DEV-STATE
     # § Decisions 2026-08-01: it freezes the flip rather than fixing it.
+    # 🔴 max_tokens IS PART OF THE REQUEST SIZE, not just a cap on the reply.
+    # Groq computes `Requested = prompt + input + max_tokens` against the
+    # 8,000 TPM ceiling, so a generous default silently steals room from the
+    # INPUT. At the old flat 4096 the Resume Analyst's ~3,050-token prompt plus
+    # 4,096 reserved left ~854 tokens (~3,400 characters) for the resume
+    # itself, and any longer CV got a 413 before the model saw a word of it.
+    # Measured 2026-08-04 on a real 3-page CV: `Requested 8339, Limit 8000`.
+    # Every golden fixture and the live tests' SHORT_RESUME sit under that
+    # line, which is why the suites never caught it.
+    #
+    # So callers size this to THEIR schema. `ResumeAnalysis` is small;
+    # `QuestionPlan` is the largest generation in the product and keeps the
+    # full default. Set it too low and Groq returns a 400 `json_validate_failed`
+    # reading "max completion tokens reached before generating a valid
+    # document", which looks like a prompt bug and is not one (observed
+    # 2026-07-31). See DEV-STATE § Decisions 2026-08-04.
     client = ChatOpenAI(
         model=_MODEL_BY_ROLE[role],
         api_key=settings.groq_api_key,
         base_url=settings.groq_base_url,
-        max_tokens=4096,
+        max_tokens=max_tokens,
         temperature=0,
     )
     return LoggingChatClient(role=role, client=client)
