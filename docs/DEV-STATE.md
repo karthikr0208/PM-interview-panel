@@ -100,7 +100,7 @@ toggle no script can flip.** See Blockers.
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
-| 2 Case Architect + Planner | 🟡 in progress — **2.1, 2.2, 2.4, 2.5 DONE 2026-08-02 at zero token cost. 2.3 + 2.6 agents COMMITTED and smoked live 2026-08-04.** Case Architect passes its smoke on `fast`; Planner needs `deep` (measured) and flaps on genericness, accepted. **Both `build.py` NODES are still unproven live** — that is the open work, see § Next session | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **157 offline**, 12 golden fixtures |
+| 2 Case Architect + Planner | 🟡 **2.1-2.6 DONE 2026-08-04. Only 2.7 remains.** Both agents committed and smoked; **the full `confirm_level -> generate_case_world -> plan_interview` chain runs end to end live** on the real graph across an interrupt. Case Architect passes on `fast`; Planner needs `deep` (measured) and flaps on genericness, accepted. Owed: falsify `case_world` write-once | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **157 offline**, 12 golden fixtures, chain proven live |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
@@ -252,10 +252,31 @@ questions compliant, with a different question slipping each run.** A question t
 company name still reads perfectly well to a candidate, so this does not visibly break a demo.
 **Reopens if:** it ever exceeds 2 of 7, or if a Phase 3 interview visibly reads as generic.
 
-**⬜ NOT VERIFIED, and this is the honest gap: neither `build.py` NODE has run live.** Both agent
-*functions* are proven. The nodes wrapping them — the `agent_events` rows, the `case_worlds` insert,
-the confirmed-level read, and the `confirm_level -> generate_case_world -> plan_interview` chain end
-to end — are written and compile, and nothing more. Boxes left unticked accordingly.
+**🟢 THEN THE WHOLE CHAIN RAN END TO END, which was the phase's real question.** Found after the
+first commit: `tests/test_confirm_level.py`'s existing live tests now flow straight through the two
+new nodes, because `build.py` chains them after `confirm_level`. No new harness was needed.
+
+```
+tests/test_confirm_level.py::test_command_resume_carries_the_candidates_level_into_state
+  ResumeAnalysis   -> level_candidate
+  CaseWorld        -> generate_case_world node
+  QuestionPlan     -> plan_interview node, 7 questions, total_minutes=35
+1 passed, 4 warnings in 64.66s
+```
+
+Real graph, Postgres checkpointer, across an interrupt and a resume. **And it resumes with a level
+DIFFERENT from the assessed one**, so the confirmed-level trap named in the 2.3 brief is covered
+too: both nodes ran on the corrected level, and the graph reached END without pausing again.
+
+**The node side effects are proven, by inference and worth stating precisely:** `rest_insert` calls
+`resp.raise_for_status()` and neither node catches it, so a chain that completes is proof that all
+eight writes (four per node — `started`, the artifact insert, `done`) returned 2xx. **What no test
+asserts is the CONTENT of those rows.** That is the honest limit of this evidence.
+
+**⬜ STILL OWED on 2.3: the write-once half of immutability is not falsified.** Immutability *across*
+`plan_interview` is asserted and passes. But nothing has watched a second write to `case_world` be
+rejected, and the spec is explicit that an immutability rule nobody has seen reject a write is a
+comment. Story 0.6's idempotency falsification is the pattern to copy.
 
 **Observed but NOT chased, deliberately:**
 - A live world produced `"'story' has 80% usage"` in `supporting_facts` — a fake-round number in
@@ -2001,7 +2022,65 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🔴🔴 READ THIS FIRST — SESSION 8 ENDED MID-STORY, WITH UNCOMMITTED WORK IN THE TREE
+## 🟢 SESSION 9 ENDED CLEAN. `git status` IS CLEAN. Stories 2.1-2.6 are DONE and committed.
+
+**Run these two first (~15s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 157 passed, 82 deselected
+cd frontend && npm test -- --run                                          # expect 74 passed
+```
+
+**Note the 157.** It was 147 at the start of session 9; the ten new tests are three on `app/llm.py`'s
+schema-rejection retry and seven on the two golden suites' repaired assertions. **The 60 offline
+figure quoted further down this file is stale — it predates Phase 2's suites.**
+
+### The next story is 2.7, and it needs NO model budget
+
+**2.7 — both new agents in the orchestration column**, reusing 1.6b's Realtime on `agent_events`.
+The nodes already write `started`/`done` rows with the agent names `case_architect` and `planner`,
+and those writes are proven to succeed live, so **this is frontend work against a feed that already
+exists.** `docs/specs/PHASE-2-SPEC.md` §2.7 has the acceptance boxes. Read 1.6b's existing column
+implementation first — the new agents should need a name and a label, not a new mechanism.
+
+### Then Phase 3, and `PHASE-3-SPEC.md` needs writing first — also free
+
+Thin, per the calibration: **Interviewer plus the conduct loop, asking 2-3 of the planned questions,
+not all 5-7.** Two or three stories, not seven. `interrupt()` #2 (`await_candidate`) is the only
+structural risk, and Phase 0 already proved the pattern. **Re-read CLAUDE.md's `await_candidate`
+rule before writing that node — it is the single most important structural constraint in the
+codebase and it is easy to violate by adding a counter.**
+
+### One thing owed on 2.3, small and free of LLM cost
+
+**Falsify `case_world`'s write-once rule.** Immutability across `plan_interview` is asserted and
+passes; nothing has watched a *second* write be rejected. Copy story 0.6's idempotency
+falsification — build the wrong graph, confirm it is caught. The spec is explicit that an
+immutability rule nobody has seen reject a write is a comment, not an assertion.
+
+### 🔴 Budget, measured at session 9's end, and it is HEALTHY
+
+```
+deep (gpt-oss-120b)   ~45,000 / 200,000 used     6 planner runs + 1 chain run
+fast (gpt-oss-20b)    ~25,000 / 200,000 used     4 case architect runs + 2 failed planner attempts
+```
+
+Both buckets are in good shape, unlike sessions 7 and 8. **Nothing in 2.7 or in writing
+`PHASE-3-SPEC.md` needs a single token**, so the next session can spend the whole budget on Phase 3
+implementation if it wants to.
+
+### If you are tempted to make the Planner green, read this first
+
+**The genericness flap is ACCEPTED and is not a bug to fix.** Five `deep` runs went 5 -> 3 -> 1 -> 0
+-> 1 generic questions as two real defects were fixed. What remains is generative variance at 6 of 7
+questions compliant. **Reopens only if it exceeds 2 of 7, or a Phase 3 interview visibly reads as
+generic.** Chasing it further is the exact failure the portfolio calibration exists to prevent.
+
+---
+
+## Superseded — session 8's handoff, kept for the record
+
+## 🔴🔴 SESSION 8 ENDED MID-STORY, WITH UNCOMMITTED WORK IN THE TREE — ✅ RESOLVED IN SESSION 9
 
 **`git status` is NOT clean, and that is expected.** A Sonnet agent built stories 2.3 and 2.6; its
 files are in the tree, uncommitted. **Its own report never arrived — it stopped waiting on its own
