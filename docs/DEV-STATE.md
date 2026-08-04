@@ -2640,11 +2640,44 @@ company_contexts    large enterprise                    <- correct
 arguably a level too low for the candidate. **Phase 1 gate #4 was never satisfiable**, and this is
 why.
 
-**The durable fix is a prompt diet, and it is deferred deliberately.** ~3,015 of 8,000 tokens is
-**38% of the entire per-request budget spent on our own instructions before the candidate is
-heard**, and every token freed there goes straight to the resume. Not attempted at the end of a long
-session: this is the prompt Phase 1 gated on eight golden cases, three of which already flap, so it
-is its own story with its own re-gate.
+**🟢 THE PROMPT DIET WAS THEN DONE, on Karthik's call, and it worked.** ~3,015 of 8,000 tokens was
+**38% of the per-request budget spent on our own instructions before the candidate was heard.**
+
+```
+prompt          12,204 -> 5,863 chars      52% cut
+resume budget    3,000 -> 7,500 chars      a full 3-page CV, not a third of one
+```
+
+The bloat was diagnosable: **~40% of it was hedging inside `low_confidence_fields`**, plus a worked
+example in the verbatim rules, all added to settle individual golden cases. **It was not buying
+reliability** — three of eight cases flapped anyway. Every mechanically-checked constraint was kept:
+verbatim quoting, the 8-word rationale citation, the dash ban, the protected-characteristic ban, the
+no-rounding rule, and all five `low_confidence_fields` triggers.
+
+**Same CV, before and after the diet:**
+
+```
+                      before        after
+years_pm_experience   3.5           8.0
+domains               3, generic    + HR-tech, previously truncated away
+company_contexts      1             3 distinct
+scope_evidence        Sun Life only Sun Life + AuthBridge + Aviva
+assessed_level        Senior PM     Senior PM   (unchanged, and now defensible:
+                                                 title "Senior AI Product Manager"
+                                                 AGREES, so no flag is correct)
+```
+
+**Re-gated on the four STABLE golden cases, deliberately not the three flappers** — a failure on a
+flapper cannot be distinguished from variance, so it carries no signal:
+
+```
+03_senior_pm_product_line, 04_gpm_portfolio, 07_duties_no_outcomes, 08_engineer_transition
+4 passed, 4 warnings in 260.49s
+```
+
+**The compressed triggers still fire correctly**, which was the diet's real risk: case 08 flagged
+`years_pm_experience`, case 07 flagged `assessed_level`, case 03 flagged nothing. **Cases 01, 02 and
+05 were not re-run** and their flap status is unchanged and unmeasured against this prompt.
 
 **Two quality defects also visible in the live output, recorded and NOT chased:**
 
