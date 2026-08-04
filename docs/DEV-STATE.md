@@ -101,7 +101,7 @@ toggle no script can flip.** See Blockers.
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04. Code-complete; 3 of 4 gate conditions met.** Both agents smoked, **the full `confirm_level -> generate_case_world -> plan_interview` chain runs end to end live**, both agents in the orchestration column. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS. Owed: falsify `case_world` write-once | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **159 offline, 80 vitest**, chain proven live |
-| 3 Interviewer + conduct loop | ⬜ not started | — | — |
+| 3 Interviewer + conduct loop | ⬜ not started — **spec WRITTEN 2026-08-04, thin: 3 stories, asks 2-3 questions, does NOT score.** Start at 3.1, which is zero-quota | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -2092,13 +2092,30 @@ for the same `deep` bucket** (~5,000 tokens per resume for `level_candidate`).
 
 **Do not hold Phase 3 for either.**
 
-### Then Phase 3, and `PHASE-3-SPEC.md` needs writing first — free
+### Phase 3 — `PHASE-3-SPEC.md` is WRITTEN, 2026-08-04. Start at story 3.1.
 
-Thin, per the calibration: **Interviewer plus the conduct loop, asking 2-3 of the planned questions,
-not all 5-7.** Two or three stories, not seven. `interrupt()` #2 (`await_candidate`) is the only
-structural risk, and Phase 0 already proved the pattern. **Re-read CLAUDE.md's `await_candidate`
-rule before writing that node — it is the single most important structural constraint in the
-codebase and it is easy to violate by adding a counter.**
+Thin, as the calibration demands: **three stories, the Interviewer asks 2-3 of the planned
+questions, and answers are NOT scored** (that is Phase 4). Read
+[PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) before anything else in that phase.
+
+**Story 3.1 is zero-quota** — the agent spec plus blind golden fixtures. Phase 2 proved that half is
+where the leverage is: four defects came out of it. **Do 3.1 on a day with no budget.**
+
+**Two things in that spec that are easy to miss and are called out there:**
+
+- **`interrupt()` #2 sits inside a LOOP, and that is genuinely new.** Phase 0 proved a single
+  interrupt resumes across HTTP requests; it did not prove a looping one does. A loop that re-runs
+  `ask_question` on resume **looks correct from state** — the transcript still reads fine. Only
+  `app/llm.py`'s call log shows the duplicate. Assert there, never on state. `await_candidate`
+  contains ONLY `interrupt()` and its return.
+- **The em-dash ban reaches a surface no guard covers.** `test_user_facing_copy.py` checks source
+  strings and (since 2026-08-04) every `_*_SUMMARY`. **The Interviewer generates candidate-facing
+  prose at runtime.** The ban has to be in the prompt AND asserted in the golden cases.
+
+Also worth carrying: the Planner needed `deep` while every other agent runs on `fast`. **Do not
+assume `fast` works for the Interviewer, and do not assume it fails.** ARCHITECTURE §4 says `fast`,
+and it is the one agent where that table and the calibration agree, since it runs while a candidate
+watches a cursor.
 
 ### One thing owed on 2.3, small and free of LLM cost
 
