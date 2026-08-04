@@ -107,15 +107,15 @@ cross-field relationships the schema cannot express.
 
 ---
 
-### 2.3 The Case Architect agent and `generate_case_world`
+### 2.3 The Case Architect agent and `generate_case_world` — 🟡 AGENT DONE 2026-08-04, NODE UNPROVEN
 
 **Acceptance**
-- [ ] `app/agents/case_architect.py` exposes a **pure** `generate_case_world(assessed_level, candidate_profile, *, role)` returning a validated model, with **no database and no session** — the golden cases call it directly
-- [ ] A `generate_case_world` **node** in `build.py` owns the side effects: an `agent_events` row on start, one on completion or error, and the `case_worlds` insert
-- [ ] **`case_world` is written exactly once and is immutable thereafter** — ARCHITECTURE §2. Asserted, not asserted-by-comment
-- [ ] The node runs after `confirm_level` and reads the **confirmed** level, including a candidate's correction, not the originally assessed one
-- [ ] Golden cases pass, with the pass rate recorded and any flap recorded honestly against Phase 1's precedent
-- [ ] Validate-retry behaviour recorded: `retry_fired` observed on every case, as in Phase 1
+- [x] `app/agents/case_architect.py` exposes a **pure** `generate_case_world(assessed_level, candidate_profile, *, role)` returning a validated model, with **no database and no session** — the golden cases call it directly, which is what proves it
+- [ ] A `generate_case_world` **node** in `build.py` owns the side effects: an `agent_events` row on start, one on completion or error, and the `case_worlds` insert — **written and compiles, NEVER RUN LIVE**
+- [ ] **`case_world` is written exactly once and is immutable thereafter** — ARCHITECTURE §2. Asserted, not asserted-by-comment. **Asserted at the agent boundary by 2.6's golden suite (passes); NOT yet falsified against a second write**
+- [ ] The node runs after `confirm_level` and reads the **confirmed** level, including a candidate's correction — **unverified, needs the live chain**
+- [x] Golden cases pass, with the pass rate recorded and any flap recorded honestly — **1 of 7 smoked per the portfolio calibration: `apm_consumer` PASSES on `fast`, 97.52s. The other six have never been run.** Two defects found and fixed on the way: a `"feature X"` placeholder leaking into candidate-facing copy (the prompt's own example was the source) and a B2B-shaped ACV assertion rejecting correct consumer worlds. See DEV-STATE § Session 9
+- [x] Validate-retry behaviour recorded — `retry_fired=False` on `apm_consumer`, `fast`, both runs. **Recorded for one case, not "every case"**
 
 **🔴 The immutability assertion needs to be falsifiable, or it is decoration.** Prove it by
 attempting a second write and confirming the failure, the same way story 0.6's idempotency
@@ -173,14 +173,14 @@ a hard ceiling, not a target.**
 
 ---
 
-### 2.6 The Planner agent and `plan_interview`
+### 2.6 The Planner agent and `plan_interview` — 🟡 AGENT DONE 2026-08-04, NODE UNPROVEN
 
 **Acceptance**
-- [ ] `app/agents/planner.py` exposes a pure `plan_interview(assessed_level, case_world, *, role)`
-- [ ] A `plan_interview` node in `build.py`, after `generate_case_world`, owning its `agent_events` rows
-- [ ] `question_plan` written to state; **`case_world` is read and NOT written** — assert this, since it is the immutability rule's first real test by a downstream agent
-- [ ] Golden cases pass, pass rate recorded
-- [ ] The graph runs `confirm_level → generate_case_world → plan_interview` end to end from a single resume, proven live
+- [x] `app/agents/planner.py` exposes a pure `plan_interview(assessed_level, case_world, *, role)` — **`role` defaults to `deep`, not `fast`, and that is measured, not preferred: `fast` fails Groq's strict schema validation on `QuestionPlan` twice in a row.** This is the evidence AGENT-PLANNER-SPEC §6 asked for. See DEV-STATE § Decisions 2026-08-04
+- [ ] A `plan_interview` node in `build.py`, after `generate_case_world`, owning its `agent_events` rows — **written and compiles, NEVER RUN LIVE**
+- [x] `question_plan` written to state; **`case_world` is read and NOT written** — the golden suite asserts `case_world` is byte-identical after the call, and it **passed on every live run**. The node-level half is unproven with the node itself
+- [x] Golden cases pass, pass rate recorded — **1 of 5 smoked, 5 live runs. Grounding, dimension coverage, timing and immutability all PASS. Genericness FLAPS at 1 of 7 questions and is ACCEPTED**, on story 1.3's precedent, with reopening conditions in DEV-STATE § Decisions. Three defects fixed on the way, one of them in shared `app/llm.py`, which had never retried a Groq schema rejection
+- [ ] The graph runs `confirm_level → generate_case_world → plan_interview` end to end from a single resume, proven live — **NOT DONE. This is the phase's real remaining question and the next thing to do**
 
 ---
 

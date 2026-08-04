@@ -1,6 +1,6 @@
 # Development State
 
-**Last updated:** 2026-08-01 · Session 7
+**Last updated:** 2026-08-04 · Session 9
 
 ---
 
@@ -25,9 +25,11 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**🔴 SESSION 8 ENDED MID-STORY. `git status` is dirty on purpose — two half-built agent files and a
-modified `build.py`, none verified. The first block of § Next session tells you exactly what to do
-with them. Last good commit: `c7558a5`.**
+**🟢 SESSION 9 (2026-08-04) CLEARED SESSION 8's DIRTY TREE. Both agents are committed and both have
+been smoked live. `git status` is clean.** Session 8's two uncommitted agent files turned out to be
+sound, exactly as it predicted, but **neither passed its golden case as written** — the smokes found
+four real defects, one of them in shared code that had been silently swallowing every schema
+failure Groq rejects server-side. See § Session 9 below.
 
 **🔴 CALIBRATION CHANGED 2026-08-02: this is a PORTFOLIO artifact, not a production system.**
 Sanity-level verification (~15k a phase, not ~150k), agents default to `fast`, build targets a thin
@@ -98,7 +100,7 @@ toggle no script can flip.** See Blockers.
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
-| 2 Case Architect + Planner | 🟡 in progress — **2.1, 2.2, 2.4, 2.5 DONE 2026-08-02, all at zero token cost.** Both contracts written before either prompt; both blind golden suites built and RED. **2.3 + 2.6 half-built and UNCOMMITTED** — see the top of § Next session. 2.7 not started | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-02 — 147 offline, 12 golden fixtures |
+| 2 Case Architect + Planner | 🟡 in progress — **2.1, 2.2, 2.4, 2.5 DONE 2026-08-02 at zero token cost. 2.3 + 2.6 agents COMMITTED and smoked live 2026-08-04.** Case Architect passes its smoke on `fast`; Planner needs `deep` (measured) and flaps on genericness, accepted. **Both `build.py` NODES are still unproven live** — that is the open work, see § Next session | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **157 offline**, 12 golden fixtures |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
@@ -112,8 +114,8 @@ Specs are written at the top of the phase that builds each agent, not up front.
 | Agent | Spec | Golden cases | Last prompt change |
 |---|---|---|---|
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
-| Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | **7 written 2026-08-02, blind, deliberately RED** on `ModuleNotFoundError` only (proven by running, free). 44 offline assertion tests | — no prompt yet. **Ceiling: ~15,557 chars** |
-| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | **5 written 2026-08-02, blind, deliberately RED** on `ModuleNotFoundError` only (proven by running). 43 offline assertion tests | — no prompt yet. **Ceiling: ~12,197 chars** |
+| Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 written blind 2026-08-02. **1 of 7 smoked live 2026-08-04: `apm_consumer` PASSES on `fast`.** Other 6 never run. 47 offline assertion tests | 2026-08-04 — placeholder ban + ACV market conditioning. **~3,400 chars, ceiling ~15,557** |
+| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 written blind 2026-08-02. **1 of 5 smoked live 2026-08-04, 5 runs: grounding/coverage/timing/immutability all pass, genericness FLAPS 1-of-7-questions.** Accepted, see Decisions | 2026-08-04 — grounding verbatim rules, value-only entries, company name in every question. **~4,300 chars, ceiling ~12,197. Runs on `deep`, NOT `fast`** |
 | Interviewer | ⬜ (Phase 3) | — | — |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
@@ -167,6 +169,101 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 - [x] 0.6 ~~Two-node graph with `interrupt()` / `Command(resume=...)`~~ — done 2026-07-30. All five boxes, and **the idempotency assertion was falsified against a deliberately wrong graph before being trusted**
 - [x] 0.7 ~~Interrupt/resume proven across two separate HTTP requests~~ — done 2026-07-30. Restart proven with **two separate uvicorn subprocesses**, not a rebuilt TestClient
 - [x] 0.8 ~~Deploy backend to Render, frontend to Netlify, CORS wired, health check green~~ — done 2026-07-30. Phase gate 6/6, cold start 32.3s, production checkpoint step ~27ms. Output below
+
+---
+
+### Session 9 — 2026-08-04 — the two smokes, and what they actually found
+
+**Session 8's prediction held: the uncommitted agents were sound, not abandoned drafts.** Both are
+now committed. **But neither passed its golden case as written**, and the value of this session is
+the four defects that surfaced — three of which were in the *test suites and shared code*, not in
+the agents.
+
+**Baseline before any change, free:**
+
+```
+offline suite    147 passed, 82 deselected     <- matches session 8 exactly, dirty tree included
+```
+
+**🔴 DEFECT 1, THE IMPORTANT ONE — `app/llm.py` was silently swallowing every schema failure Groq
+rejects server-side.** The wrapper's own docstring promised "retries schema failures only: a `None`
+return or a `ValidationError`", and Groq's 400 `json_validate_failed` is a schema failure — but it
+arrives as `openai.BadRequestError`, hit the `except Exception` transport branch, and was re-raised
+**without ever retrying**. The class of failure the wrapper exists to absorb was bypassing it.
+
+Observed on the Planner's first smoke, `fast` folding `grounded_in` into the preceding array:
+
+```
+BEFORE   outcome=error error=BadRequestError          <- raised, no retry
+AFTER    outcome=invalid error=BadRequestError        <- classified as schema
+         outcome=ok                                   <- retry succeeded
+         retry_fired=True
+```
+
+**That before/after IS the falsification** — the fix was proven by observing the behaviour change
+live, not by reasoning about it. Three offline tests now pin it, including the boundary that a 429
+must still NOT be retried (broadening the retry to swallow rate limits would be strictly worse than
+the bug).
+
+**This is shared code and it affects every agent, including the two shipped in Phase 1.** The full
+live suite was NOT re-run, per the portfolio calibration; the offline suite (157) and both smokes
+are the evidence.
+
+**DEFECT 2 — the Case Architect's own prompt was the source of a placeholder leak.** A live world
+put `"The feature X would increase onboarding completion by 3.1%"` into `supporting_facts`, which is
+candidate-facing copy. Root cause was the prompt's own APM example, `"Should we build X into the
+onboarding flow?"`. Fixed at the source, plus an explicit ban, plus a new `contains_placeholder_token`
+assertion wired into the universal battery — the suite could not previously see this.
+
+**DEFECT 3 — the blind ACV check was a B2B assumption and failed two worlds that were right.**
+Spec §5 says implied ACV must be plausible "for the stated stage **and market**"; the blind
+implementation dropped the market half and used a flat $50 floor. It rejected $30.75 ARPU over
+400,000 users, then $3.91 over 3,200,000 — both ordinary consumer figures. **Conditioned on
+`customer_count` rather than lowered**, deliberately: ratcheting the single floor down until the run
+passes is the exact failure spec §5 warns about, and it would have destroyed the check for B2B.
+
+**DEFECT 4 — the genericness check demanded the company's full legal name.** `deep` asked "what are
+the key strengths and weaknesses of **Ferngrove's** business model?" against a world whose company
+is "Ferngrove Media", and the check called it generic. It was under-measuring: the short form and
+the possessive are how a real interviewer speaks. Now accepts a distinctive first word, with a
+four-character floor so a company called "The Ledger" cannot make every question pass on "The".
+
+**Final smoke results, both on one golden case each, as § Next session instructed:**
+
+```
+case_architect  apm_consumer        1 passed in 97.52s    role=fast   retry_fired=False
+planner         apm_consumer_world  1 failed in 101.09s   role=deep   retry_fired=False
+                  -> grounding PASSES, dimension coverage PASSES, timing PASSES,
+                     case_world immutability PASSES, genericness fails on 1 of 7 questions
+offline suite   157 passed, 82 deselected, 3.73s
+```
+
+**🔴 THE PLANNER NEEDS `deep`. This is the one agent the portfolio calibration's "agents default to
+`fast`" does NOT apply to, and it is a correctness constraint, not a quality preference.** Measured:
+`fast` (gpt-oss-20b) failed Groq's strict schema validation on `QuestionPlan` **twice in a row**,
+raising `StructuredOutputError` — the retry worked and both attempts still failed. `deep` produced a
+valid plan first try, every time, with no retry. `QuestionPlan` is the largest generation in the
+product (5-7 objects of 7 fields, two of them string arrays). **This is the evidence
+AGENT-PLANNER-SPEC §6 explicitly asked for.** `build.py`'s `planner_role` default is back to `deep`.
+
+**The genericness flap is ACCEPTED, not fixed, matching story 1.3's precedent.** Across five `deep`
+runs the count went 5 generic -> 3 -> 1 -> 0 -> 1 as the prompt tightened. It now lands at **6 of 7
+questions compliant, with a different question slipping each run.** A question that omits the
+company name still reads perfectly well to a candidate, so this does not visibly break a demo.
+**Reopens if:** it ever exceeds 2 of 7, or if a Phase 3 interview visibly reads as generic.
+
+**⬜ NOT VERIFIED, and this is the honest gap: neither `build.py` NODE has run live.** Both agent
+*functions* are proven. The nodes wrapping them — the `agent_events` rows, the `case_worlds` insert,
+the confirmed-level read, and the `confirm_level -> generate_case_world -> plan_interview` chain end
+to end — are written and compile, and nothing more. Boxes left unticked accordingly.
+
+**Observed but NOT chased, deliberately:**
+- A live world produced `"'story' has 80% usage"` in `supporting_facts` — a fake-round number in
+  free text. `banned_round_numbers` only checks the typed percentage fields, not fact strings.
+  Cosmetic, does not break a demo.
+- Every structured call logs a pydantic `UserWarning: Expected 'none' but got CaseWorld`. Appears on
+  all three agents, is not new to this session, and nothing depends on that serialization. Recorded
+  so the next session does not mistake it for a fresh defect.
 
 ---
 
@@ -2330,6 +2427,63 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🔴 2026-08-04 (session 9) · `app/llm.py` NOW RETRIES GROQ'S 400 `json_validate_failed`. It never
+did, and the docstring said it did.**
+
+Groq validates structured output **server-side**, so a model emitting well-formed JSON of the wrong
+shape never reaches pydantic — the SDK raises `openai.BadRequestError`, which hit the wrapper's
+`except Exception` transport branch and was re-raised untouched. **The single class of failure this
+wrapper exists to absorb was bypassing it**, on every agent, since Phase 0.
+
+Detection is on the error body's `code`, with a substring fallback, deliberately **not** by catching
+an openai-specific class — the same failure from a different client library would go unretried
+again. Proven by the live before/after (`outcome=error` + raise, then `outcome=invalid` ->
+`outcome=ok`), not by inspection. Three offline tests pin it, one of which is the boundary: **a 429
+must still not be retried here.** Broadening the retry to swallow rate limits would be worse than
+the original bug, since ARCHITECTURE §9 puts backoff at a different layer.
+
+**🔴 2026-08-04 (session 9) · THE PLANNER RUNS ON `deep`. The portfolio calibration's "agents
+default to `fast`" does NOT apply to this one agent, and this is correctness, not quality.**
+
+Measured: `fast` (gpt-oss-20b) failed strict schema validation on `QuestionPlan` **twice in a row**
+and raised `StructuredOutputError`; the retry ran correctly and both attempts still failed. One
+observed failure mode was folding `grounded_in` into the preceding `probe_angles` array. `deep`
+(gpt-oss-120b) produced a valid plan first try on all four subsequent runs, no retry.
+
+`QuestionPlan` is the largest generation in the product — 5-7 objects of 7 fields, two of them
+string arrays. **AGENT-PLANNER-SPEC §6 explicitly asked for this evidence**, noting the Planner was
+a plausible `fast` candidate; it is not. `build.py`'s `planner_role` default is `deep`; the Case
+Architect stays `fast` and passes there.
+
+**Budget consequence:** the Planner costs ~6,000 `deep` tokens per run against a 200,000 daily cap,
+so roughly 33 planning runs a day, shared with `level_candidate`.
+
+**2026-08-04 (session 9) · The blind ACV check was conditioned on market, not relaxed.**
+
+Spec §5 requires implied ACV to be plausible "for the stated stage **and market**"; the blind
+implementation dropped the market half and used a flat $50 B2B floor. It rejected two consumer
+worlds that were correct ($30.75 ARPU over 400,000 users; $3.91 over 3,200,000). `CaseWorld` has no
+b2b/consumer field, so `customer_count` is the proxy — nobody sells to 3.2 million enterprise
+accounts.
+
+**Two bands, not one lowered floor**, and the distinction matters: ratcheting the single floor down
+until the run goes green is precisely the "an over-strict check gets relaxed rather than fixed"
+failure spec §5 names, and it would have destroyed the check for B2B where $50 is real signal. Both
+original positive controls still fire. The prompt was updated to match, so the model and the check
+now agree on what plausible means.
+
+**2026-08-04 (session 9) · The Planner's genericness flap is ACCEPTED, on story 1.3's precedent.**
+
+Across five `deep` runs the generic-question count went 5 -> 3 -> 1 -> 0 -> 1 as the prompt
+tightened and the check stopped under-measuring. It settles at **6 of 7 questions compliant, a
+different one slipping each run.** Two real fixes landed on the way (the check now accepts the
+company's short form; the prompt now requires the company name in every question), so what remains
+is generative variance, not a missing rule.
+
+**Not chased further, deliberately** — a question that omits the company name still reads correctly
+to a candidate and does not visibly break a demo, which is the portfolio calibration's stated bar.
+**Reopens if:** it exceeds 2 of 7, or a Phase 3 interview visibly reads as generic.
 
 **🔴 2026-08-02 (session 8) · THIS IS A PORTFOLIO ARTIFACT, NOT A PRODUCTION SYSTEM. VERIFICATION
 DROPS TO SANITY LEVEL, AGENTS DEFAULT TO `fast`, AND THE BUILD TARGETS A THIN END-TO-END SLICE.

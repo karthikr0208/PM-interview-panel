@@ -137,6 +137,34 @@ def contains_banned_register_name(*names: str) -> str | None:
     return None
 
 
+# Algebra-placeholder register: "the feature X", "Product A", "Company B".
+# Distinct from _BANNED_NAME_TOKENS, which is a fixed substring list for
+# named entities -- these need a word boundary, because a bare "X" or "A"
+# substring-matches almost everything. Added 2026-08-04 after a live run put
+# "The feature X would increase onboarding completion by 3.1%" into
+# supporting_facts, which is candidate-facing copy. The prompt's own APM
+# example ("Should we build X into the onboarding flow?") was the source.
+# The noun is case-insensitive ("Product A" and "the product A" both count)
+# but the placeholder letter must be a capital -- that asymmetry is why the
+# whole pattern cannot just take re.IGNORECASE.
+_PLACEHOLDER_PATTERN = re.compile(
+    r"\b(?:[Ff]eature|[Pp]roduct|[Cc]ompany|[Cc]ompetitor|[Tt]eam|[Mm]etric|[Oo]ption)"
+    r"\s+[A-Z]\b"
+)
+
+
+def contains_placeholder_token(*texts: str) -> str | None:
+    """Returns the first of `texts` containing an algebra placeholder
+    ("feature X", "Product A"), or `None` if none leaked. Case-sensitive on
+    the letter deliberately: "feature x" in lowercase prose is nearly always
+    a real sentence, while a capital standing alone is the placeholder tell.
+    """
+    for text in texts:
+        if _PLACEHOLDER_PATTERN.search(text):
+            return text
+    return None
+
+
 # --- internal consistency -----------------------------------------------------
 
 _MULTIPLIERS = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000}
@@ -182,16 +210,47 @@ def stage_employee_mismatch(stage: str, employees: int) -> bool:
     return not (lo <= employees <= hi)
 
 
+# Spec §5 requires implied ACV to be plausible "for the stated stage and
+# market". The blind implementation dropped the market half and used a single
+# $50 floor, which is a B2B ACV assumption: it failed `apm_consumer` twice on
+# 2026-08-04 against worlds that were right ($30.75 ARPU over 400,000 users,
+# then $3.91 over 3,200,000). `CaseWorld` has no b2b/consumer field, so
+# customer_count is the market proxy -- nobody sells to 3.2 million
+# ENTERPRISE accounts, so a count that large is consumer by construction and
+# an ARPU of a few dollars is ordinary there.
+#
+# Two bands rather than one lowered floor, deliberately. Ratcheting the single
+# floor down until the run passes is exactly the "an over-strict check gets
+# relaxed rather than fixed" failure spec §5 warns about, and it would have
+# destroyed the check for B2B, where $50 is a real signal. This keeps that
+# signal where it applies and stops firing where it never did.
+_CONSUMER_SCALE_CUSTOMERS = 100_000
+_CONSUMER_MIN_ACV = 1.0
+_B2B_MIN_ACV = 50.0
+_MAX_ACV = 5_000_000.0
+
+
 def implied_acv_implausible(
-    arr_usd: str, customer_count: int, *, min_acv: float = 50.0, max_acv: float = 5_000_000.0
+    arr_usd: str, customer_count: int, *, min_acv: float | None = None, max_acv: float = _MAX_ACV
 ) -> bool:
     """True iff the implied ACV (`arr_usd / customer_count`) falls outside a
     deliberately wide plausible band. Spec §5's example: a seed company with
     2 customers and "$40M" ARR implies a $20M ACV, which is not a business.
     `customer_count <= 0` is always implausible -- division by a
     non-positive count is undefined, not merely out of range.
+
+    The floor is chosen from `customer_count` unless `min_acv` is passed
+    explicitly: consumer scale gets $1, everything else keeps the original
+    $50. See the comment above for why this is conditioned rather than
+    lowered, and DEV-STATE § Decisions 2026-08-04.
     """
     if customer_count <= 0:
         return True
+    if min_acv is None:
+        min_acv = (
+            _CONSUMER_MIN_ACV
+            if customer_count >= _CONSUMER_SCALE_CUSTOMERS
+            else _B2B_MIN_ACV
+        )
     acv = parse_dollar_amount(arr_usd) / customer_count
     return not (min_acv <= acv <= max_acv)

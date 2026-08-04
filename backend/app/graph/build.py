@@ -11,7 +11,9 @@ asserts. Deferred pending a decision; see DEV-STATE. This file's rule below
 is what that skeleton exists to prove.
 
 The full graph (level_candidate -> confirm_level -> ... -> coach_report) is
-built incrementally across Phases 1-5. Only the first two nodes exist today.
+built incrementally across Phases 1-5. Stories 2.3 and 2.6 add
+`generate_case_world` (the Case Architect) and `plan_interview` (the
+Planner), chained after `confirm_level`. Four nodes exist today.
 
 THE load-bearing rule for every node in this graph, and especially for
 `confirm_level` (any node that calls `interrupt()`):
@@ -33,6 +35,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
+from app.agents.case_architect import generate_case_world as _generate_case_world
+from app.agents.planner import plan_interview as _plan_interview
 from app.agents.resume_analyst import analyse_resume
 from app.graph.state import InterviewState
 from app.llm import Role
@@ -45,6 +49,14 @@ from app.supabase_client import rest_insert, rest_select_one, rest_update
 _STARTED_SUMMARY = "Reading your resume and assessing a level."
 _DONE_SUMMARY = "Read your resume and assessed a level."
 _ERROR_SUMMARY = "Ran into a problem understanding your resume."
+
+_CASE_WORLD_STARTED_SUMMARY = "Building the case for your interview."
+_CASE_WORLD_DONE_SUMMARY = "Built the case for your interview."
+_CASE_WORLD_ERROR_SUMMARY = "Ran into a problem building the case."
+
+_PLAN_STARTED_SUMMARY = "Planning interview questions."
+_PLAN_DONE_SUMMARY = "Planned interview questions."
+_PLAN_ERROR_SUMMARY = "Ran into a problem planning the interview."
 
 
 def _make_level_candidate(
@@ -157,11 +169,163 @@ def confirm_level(state: InterviewState) -> dict:
     return {"assessed_level": chosen_level}
 
 
+def _make_generate_case_world(
+    role: Role = "fast",
+) -> Callable[[InterviewState], Awaitable[dict]]:
+    """Factory, same reasoning as `_make_level_candidate`: tests build a
+    graph on `role="fast"` (or any other role) without touching production's
+    default. Story 2.3's brief supersedes AGENT-CASE-ARCHITECT-SPEC.md §1's
+    `deep` default as of 2026-08-02 -- `build_graph`'s own default matches.
+    """
+
+    async def generate_case_world(state: InterviewState) -> dict:
+        """Runs the Case Architect and writes `case_world` to state.
+
+        Owns every side effect the agent spec assigns to this node (§1):
+        one `agent_events` row on start, one on completion (or error), and
+        the `case_worlds` insert (the audit copy -- the working copy lives
+        in graph state). `generate_case_world` (the agent function) stays
+        pure, with none of these -- the golden cases call it directly with
+        no session and no database.
+
+        Reads `assessed_level` from STATE, never from `candidate_profile` --
+        `confirm_level`, immediately upstream, may have overwritten it with
+        the candidate's correction. Trap named in the brief: an agent that
+        infers the level from the profile instead would silently discard
+        every correction, and no golden case would catch it, since golden
+        cases pass a level directly and never exercise the correction path.
+        """
+        session_id = state["session_id"]
+        started = time.perf_counter()
+
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "case_architect",
+                "status": "started",
+                "summary": _CASE_WORLD_STARTED_SUMMARY,
+            },
+        )
+
+        try:
+            case_world = await _generate_case_world(
+                state["assessed_level"], state["candidate_profile"], role=role
+            )
+        except Exception:
+            await rest_insert(
+                "agent_events",
+                {
+                    "session_id": session_id,
+                    "agent": "case_architect",
+                    "status": "error",
+                    "summary": _CASE_WORLD_ERROR_SUMMARY,
+                },
+            )
+            raise
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        world_dict = case_world.model_dump()
+
+        await rest_insert("case_worlds", {"session_id": session_id, "world": world_dict})
+
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "case_architect",
+                "status": "done",
+                "summary": _CASE_WORLD_DONE_SUMMARY,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        return {"case_world": world_dict}
+
+    return generate_case_world
+
+
+def _make_plan_interview(
+    role: Role = "fast",
+) -> Callable[[InterviewState], Awaitable[dict]]:
+    """Factory, same reasoning as `_make_level_candidate` and
+    `_make_generate_case_world`. Story 2.6's brief supersedes
+    AGENT-PLANNER-SPEC.md §1's `deep` default as of 2026-08-02 --
+    `build_graph`'s own default matches.
+    """
+
+    async def plan_interview(state: InterviewState) -> dict:
+        """Runs the Planner and writes `question_plan` to state.
+
+        Owns every side effect the agent spec assigns to this node (§1):
+        one `agent_events` row on start, one on completion (or error). No
+        table insert -- the spec lists none for this agent; `question_plan`
+        lives only in graph state. `plan_interview` (the agent function)
+        stays pure, with none of these.
+
+        Reads `case_world` from state and passes it through unchanged.
+        `case_world` is NOT part of this node's return dict -- it was
+        already written once, by `generate_case_world`, and stays immutable
+        for the rest of the graph (ARCHITECTURE §2). Returning it here,
+        even with the same value, would be a second write to the field the
+        whole architecture depends on staying untouched downstream.
+        """
+        session_id = state["session_id"]
+        started = time.perf_counter()
+
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "planner",
+                "status": "started",
+                "summary": _PLAN_STARTED_SUMMARY,
+            },
+        )
+
+        try:
+            plan = await _plan_interview(
+                state["assessed_level"], state["case_world"], role=role
+            )
+        except Exception:
+            await rest_insert(
+                "agent_events",
+                {
+                    "session_id": session_id,
+                    "agent": "planner",
+                    "status": "error",
+                    "summary": _PLAN_ERROR_SUMMARY,
+                },
+            )
+            raise
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "planner",
+                "status": "done",
+                "summary": _PLAN_DONE_SUMMARY,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        return {"question_plan": [q.model_dump() for q in plan.questions]}
+
+    return plan_interview
+
+
 def build_graph(
-    checkpointer: BaseCheckpointSaver, *, resume_analyst_role: Role = "deep"
+    checkpointer: BaseCheckpointSaver,
+    *,
+    resume_analyst_role: Role = "deep",
+    case_architect_role: Role = "fast",
+    planner_role: Role = "deep",
 ) -> Any:
-    """Compiles level_candidate -> confirm_level -> END with the given
-    checkpointer attached.
+    """Compiles level_candidate -> confirm_level -> generate_case_world ->
+    plan_interview -> END with the given checkpointer attached.
 
     `checkpointer` must be an `AsyncPostgresSaver` (session pooler, port
     5432) in every environment including local dev. Never `MemorySaver` —
@@ -171,11 +335,28 @@ def build_graph(
     `resume_analyst_role` exists for tests only -- production callers
     (`app/main.py`'s lifespan) never pass it, so they get the spec's
     default of `deep`.
+
+    `case_architect_role` defaults to `fast`: its agent spec says `deep`, but
+    that default is superseded as of 2026-08-02 (see CLAUDE.md's portfolio
+    calibration) and it was measured passing its golden smoke on `fast` on
+    2026-08-04.
+
+    `planner_role` is back to `deep`, and it is the one agent the calibration
+    does NOT apply to. Measured 2026-08-04: `fast` fails Groq's strict schema
+    validation on `QuestionPlan` twice in a row, so this is a correctness
+    constraint, not a quality preference. See `plan_interview`'s docstring and
+    DEV-STATE § Decisions 2026-08-04. Kept as parameters, not hardcoded, so
+    production can switch either at the call site without touching this
+    function's body.
     """
     graph = StateGraph(InterviewState)
     graph.add_node("level_candidate", _make_level_candidate(resume_analyst_role))
     graph.add_node("confirm_level", confirm_level)
+    graph.add_node("generate_case_world", _make_generate_case_world(case_architect_role))
+    graph.add_node("plan_interview", _make_plan_interview(planner_role))
     graph.set_entry_point("level_candidate")
     graph.add_edge("level_candidate", "confirm_level")
-    graph.add_edge("confirm_level", END)
+    graph.add_edge("confirm_level", "generate_case_world")
+    graph.add_edge("generate_case_world", "plan_interview")
+    graph.add_edge("plan_interview", END)
     return graph.compile(checkpointer=checkpointer)

@@ -226,9 +226,12 @@ async def test_golden_case(case, plan_interview, caplog) -> None:
 
     # --- Genericness: every question must name something specific to THIS
     # world (spec §5's "single most valuable test in this suite") ---
-    generic = [q.idx for q in questions if is_generic_question(q.question, case.case_world)]
+    generic = [q for q in questions if is_generic_question(q.question, case.case_world)]
     assert not generic, (
-        f"{case.id}: question(s) {generic} are generic -- would fit any case world"
+        f"{case.id}: question(s) {[q.idx for q in generic]} are generic -- would fit any "
+        f"case world. Offending text, so a red run can be judged without re-running it "
+        f"(each `deep` re-run costs ~6,000 tokens of a 200,000 daily cap):\n"
+        + "\n".join(f"  [{q.idx}] {q.question!r}" for q in generic)
     )
 
     # --- Case-specific assertion, spec §5's table ---

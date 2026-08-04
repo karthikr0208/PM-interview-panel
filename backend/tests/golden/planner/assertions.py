@@ -188,8 +188,9 @@ def contains_banned_register_name(text: str) -> str | None:
 
 def world_specific_terms(case_world: dict) -> list[str]:
     """Proper nouns and figures a question grounded in THIS world could
-    plausibly cite: the company name, every competitor name, and every
-    numeric metric/market figure. Spec §5's own mechanical approximation of
+    plausibly cite: the company name (full, or its distinctive first word),
+    every competitor name, and every numeric metric/market figure. Spec §5's
+    own mechanical approximation of
     "specific to this world" -- explicitly not perfect (a coincidental
     number match is possible), but cheap, deterministic, and directly
     measures the property that matters, which is the spec's own
@@ -199,8 +200,25 @@ def world_specific_terms(case_world: dict) -> list[str]:
     market = case_world["market"]
     metrics = case_world["metrics"]
 
-    terms = [company["name"]]
-    terms += [c["name"] for c in market["competitors"]]
+    names = [company["name"]] + [c["name"] for c in market["competitors"]]
+
+    # Also accept the DISTINCTIVE FIRST WORD of each two-word name, not just
+    # the full string. Observed 2026-08-04: `deep` produced "what are the key
+    # strengths and weaknesses of Ferngrove's business model?" against a world
+    # whose company is "Ferngrove Media". That question is unambiguously about
+    # this world and the full-string check called it generic -- the check was
+    # under-measuring, not the model under-specifying. Real interviewers use
+    # the short form and the possessive, so requiring the legal two-word name
+    # verbatim measures formatting, not specificity.
+    #
+    # Length floor because the Case Architect is told to give every company a
+    # two-word name and the first word is normally a coined proper noun
+    # ("Verdant", "Northline"); a short one ("The", "Blue") would match common
+    # prose and make this check pass vacuously, which is the failure this
+    # suite exists to prevent.
+    first_words = [n.split()[0] for n in names if n and len(n.split()) > 1]
+
+    terms = names + [w for w in first_words if len(w) >= 4 and w.isalpha()]
     terms += [
         market["size_usd"],
         str(market["growth_rate_pct"]),

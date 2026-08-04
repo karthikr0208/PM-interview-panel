@@ -603,6 +603,29 @@ def test_is_generic_question_accepts_a_world_specific_question() -> None:
     )
 
 
+def test_is_generic_question_accepts_the_company_short_form() -> None:
+    """Regression, 2026-08-04. `deep` produced "what are the key strengths
+    and weaknesses of Ferngrove's business model?" against a world whose
+    company is "Ferngrove Media", and the full-string check called it
+    generic. A question naming the company in the possessive short form is
+    unambiguously about this world -- that was the check under-measuring."""
+    assert (
+        is_generic_question("What are the weaknesses of Ferngrove's business model?", APM_WORLD)
+        is False
+    )
+
+
+def test_world_specific_terms_excludes_short_first_words() -> None:
+    """The short-form acceptance must not admit common prose. A first word
+    under four characters (or non-alphabetic) is excluded, or a company
+    called "The Ledger" would make every question containing "The" pass."""
+    world = json.loads(json.dumps(APM_WORLD))
+    world["company"]["name"] = "The Ledger"
+    terms = world_specific_terms(world)
+    assert "The" not in terms
+    assert "The Ledger" in terms
+
+
 def test_is_generic_question_rejects_the_positive_control() -> None:
     """Spec §5's positive control, in this suite's own words: a question
     that would fit any case world."""

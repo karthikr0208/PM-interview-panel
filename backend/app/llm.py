@@ -133,6 +133,33 @@ _RETRY_INSTRUCTION = (
 )
 
 
+def _is_schema_rejection(exc: Exception) -> bool:
+    """True iff `exc` is Groq rejecting the generation for not matching the
+    strict JSON schema — a 400 `json_validate_failed`.
+
+    This is a SCHEMA failure wearing a transport exception's clothes. Groq
+    validates the generation server-side, so a model that emits well-formed
+    JSON of the wrong shape never reaches pydantic: the OpenAI SDK raises
+    `BadRequestError` instead of returning something `ValidationError` could
+    catch. Without this, the class of failure this wrapper exists to absorb
+    bypasses the retry entirely and is re-raised as if it were a 429.
+
+    Observed 2026-08-04 on the Planner's first golden smoke: gpt-oss-20b
+    folded `grounded_in` into the preceding `probe_angles` array, producing
+    valid JSON missing two required properties. See DEV-STATE § Decisions.
+
+    Matched on the body's `code` rather than the message, with a substring
+    fallback because the SDK only populates `.code` when the error body
+    parses. A truncated generation also surfaces as `json_validate_failed`
+    (see `get_llm`'s max_tokens note) and will retry once and fail again --
+    one wasted call on a case that is already failing, which is cheaper than
+    a second detection path.
+    """
+    if getattr(exc, "code", None) == "json_validate_failed":
+        return True
+    return "json_validate_failed" in str(exc)
+
+
 def _append_retry_instruction(model_input: Any, error: str) -> Any:
     """Appends the failure to the prompt, whatever shape it arrived in.
 
@@ -158,10 +185,13 @@ class _LoggedStructured:
     agent opts into is what makes "mandatory in every agent" structural — an
     agent cannot forget it.
 
-    Retries **schema failures only**: a `None` return or a `ValidationError`.
-    Transport failures (429, 503, timeout) are a different concern with a
-    different fix — exponential backoff per ARCHITECTURE.md §9 — and are
-    re-raised untouched so they are not silently retried at the wrong layer.
+    Retries **schema failures only**: a `None` return, a `ValidationError`, or
+    Groq's 400 `json_validate_failed` (see `_is_schema_rejection` — a schema
+    failure that arrives as a transport exception, and was re-raised without a
+    retry until 2026-08-04). Transport failures (429, 503, timeout) are a
+    different concern with a different fix — exponential backoff per
+    ARCHITECTURE.md §9 — and are re-raised untouched so they are not silently
+    retried at the wrong layer.
 
     One retry, then fail, matching ARCHITECTURE.md's uniform failure behaviour.
     Logs `outcome=empty` for the silent `None` case so it is visible in the
@@ -197,6 +227,9 @@ class _LoggedStructured:
             _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
             return None, str(exc)[:200]
         except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
+            if _is_schema_rejection(exc):
+                _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+                return None, str(exc)[:200]
             _log_call(self.role, self.model, started, "error", type(exc).__name__)
             raise
         _log_call(self.role, self.model, started, self._outcome(result))
@@ -223,6 +256,9 @@ class _LoggedStructured:
             _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
             return None, str(exc)[:200]
         except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
+            if _is_schema_rejection(exc):
+                _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+                return None, str(exc)[:200]
             _log_call(self.role, self.model, started, "error", type(exc).__name__)
             raise
         _log_call(self.role, self.model, started, self._outcome(result))

@@ -19,6 +19,7 @@ from tests.golden.case_architect.assertions import (
     banned_round_numbers,
     blank_or_short_fields,
     contains_banned_register_name,
+    contains_placeholder_token,
     count_out_of_range,
     implied_acv_implausible,
     is_round_dollar_amount,
@@ -253,6 +254,51 @@ def test_implied_acv_implausible_rejects_the_positive_control() -> None:
     """Spec §5's exact example: a seed company with 2 customers and $40M
     ARR implies a $20M ACV, which is not a business."""
     assert implied_acv_implausible("$40M", 2) is True
+
+
+def test_contains_placeholder_token_catches_the_observed_leak() -> None:
+    """Positive control is the exact string a live run put into
+    supporting_facts on 2026-08-04, which is candidate-facing copy."""
+    leaked = contains_placeholder_token(
+        "The feature X would increase onboarding completion by 3.1%."
+    )
+    assert leaked is not None
+    assert contains_placeholder_token("We should ship Product A before Q3.") is not None
+    assert contains_placeholder_token("Competitor B wins on price.") is not None
+
+
+def test_contains_placeholder_token_does_not_fire_on_real_copy() -> None:
+    """A check that flags ordinary sentences would be relaxed away, so the
+    word boundary and the capital letter both have to matter. "Series A" is
+    the trap: a real funding stage, not a placeholder."""
+    assert contains_placeholder_token("Guest checkout lifts completion by 3.1%.") is None
+    assert contains_placeholder_token("The company raised a Series A in 2021.") is None
+    assert contains_placeholder_token("Feature parity with Northline is two quarters out.") is None
+    assert contains_placeholder_token("") is None
+
+
+def test_implied_acv_implausible_accepts_consumer_scale_arpu() -> None:
+    """Regression, 2026-08-04: the blind $50 floor was a B2B ACV assumption
+    and it failed the `apm_consumer` golden case twice on worlds that were
+    right -- $12.3M over 400,000 users ($30.75 ARPU), then $12.5M over
+    3,200,000 ($3.91). Spec §5 conditions plausibility on "stage and market";
+    these pin the market half so the floor cannot quietly drift back up."""
+    assert implied_acv_implausible("$12.3M", 400_000) is False
+    assert implied_acv_implausible("$12.5M", 3_200_000) is False
+
+
+def test_implied_acv_implausible_keeps_the_b2b_floor() -> None:
+    """The consumer band must not weaken B2B, which is the whole reason this
+    is conditioned on customer_count rather than lowered. 340 customers is
+    below consumer scale, so $2.9k ARR over them ($8.53 each) stays a
+    failure -- it would pass under a blanket $1 floor."""
+    assert implied_acv_implausible("$2.9K", 340) is True
+
+
+def test_implied_acv_implausible_still_rejects_cents_per_user() -> None:
+    """Even at consumer scale the floor must catch what it exists for: an ARR
+    in the millions implying a fraction of a dollar per user."""
+    assert implied_acv_implausible("$12.3M", 40_000_000) is True
 
 
 def test_implied_acv_implausible_rejects_zero_customers() -> None:

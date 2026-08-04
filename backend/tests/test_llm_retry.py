@@ -97,6 +97,56 @@ def test_transport_errors_are_reraised_not_retried() -> None:
     assert len(runnable.inputs) == 1, "a transport failure must not be retried here"
 
 
+class FakeSchemaRejection(Exception):
+    """Stands in for `openai.BadRequestError` on a 400 `json_validate_failed`.
+
+    Deliberately not the real SDK type: the wrapper must classify this by the
+    error body's code, not by catching an openai-specific class, or the same
+    failure from a different client library would go unretried again.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Error code: 400 - {'error': {'message': 'Generated JSON does not match the "
+            "expected schema.', 'type': 'invalid_request_error', "
+            "'code': 'json_validate_failed'}}"
+        )
+        self.code = "json_validate_failed"
+
+
+def test_groq_schema_rejection_is_retried_not_reraised() -> None:
+    """Regression, 2026-08-04. Groq validates structured output server-side,
+    so a model that emits well-formed JSON of the WRONG SHAPE never reaches
+    pydantic -- the SDK raises `BadRequestError` instead. That is a schema
+    failure wearing a transport exception's clothes, and it was falling
+    through to the re-raise branch, so the retry this wrapper exists to
+    provide never ran. Observed on the Planner's first golden smoke:
+    gpt-oss-20b folded `grounded_in` into the preceding `probe_angles`
+    array, and the retry then succeeded."""
+    runnable = FakeRunnable(FakeSchemaRejection(), Answer(value=8))
+    assert wrap(runnable).invoke("prompt") == Answer(value=8)
+    assert len(runnable.inputs) == 2, "a schema rejection must be retried"
+
+
+def test_schema_rejection_twice_raises_structured_output_error() -> None:
+    runnable = FakeRunnable(FakeSchemaRejection(), FakeSchemaRejection())
+    with pytest.raises(StructuredOutputError, match="fake-model"):
+        wrap(runnable).invoke("prompt")
+
+
+def test_schema_rejection_detection_does_not_swallow_a_429() -> None:
+    """The boundary that matters: broadening the retry must not start
+    retrying rate limits, which is the failure the transport branch exists
+    to prevent. A 429 mentions neither the code nor the phrase."""
+    runnable = FakeRunnable(
+        RuntimeError("Error code: 429 - rate_limit_exceeded: tokens per day (TPD)"),
+        Answer(value=9),
+    )
+    with pytest.raises(RuntimeError):
+        wrap(runnable).invoke("prompt")
+    assert len(runnable.inputs) == 1, "a 429 must not be retried at this layer"
+
+
 def test_both_attempts_are_logged(caplog) -> None:
     """Both calls count against the rate budget, so both must appear."""
     runnable = FakeRunnable(None, Answer(value=5))

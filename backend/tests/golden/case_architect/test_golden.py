@@ -41,6 +41,7 @@ from tests.golden.case_architect.assertions import (
     banned_round_numbers,
     blank_or_short_fields,
     contains_banned_register_name,
+    contains_placeholder_token,
     count_out_of_range,
     implied_acv_implausible,
     organic_ratio_below_floor,
@@ -189,6 +190,21 @@ async def test_golden_case(case, generate_case_world, caplog) -> None:
     )
     leaked = contains_banned_register_name(*names_and_text)
     assert leaked is None, f"{case.id}: banned-register name leaked: {leaked!r}"
+
+    # Algebra placeholders, added 2026-08-04 after a live run shipped "The
+    # feature X would increase onboarding completion by 3.1%" into
+    # supporting_facts. Scans situation.prompt too, which the name check
+    # above does not -- that is where the prompt's own bad example landed.
+    placeholder = contains_placeholder_token(
+        *result.supporting_facts,
+        result.situation.prompt,
+        result.situation.tension,
+        result.situation.leadership_belief,
+        *result.situation.options,
+    )
+    assert placeholder is None, (
+        f"{case.id}: algebra placeholder in candidate-facing copy: {placeholder!r}"
+    )
 
     assert not stage_employee_mismatch(result.company.stage, result.company.employees), (
         f"{case.id}: {result.company.employees} employees implausible for "
