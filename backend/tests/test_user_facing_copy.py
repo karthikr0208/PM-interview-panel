@@ -67,6 +67,59 @@ def _user_facing_strings() -> list[tuple[str, int, str, str]]:
     return found
 
 
+def _agent_event_summaries() -> list[tuple[str, int, str, str]]:
+    """Every `_*_SUMMARY` module constant in `app/`.
+
+    These are candidate-facing and were NOT in scope until 2026-08-04. They
+    are written into `agent_events.summary` and rendered VERBATIM by
+    `frontend/src/components/OrchestrationColumn.tsx`, in preference to that
+    component's own fallback copy -- so a dash typed here reaches a candidate
+    just as surely as one in an `HTTPException`. Story 2.7 tripled the number
+    of them (three agents rather than one), which is what made the gap worth
+    closing.
+
+    Matched on the `_SUMMARY` name suffix rather than on the assignment's
+    location, so a summary added to a future agent's node is covered the day
+    it is written and nobody has to remember this file exists.
+    """
+    found: list[tuple[str, int, str, str]] = []
+    for path in sorted(APP_ROOT.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if not (isinstance(target, ast.Name) and target.id.endswith("_SUMMARY")):
+                    continue
+                text = _literal(node.value)
+                if text:
+                    found.append((path.name, node.lineno, target.id, text))
+    return found
+
+
+def test_the_summary_check_finds_every_agents_copy() -> None:
+    """Guards the guard, same reasoning as the one below it. A name-suffix
+    match that drifted would silently stop covering the strings candidates
+    actually read."""
+    summaries = _agent_event_summaries()
+    names = {name for _, _, name, _ in summaries}
+    assert len(summaries) >= 9, f"expected 3 summaries per agent for 3 agents, got {summaries}"
+    for expected in ("_CASE_WORLD_DONE_SUMMARY", "_PLAN_DONE_SUMMARY", "_DONE_SUMMARY"):
+        assert expected in names, f"{expected} is candidate-facing and must be in scope: {names}"
+
+
+def test_no_dashes_in_agent_event_summaries() -> None:
+    offenders = [
+        f"{f}:{line} {name} -> {text[:80]}"
+        for f, line, name, text in _agent_event_summaries()
+        if EM_DASH in text or EN_DASH in text
+    ]
+    assert not offenders, (
+        "em-dash or en-dash in an agent_events summary, which the orchestration "
+        "column renders verbatim to the candidate (CLAUDE.md § Design):\n" + "\n".join(offenders)
+    )
+
+
 def test_the_check_finds_real_user_facing_strings() -> None:
     """Guards the guard. An AST walk that silently matches nothing would make
     every assertion below vacuously true - the same failure shape as a

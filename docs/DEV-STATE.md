@@ -100,7 +100,7 @@ toggle no script can flip.** See Blockers.
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
-| 2 Case Architect + Planner | 🟡 **2.1-2.6 DONE 2026-08-04. Only 2.7 remains.** Both agents committed and smoked; **the full `confirm_level -> generate_case_world -> plan_interview` chain runs end to end live** on the real graph across an interrupt. Case Architect passes on `fast`; Planner needs `deep` (measured) and flaps on genericness, accepted. Owed: falsify `case_world` write-once | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **157 offline**, 12 golden fixtures, chain proven live |
+| 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04. Code-complete; 3 of 4 gate conditions met.** Both agents smoked, **the full `confirm_level -> generate_case_world -> plan_interview` chain runs end to end live**, both agents in the orchestration column. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS. Owed: falsify `case_world` write-once | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **159 offline, 80 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | ⬜ not started | — | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
@@ -277,6 +277,48 @@ asserts is the CONTENT of those rows.** That is the honest limit of this evidenc
 `plan_interview` is asserted and passes. But nothing has watched a second write to `case_world` be
 rejected, and the spec is explicit that an immutability rule nobody has seen reject a write is a
 comment. Story 0.6's idempotency falsification is the pattern to copy.
+
+**🟢 STORY 2.7 IS DONE, at zero token cost. PHASE 2 IS CODE-COMPLETE.**
+
+Both new agents are in the orchestration column. **The interesting result is how little it took:**
+one Realtime subscription already filters on `session_id` rather than on agent, so the two agents
+needed a row in a new `AGENTS` table and **no new mechanism at all** — `lib/agentEvents.ts` was not
+touched. 1.6b's "later phases add rows here rather than replacing this one" held exactly.
+
+```
+vitest    74 passed  ->  80 passed     6 new, all scoped per row
+offline   157 passed ->  159 passed    2 new, the copy guard below
+tsc -b    clean
+```
+
+**🔴 THE EM-DASH GUARD HAD A HOLE, and this story is what exposed it.** `test_user_facing_copy.py`
+inspected only `HTTPException` and `*Error(...)` calls. The `_*_SUMMARY` constants in
+`app/graph/build.py` are **rendered verbatim to the candidate** by the orchestration column, in
+preference to the frontend's own fallback copy, and were never in scope. 2.7 tripled how many there
+are. The new check matches on the `_SUMMARY` name suffix, so a future agent's summary is covered the
+day it is written.
+
+**It is falsified, not assumed.** Planting an em-dash in `_PLAN_DONE_SUMMARY`:
+
+```
+1 failed, 4 passed        FAILED test_no_dashes_in_agent_event_summaries
+```
+
+Exactly one test, and the right one. (A first attempt at this falsification wrote the file back with
+PowerShell's `Set-Content -Encoding UTF8`, which **adds a BOM in PS 5.1** and broke `ast.parse` on
+every file in `app/`, failing all five tests for the wrong reason. Restored with `git checkout` and
+redone with an editor that does not add one. Worth knowing before scripting any file round-trip on
+this machine.)
+
+**The Realtime startup race does NOT reopen, and the 2.7 box's premise was the wrong clock.** The
+box flags these agents as writing sooner after the candidate's action than the Resume Analyst does.
+True, and irrelevant: **the settle window is measured from `subscribe()`, not from the triggering
+action.** `OrchestrationColumn` sits in `AppShell`'s slot in `App.tsx` OUTSIDE the
+`renderConversation()` switch, so it never unmounts, and `useAgentEvents` resubscribes only when
+`sessionId` changes — once per candidate. The subscription has been open for the entire upload and
+confirmation cycle before the Case Architect writes anything. **Verified by reading `App.tsx`, not
+by a probe run** — `probe_realtime.mjs` was not re-run because neither the RLS policies nor the
+publication changed. What would reopen it is recorded in the component itself.
 
 **Observed but NOT chased, deliberately:**
 - A live world produced `"'story' has 80% usage"` in `supporting_facts` — a fake-round number in
@@ -2022,28 +2064,35 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🟢 SESSION 9 ENDED CLEAN. `git status` IS CLEAN. Stories 2.1-2.6 are DONE and committed.
+## 🟢 SESSION 9 ENDED CLEAN. `git status` IS CLEAN. **PHASE 2 IS CODE-COMPLETE — all seven stories.**
 
 **Run these two first (~15s, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 157 passed, 82 deselected
-cd frontend && npm test -- --run                                          # expect 74 passed
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 159 passed, 82 deselected
+cd frontend && npm test -- --run                                          # expect 80 passed
 ```
 
-**Note the 157.** It was 147 at the start of session 9; the ten new tests are three on `app/llm.py`'s
-schema-rejection retry and seven on the two golden suites' repaired assertions. **The 60 offline
-figure quoted further down this file is stale — it predates Phase 2's suites.**
+**Note the 159.** It was 147 at the start of session 9. The twelve new tests: three on `app/llm.py`'s
+schema-rejection retry, seven on the two golden suites' repaired assertions, two closing a hole in
+the em-dash guard. **The 60 offline figure quoted further down this file is stale** — it predates
+Phase 2's suites.
 
-### The next story is 2.7, and it needs NO model budget
+### 🔴 TWO THINGS FOR KARTHIK, and neither is a code task
 
-**2.7 — both new agents in the orchestration column**, reusing 1.6b's Realtime on `agent_events`.
-The nodes already write `started`/`done` rows with the agent names `case_architect` and `planner`,
-and those writes are proven to succeed live, so **this is frontend work against a feed that already
-exists.** `docs/specs/PHASE-2-SPEC.md` §2.7 has the acceptance boxes. Read 1.6b's existing column
-implementation first — the new agents should need a name and a label, not a new mechanism.
+Both are "read it and say whether it looks right", both need the deployed app, and **both compete
+for the same `deep` bucket** (~5,000 tokens per resume for `level_candidate`).
 
-### Then Phase 3, and `PHASE-3-SPEC.md` needs writing first — also free
+1. **Phase 1 gate #4, still open since 2026-08-02** — upload a real resume at
+   `https://pmaiinterviewpanel.netlify.app` and say whether the level is right. Backend cold-starts
+   in 32-42s. **Nobody has seen the confirmation screen in a browser.**
+2. **Phase 2 gate #4 — read a generated case world and say whether you believe it.** This is the
+   one that matters for Phase 2 and it is new. Confirming a level now runs the Case Architect and
+   the Planner too, so the same upload produces both.
+
+**Do not hold Phase 3 for either.**
+
+### Then Phase 3, and `PHASE-3-SPEC.md` needs writing first — free
 
 Thin, per the calibration: **Interviewer plus the conduct loop, asking 2-3 of the planned questions,
 not all 5-7.** Two or three stories, not seven. `interrupt()` #2 (`await_candidate`) is the only
@@ -2065,9 +2114,14 @@ deep (gpt-oss-120b)   ~45,000 / 200,000 used     6 planner runs + 1 chain run
 fast (gpt-oss-20b)    ~25,000 / 200,000 used     4 case architect runs + 2 failed planner attempts
 ```
 
-Both buckets are in good shape, unlike sessions 7 and 8. **Nothing in 2.7 or in writing
-`PHASE-3-SPEC.md` needs a single token**, so the next session can spend the whole budget on Phase 3
-implementation if it wants to.
+Both buckets are in good shape, unlike sessions 7 and 8. **Story 2.7 cost ZERO tokens and writing
+`PHASE-3-SPEC.md` costs zero**, so the next session can spend nearly a full budget on Phase 3
+implementation.
+
+**Session 9's pattern, worth repeating:** the expensive half of this session was five `deep` runs on
+ONE golden case, iterating on prompts and assertions. The cheap half — 2.7, the guard hole, the
+Realtime re-check, all the docs — cost nothing at all. **Front-load the zero-quota work; it is
+consistently where the real defects turn up.**
 
 ### If you are tempted to make the Planner green, read this first
 

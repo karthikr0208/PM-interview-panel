@@ -191,14 +191,18 @@ QuestionPlan    -> plan_interview node, 7 questions, total_minutes=35
 
 ---
 
-### 2.7 Orchestration column shows both new agents
+### 2.7 Orchestration column shows both new agents — ✅ DONE 2026-08-04
 
 **Acceptance**
-- [ ] Both agents appear with the four states distinguished **by shape as well as colour**, matching 1.6b's existing pattern
-- [ ] Activity reads as plain language, never raw JSON
-- [ ] Updates arrive via Realtime on `agent_events`, reusing 1.6b's proven subscription
-- [ ] **No em-dashes in any candidate-facing copy**, guarded by the existing grep
-- [ ] **The Realtime startup race is re-checked**, not assumed. DEV-STATE 2026-08-01 resolved it as moot by reasoning, on the grounds that no agent writes an event immediately on session start. **These two agents write events sooner after confirm than the Resume Analyst does after upload**, which is exactly the condition that reopens it
+- [x] Both agents appear with the four states distinguished **by shape as well as colour**, matching 1.6b's existing pattern — the four-distinct-glyph test now runs for the Case Architect and the Planner too, not only the Resume Analyst
+- [x] Activity reads as plain language, never raw JSON — the existing no-JSON assertion now renders all three agents at once, so a raw payload on any row fails it
+- [x] Updates arrive via Realtime on `agent_events`, reusing 1.6b's proven subscription — **unchanged, and that is the result**: one subscription already filters on `session_id`, not on agent, so both new agents needed a row in `AGENTS` and no new mechanism. `lib/agentEvents.ts` was not touched
+- [x] **No em-dashes in any candidate-facing copy** — and **the guard had a hole**, now closed. `tests/test_user_facing_copy.py` only inspected `HTTPException` and `*Error(...)` calls; the `_*_SUMMARY` constants are rendered VERBATIM to candidates by the column and were never in scope. This story tripled their number. The new check is **falsified, not assumed**: planting an em-dash in `_PLAN_DONE_SUMMARY` fails exactly one test, `1 failed, 4 passed`
+- [x] **The Realtime startup race is re-checked**, not assumed — **it does not reopen, for a structural reason rather than a timing one.** The box's premise is that these agents write sooner after the candidate's action, but **the settle window is measured from `subscribe()`, not from the triggering action.** `OrchestrationColumn` is mounted in `AppShell`'s `orchestration` slot in `App.tsx`, OUTSIDE the `renderConversation()` switch, so it never unmounts and `useAgentEvents` resubscribes only when `sessionId` changes — which happens once per candidate. By the time the Case Architect writes anything the subscription has been open for the whole upload, assessment and confirmation cycle. Reasoning verified by reading `App.tsx`, not by a probe run; `probe_realtime.mjs` was not re-run because neither the RLS policies nor the publication changed
+
+**What would reopen it**, recorded in the component so it survives: rendering this column
+conditionally, remounting it on the confirmation step, or keying the subscription to anything that
+changes mid-journey.
 
 **Do not ship a persona header.** The interviewer name is deferred to Phase 3, and "Maya Chen"
 sits in the register v1 §7 bans. Decided 2026-07-31, still binding.
