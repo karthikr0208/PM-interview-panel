@@ -2078,6 +2078,16 @@ schema-rejection retry, seven on the two golden suites' repaired assertions, two
 the em-dash guard. **The 60 offline figure quoted further down this file is stale** — it predates
 Phase 2's suites.
 
+### 🟢 PRODUCTION IS CURRENT AS OF 2026-08-04, and it had been broken since 31 July
+
+Both services now serve current `main`, verified by `curl`. **Add a deploy check to the loop** —
+`curl https://pm-interview-panel.onrender.com/openapi.json` costs nothing and would have caught a
+four-day outage that no test suite can see. See § Decisions 2026-08-04.
+
+**The one thing still unexercised: a real PDF uploaded through the browser.** Every fix was
+confirmed at the API and bundle level. The deployed path runs PDF text extraction, which the local
+CV run bypassed.
+
 ### 🔴 TWO THINGS FOR KARTHIK, and neither is a code task
 
 Both are "read it and say whether it looks right", both need the deployed app, and **both compete
@@ -2603,6 +2613,46 @@ production `ALLOWED_ORIGINS` value noted inline. `git log -S` confirms `.env.exa
 non-archive file still defining them.
 
 **Also: 28 commits were unpushed.** GitHub is behind local as well as Render being behind GitHub.
+
+**✅ RESOLVED THE SAME DAY, and the three-layer picture is confirmed at every step:**
+
+```
+GitHub    was at af5e7b0 (31 Jul), 28 commits behind local
+Netlify   BUILT af5e7b0 successfully  -> the stale UI Karthik screenshotted
+Render    TRIED af5e7b0 and FAILED    -> kept serving a Phase 0 build
+result    stale frontend called POST /session; Phase 0 backend had no such
+          route -> FastAPI's "Not Found" rendered in the upload card
+```
+
+The last link is proven, not inferred: the exact string in the screenshot, `"Agent activity will
+appear here once your resume is uploaded."`, exists in `af5e7b0`'s `OrchestrationColumn.tsx` and
+nowhere in current `main`.
+
+**Karthik fixed the Render env vars and redeployed. That redeploy is itself the proof the vars were
+the cause** — Render only serves a build whose startup succeeded, and `POST /session` (absent from
+the old build) appeared. `config.py`'s `REQUIRED_VARS` check passed in production, which is exactly
+what had been failing for four days. Then 30 commits were pushed:
+
+```
+deploy live after ~80s
+  GET  /health
+  POST /session
+  POST /session/{session_id}/level
+  POST /session/{session_id}/level/confirm
+  POST /session/{session_id}/resume
+CORS   access-control-allow-origin: https://pmaiinterviewpanel.netlify.app
+Netlify bundle contains "Interview Planner", "Case Architect", "Waiting to start";
+        "Agent activity will appear" is GONE
+```
+
+**⬜ NOT VERIFIED: nobody has driven the actual repro.** The fix was confirmed at the API and bundle
+level only. **A browser upload of a real PDF is still unexercised**, and the deployed path runs PDF
+text extraction, which the local CV run bypassed by using pasted text. If extraction yields
+materially different text the level may differ from the locally measured `Senior PM` / `8.0`.
+
+**Standing lesson: `make test` and the golden suites cannot see any of this.** Every defect in this
+entry lived between the repo and production, or in an input no fixture resembles. **A deploy check
+belongs in the loop** — `curl .../openapi.json` costs nothing and would have caught it on 31 July.
 
 **🔴 Defect 2, the worse one — A REAL RESUME DOES NOT FIT IN THE 8,000 TPM CEILING.**
 
