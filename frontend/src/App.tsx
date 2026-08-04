@@ -80,7 +80,12 @@ function App() {
         return (
           <UploadSurface
             getOrCreateSessionId={getOrCreateSessionId}
-            onUploadComplete={() => void beginAssessment()}
+            // Takes the id from the upload rather than from `sessionId`
+            // above: on the FIRST upload this closure is created while
+            // `sessionId` is still null, and passing nothing left the
+            // Resume Analyst on "Waiting to start" forever. See
+            // lib/levelAssessment.ts.
+            onUploadComplete={(uploadedSessionId) => void beginAssessment(uploadedSessionId)}
           />
         )
     }

@@ -36,7 +36,16 @@ describe('useLevelAssessment', () => {
     submitLevelCorrection.mockReset()
   })
 
-  it('starts idle and does nothing when there is no session yet', async () => {
+  // 🔴 CHANGED 2026-08-04, deliberately. This test previously asserted that
+  // `beginAssessment()` with no session stayed on `idle` and did nothing --
+  // it encoded the silent no-op AS THE INTENDED BEHAVIOUR, and that is what
+  // shipped the production hang: a real candidate's upload succeeded, the
+  // callback fired with a null session, this returned silently, and the
+  // Resume Analyst sat on "Waiting to start" forever with no error anywhere.
+  // Staying on `idle` is indistinguishable from a hang to the candidate, so
+  // the correct behaviour is to say so. See App.test.tsx for the seam-level
+  // regression test.
+  it('reports an error rather than silently doing nothing with no session', async () => {
     const { result } = renderHook(() => useLevelAssessment(null))
     expect(result.current.state).toEqual({ kind: 'idle' })
 
@@ -44,8 +53,21 @@ describe('useLevelAssessment', () => {
       await result.current.beginAssessment()
     })
 
-    expect(result.current.state).toEqual({ kind: 'idle' })
+    expect(result.current.state.kind).toBe('error')
     expect(startLevelAssessment).not.toHaveBeenCalled()
+  })
+
+  it('assesses the session id it is HANDED, even when its own is still null', async () => {
+    // The actual fix. On the first upload the hook's `sessionId` is null,
+    // because the session is created BY that upload -- so the id has to come
+    // in as an argument rather than from state that has not propagated yet.
+    const { result } = renderHook(() => useLevelAssessment(null))
+
+    await act(async () => {
+      await result.current.beginAssessment('sess-from-upload')
+    })
+
+    expect(startLevelAssessment).toHaveBeenCalledWith('sess-from-upload')
   })
 
   it('moves idle -> assessing -> ready on a successful assessment', async () => {

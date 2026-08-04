@@ -2588,6 +2588,65 @@ Phase 5.
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
 
+**🔴🔴 2026-08-04 (session 9) · THE UPLOAD SILENTLY NEVER STARTED THE RESUME ANALYST IN PRODUCTION.
+A stale closure, in the seam between three individually-tested components.**
+
+Karthik uploaded his CV to the fixed deployment. The upload succeeded, the new three-agent column
+rendered, and **the Resume Analyst sat on "Waiting to start" forever.** No error in the browser, none
+in the backend, because nothing failed. The handoff simply never happened:
+
+```
+1  candidate picks a file while `sessionId` is still null
+2  UploadSurface's async handler captures onUploadComplete from THAT render,
+   and App's `beginAssessment` useCallback([sessionId]) closed over null too
+3  the upload creates the session and succeeds
+4  it calls the CAPTURED callback -> `if (!sessionId) return`  <- silent
+5  state stays `idle` -> App re-renders UploadSurface, showing "Resume received"
+```
+
+**The silent `return` is the actual defect**, not the closure. A no-op is indistinguishable from a
+hang to the candidate, and it converted a race into an invisible dead end.
+
+**Fixed by passing the id the resume was actually uploaded against** —
+`onUploadComplete(sessionId)` -> `beginAssessment(uploadedSessionId)`. That removes the race rather
+than narrowing it: the upload already knows its session, so nothing waits on a React state update.
+The no-session path now sets an error state instead of returning.
+
+**🔴 An existing test had encoded the defect AS INTENDED BEHAVIOUR** —
+`levelAssessment.test.ts`'s *"starts idle and does nothing when there is no session yet"* asserted
+`{kind: 'idle'}`. That is how this survived review, and it is the most useful thing in this entry:
+a green suite was actively certifying the hang. Rewritten to assert the error state.
+
+**Why nothing caught it: the defect lived in the SEAM.** `UploadSurface`, `useCandidateSession` and
+`useLevelAssessment` were each correct and each individually tested. Only mounting them together,
+starting from a null session, shows it. **`frontend/src/App.test.tsx` is new and exists for exactly
+this**, and it is falsified, not assumed:
+
+```
+fix reverted   2 failed | 1 passed    "expected vi.fn() to be called at least once"
+fix restored   84 passed (was 80)
+```
+
+**2026-08-04 (session 9) · `case_world` write-once is ENFORCED and FALSIFIED, closing 2.3's last box.**
+
+It was previously enforced by nothing at all — `0001_initial_schema.sql` said as much in its own
+words ("Nothing enforces that in the database; it is a graph-level invariant"), with no state guard
+and no test either. `0003_case_world_write_once.sql` adds `unique (session_id)`, following the
+precedent set by `transcript_turns` two tables up in the same file, for the same stated reason: a
+re-running node must produce a conflict rather than a silent duplicate. These are generative agents,
+so a second write would not duplicate the first, it would DISAGREE with it.
+
+```
+applying 0003_case_world_write_once.sql ... ok
+case_worlds_session_id_key   CREATE UNIQUE INDEX ... ON public.case_worlds USING btree (session_id)
+tests/test_case_world.py     3 passed
+```
+
+The rejection is watched, not inferred: the second insert raises `UniqueViolation` and the original
+world is still the one in the table. Guarded against vacuity by a positive control (the first write
+succeeds) and a per-session control (two sessions each get their own world, so a constraint on the
+wrong column cannot pass).
+
 **🔴🔴 2026-08-04 (session 9) · THE DEPLOYED PRODUCT HAS BEEN BROKEN SINCE 2026-07-31, AND THE FREE
 TIER CANNOT LEVEL A REAL RESUME. Two separate defects, found by Karthik uploading his own CV.**
 

@@ -129,7 +129,13 @@ interface UploadSurfaceProps {
   // uses this to kick off the Resume Analyst (`level_candidate`) the
   // moment a resume is ready -- UploadSurface itself stays ignorant of what
   // happens after a successful upload, same boundary as `getOrCreateSessionId`.
-  onUploadComplete?: () => void
+  //
+  // It RECEIVES THE SESSION ID it uploaded against, and that argument is
+  // load-bearing: on the first upload the caller's own `sessionId` state is
+  // still null when this callback is captured, so a zero-argument version
+  // left the caller unable to tell which session to assess. That shipped as
+  // a silent hang (see lib/levelAssessment.ts's `beginAssessment`).
+  onUploadComplete?: (sessionId: string) => void
 }
 
 export function UploadSurface({ getOrCreateSessionId, onUploadComplete }: UploadSurfaceProps) {
@@ -152,7 +158,7 @@ export function UploadSurface({ getOrCreateSessionId, onUploadComplete }: Upload
         setState({ kind: phase, fileName: file.name })
       })
       setState({ kind: 'done', fileName: file.name })
-      onUploadComplete?.()
+      onUploadComplete?.(sessionId)
     } catch (err) {
       if (err instanceof ApiError) {
         // Already written for the candidate to read (backend/app/resume.py) --

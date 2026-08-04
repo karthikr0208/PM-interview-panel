@@ -34,19 +34,50 @@ function errorMessage(err: unknown, fallback: string): string {
 export function useLevelAssessment(sessionId: string | null) {
   const [state, setState] = useState<LevelAssessmentState>({ kind: 'idle' })
 
-  const beginAssessment = useCallback(async () => {
-    if (!sessionId) return
-    setState({ kind: 'assessing' })
-    try {
-      const analysis = await startLevelAssessment(sessionId)
-      setState({ kind: 'ready', analysis })
-    } catch (err) {
-      setState({
-        kind: 'error',
-        message: errorMessage(err, 'Could not assess your level. Please try again.'),
-      })
-    }
-  }, [sessionId])
+  /**
+   * `uploadedSessionId` is the id the resume was ACTUALLY uploaded against,
+   * handed over by `UploadSurface`. It is not a convenience parameter.
+   *
+   * 🔴 Without it this function silently did nothing on the real candidate
+   * journey, and the bug shipped to production (observed 2026-08-04). The
+   * first file is chosen while `sessionId` is still null, so the
+   * `onUploadComplete` callback captured by `UploadSurface`'s async handler
+   * closes over the render where this `useCallback` also saw null. The upload
+   * then creates the session and succeeds, calls that captured callback, and
+   * the old `if (!sessionId) return` guard returned silently -- leaving the
+   * state machine on `idle`, which re-renders the upload surface in its
+   * success state. To the candidate the resume uploads fine and the Resume
+   * Analyst sits on "Waiting to start" forever.
+   *
+   * Passing the id through removes the race rather than narrowing it: the
+   * upload already knows which session it used, so nothing has to wait for a
+   * React state update to propagate.
+   */
+  const beginAssessment = useCallback(
+    async (uploadedSessionId?: string) => {
+      const id = uploadedSessionId ?? sessionId
+      if (!id) {
+        // Never silent. A no-op here is indistinguishable from a hang to the
+        // candidate, which is exactly how the defect above survived review.
+        setState({
+          kind: 'error',
+          message: 'Your session was lost before we could read your resume. Please try again.',
+        })
+        return
+      }
+      setState({ kind: 'assessing' })
+      try {
+        const analysis = await startLevelAssessment(id)
+        setState({ kind: 'ready', analysis })
+      } catch (err) {
+        setState({
+          kind: 'error',
+          message: errorMessage(err, 'Could not assess your level. Please try again.'),
+        })
+      }
+    },
+    [sessionId],
+  )
 
   const confirmLevel = useCallback(
     async (level: Level) => {
