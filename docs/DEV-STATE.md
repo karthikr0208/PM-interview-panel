@@ -25,11 +25,24 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**🟢 SESSION 9 (2026-08-04) CLEARED SESSION 8's DIRTY TREE. Both agents are committed and both have
-been smoked live. `git status` is clean.** Session 8's two uncommitted agent files turned out to be
-sound, exactly as it predicted, but **neither passed its golden case as written** — the smokes found
-four real defects, one of them in shared code that had been silently swallowing every schema
-failure Groq rejects server-side. See § Session 9 below.
+**🟢 PHASE 2 IS COMPLETE AND THE DEPLOYED PRODUCT WORKS END TO END. Confirmed by Karthik in a
+browser on 2026-08-04**, after four days of production being silently broken. `git status` is clean,
+everything is pushed, and both Render and Netlify serve current `main`.
+
+**Session 9 was mostly a bug-finding session, and none of the bugs were findable by the test
+suites.** Session 8's two uncommitted agent files were sound, but neither passed its golden case;
+the smokes found four defects. Then a real CV found three more, in places nine sessions of green
+suites could not see:
+
+| Defect | Where it hid |
+|---|---|
+| `app/llm.py` never retried Groq's schema rejections | A schema failure arriving as a transport exception |
+| Deployed backend four days stale, serving Phase 0 | Between the repo and production |
+| A real resume does not fit the 8,000 TPM ceiling | An input no golden fixture resembles |
+| The upload never started the Resume Analyst | The **seam** between three individually-tested components |
+
+**The last one is the most instructive: an existing test was CERTIFYING the bug**, asserting that a
+missing session should silently do nothing. See § Decisions 2026-08-04.
 
 **🔴 CALIBRATION CHANGED 2026-08-02: this is a PORTFOLIO artifact, not a production system.**
 Sanity-level verification (~15k a phase, not ~150k), agents default to `fast`, build targets a thin
@@ -100,7 +113,7 @@ toggle no script can flip.** See Blockers.
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
-| 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04. Code-complete; 3 of 4 gate conditions met.** Both agents smoked, **the full `confirm_level -> generate_case_world -> plan_interview` chain runs end to end live**, both agents in the orchestration column. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS. Owed: falsify `case_world` write-once | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **159 offline, 80 vitest**, chain proven live |
+| 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | ⬜ not started — **spec WRITTEN 2026-08-04, thin: 3 stories, asks 2-3 questions, does NOT score.** Start at 3.1, which is zero-quota | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
@@ -2064,43 +2077,64 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🟢 SESSION 9 ENDED CLEAN. `git status` IS CLEAN. **PHASE 2 IS CODE-COMPLETE — all seven stories.**
+## 🟢 SESSION 9 ENDED CLEAN, 2026-08-04. PHASE 2 IS COMPLETE. PRODUCTION WORKS.
 
-**Run these two first (~15s, free, no LLM):**
+**`git status` is clean and everything is pushed.** Both Render and Netlify serve current `main`,
+and **Karthik confirmed a real CV uploading and levelling in a browser** — the first time the
+deployed product has worked end to end.
+
+**Run these three first (~30s, free, no LLM):**
 
 ```
 cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 159 passed, 82 deselected
-cd frontend && npm test -- --run                                          # expect 80 passed
+cd frontend && npm test -- --run                                          # expect 84 passed
+curl -s https://pm-interview-panel.onrender.com/openapi.json              # expect FOUR /session routes
 ```
 
-**Note the 159.** It was 147 at the start of session 9. The twelve new tests: three on `app/llm.py`'s
-schema-rejection retry, seven on the two golden suites' repaired assertions, two closing a hole in
-the em-dash guard. **The 60 offline figure quoted further down this file is stale** — it predates
-Phase 2's suites.
+**🔴 The third is new and it is not optional.** Production was broken for four days and **no test
+suite could see it** — a failed Render deploy keeps serving the last healthy build, so `/health`
+stayed green the whole time. It costs nothing. If `/session/{session_id}/level` is missing, stop and
+read § Decisions 2026-08-04 before anything else.
 
-### 🟢 PRODUCTION IS CURRENT AS OF 2026-08-04, and it had been broken since 31 July
+**Note the 159 / 84.** They were 147 / 74 at the start of session 9. **The "60 offline" figure
+further down this file is stale** — it predates Phase 2's suites.
 
-Both services now serve current `main`, verified by `curl`. **Add a deploy check to the loop** —
-`curl https://pm-interview-panel.onrender.com/openapi.json` costs nothing and would have caught a
-four-day outage that no test suite can see. See § Decisions 2026-08-04.
+### Start here: story 3.1, and it costs ZERO tokens
 
-**The one thing still unexercised: a real PDF uploaded through the browser.** Every fix was
-confirmed at the API and bundle level. The deployed path runs PDF text extraction, which the local
-CV run bypassed.
+**Phase 3 is specced and thin** — read [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) first. Three
+stories, the Interviewer asks 2-3 questions, answers are NOT scored (that is Phase 4).
 
-### 🔴 TWO THINGS FOR KARTHIK, and neither is a code task
+**Story 3.1 = `AGENT-INTERVIEWER-SPEC.md` + its golden fixtures, written BLIND, before any prompt.**
+No LLM budget at all. Phase 2 proved that half is where the leverage is: four defects came out of
+it. Worth doing on a fresh morning bucket precisely *because* it does not need one.
 
-Both are "read it and say whether it looks right", both need the deployed app, and **both compete
-for the same `deep` bucket** (~5,000 tokens per resume for `level_candidate`).
+### 🔴 TWO OPEN DEFECTS, seen in real output, deliberately NOT chased
 
-1. **Phase 1 gate #4, still open since 2026-08-02** — upload a real resume at
-   `https://pmaiinterviewpanel.netlify.app` and say whether the level is right. Backend cold-starts
-   in 32-42s. **Nobody has seen the confirmation screen in a browser.**
-2. **Phase 2 gate #4 — read a generated case world and say whether you believe it.** This is the
-   one that matters for Phase 2 and it is new. Confirming a level now runs the Case Architect and
-   the Planner too, so the same upload produces both.
+Neither breaks a demo, so the portfolio calibration says record and move on. But **both violate
+rules their own golden suites already encode**, which is the clearest evidence yet that one smoked
+case per agent is thinner than it looks.
 
-**Do not hold Phase 3 for either.**
+1. **The Planner shipped em-dashes into candidate-facing questions** (`"...startup—how would you"`).
+   Its prompt bans them and `no_dash_variants` would catch them. **Prompting has now failed twice to
+   enforce a mechanical rule.** The recommended fix is deterministic, not another prompt line:
+   strip dash variants from generated candidate-facing text, per CLAUDE.md § Style ("prefer
+   deterministic Python where the decision can be made from state"). Free to build, free to test,
+   and it would protect Phase 3's prose-heavy Interviewer *before* it is written.
+2. **The Case Architect produced round figures** — `arr_usd "$150M"`, `"$50M AI innovation budget"`,
+   `customer_count 500000`. `is_round_dollar_amount` covers `arr_usd`/`size_usd` but **nothing checks
+   `supporting_facts` free text or `customer_count`**. Widen the assertion first, then fix the prompt.
+
+### 🔴 THREE THINGS ONLY KARTHIK CAN DO
+
+1. **Phase 1 gate #4 — the flow works, but whether the LEVEL is right is STILL UNRECORDED.** His CV
+   produced `Senior PM`, `years_pm_experience 8.0`. Per the rubric that is defensible: GPM requires
+   managing PMs, and the CV shows portfolio scope with no direct reports. **If he thinks a 15-year AI
+   Product Leader should read GPM, that is a rubric change, not a bug.**
+2. **Phase 2 gate #4** — read a generated `case_world` and say whether the company could exist.
+3. **A `deep` budget decision.** The Planner needs `deep` at ~6,000 per run and the Resume Analyst
+   ~5,000, so ~35 candidate journeys a day, shared with all development.
+
+**Do not hold Phase 3 for any of them.**
 
 ### Phase 3 — `PHASE-3-SPEC.md` is WRITTEN, 2026-08-04. Start at story 3.1.
 
@@ -2134,21 +2168,37 @@ passes; nothing has watched a *second* write be rejected. Copy story 0.6's idemp
 falsification — build the wrong graph, confirm it is caught. The spec is explicit that an
 immutability rule nobody has seen reject a write is a comment, not an assertion.
 
-### 🔴 Budget, measured at session 9's end, and it is HEALTHY
+### 🔴 Budget at session 9's end — `deep` is HEAVILY SPENT, and tomorrow starts fresh
 
 ```
-deep (gpt-oss-120b)   ~45,000 / 200,000 used     6 planner runs + 1 chain run
-fast (gpt-oss-20b)    ~25,000 / 200,000 used     4 case architect runs + 2 failed planner attempts
+deep (gpt-oss-120b)   ~130,000-150,000 / 200,000 estimated, NOT measured at close
+fast (gpt-oss-20b)    ~30,000 / 200,000
 ```
 
-Both buckets are in good shape, unlike sessions 7 and 8. **Story 2.7 cost ZERO tokens and writing
-`PHASE-3-SPEC.md` costs zero**, so the next session can spend nearly a full budget on Phase 3
-implementation.
+The `deep` spend: 6 Planner golden runs, 1 live chain run, 4 full-chain runs on Karthik's real CV
+while sizing the TPM budget, and 4 Resume Analyst golden cases re-gating the prompt diet. **Estimated,
+not measured — no probe was run at close.** Rolling window refilling ~138/min, so a genuinely full
+bucket is ~24h from about 21:30 IST on 2026-08-04.
 
-**Session 9's pattern, worth repeating:** the expensive half of this session was five `deep` runs on
-ONE golden case, iterating on prompts and assertions. The cheap half — 2.7, the guard hole, the
-Realtime re-check, all the docs — cost nothing at all. **Front-load the zero-quota work; it is
-consistently where the real defects turn up.**
+**Story 3.1 needs none of it**, which is why it is the recommended start.
+
+**Session 9's pattern, worth repeating:** the expensive half was iterating `deep` on ONE case. The
+cheap half — story 2.7, the em-dash guard hole, the Realtime re-check, the write-once falsification,
+the whole deployment diagnosis, all the docs — **cost nothing at all, and found more.** Front-load
+the zero-quota work.
+
+### 🔴 The lesson session 9 exists to teach
+
+**Seven defects, and not one was findable by `make test`.** Four came from smoking two golden cases;
+three came from a real CV and a real browser. They lived in: a schema failure wearing a transport
+exception's clothes, the gap between the repo and production, an input no fixture resembles, and the
+**seam** between three individually-tested components — where an existing test was actively
+certifying the bug.
+
+**What follows for the remaining phases:** the free checks that pay are the ones pointed at
+*integration and reality*, not at more unit coverage. A `curl` of `/openapi.json`, one real input
+through the whole chain, and one App-level test per seam. All three are cheap; all three caught
+something today.
 
 ### If you are tempted to make the Planner green, read this first
 
