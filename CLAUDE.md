@@ -141,6 +141,8 @@ Every entry below is a real failure from this project, not a hypothetical.
 | Add or rename a command | `Makefile` **and** the Commands table below — the Makefile's own header says do not rename one without the other |
 | Change an agent prompt | Golden cases must pass **first** |
 | Create database objects, or change anything shared | Run the **entire** live suite, not just the file you wrote. Story 0.5 broke two of 0.4's tests by adding tables to the same schema; the offline suite stayed green at 21 passed throughout and every per-file run passed |
+| **Add or rewire a node in `app/graph/build.py`** | **Re-run every live test file that builds a graph, not just the one you edited.** The graph is a shared object exactly like the schema is. Story 3.2 extended it past `confirm_level` and silently broke `test_confirm_level.py`'s single-call test — the one its own docstring calls load-bearing. The offline suite stayed green at 213 passed, and the break shipped in `08d8dba` because only the edited file was re-run. See DEV-STATE § Decisions 2026-08-05 |
+| **Report a suite as passing** | Read the **deselected** count, not just the passed count. Twice on 2026-08-05, `N passed, M deselected` was treated as verification when the deselected M were the only tests that observed the property in question. **Deselected is not passed** |
 | Diverge from `ARCHITECTURE.md` | Log it under DEV-STATE § Decisions. **Do not edit ARCHITECTURE.md** — decisions supersede it, and rewriting history there destroys the audit trail |
 
 **The scripts row is the one that bites.** On 2026-07-30, `check_env.py` still required a

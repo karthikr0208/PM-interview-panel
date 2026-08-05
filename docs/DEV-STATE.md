@@ -189,6 +189,34 @@ Defined in `docs/specs/PHASE-0-SPEC.md`.
 
 ---
 
+### Session 10 — 2026-08-05 — Phase 1 closed, Phase 3 half built, and "deselected is not passed"
+
+**Four commits: `b485cb6`, `08d8dba`, `3056bf8`, `1ba75cd`.** Tree clean, nothing deployed.
+
+| Delivered | Evidence |
+|---|---|
+| **Story 3.1** — agent spec + 5 blind golden fixtures | **Zero tokens.** Suite deliberately RED in 0.17s, before any network call |
+| **Story 3.2** — the conduct loop, routes, falsification, HTTP proof | 221 offline · 3 live · 2 golden smokes on `fast` · 3 questions over 3 real HTTP requests |
+| **The bridge deleted** | Measured a constant function across 6 varied inputs. Karthik's call |
+| **Phase 1 gate #4 closed** | Premise rejected: seniority is company-relative. Propagation asserted and falsified |
+
+**Four things were found by re-verifying rather than by reading a report**, which is the pattern
+worth repeating:
+
+1. `ungrounded_figures` was a substring search, so `"roughly 7 designers"` PASSED against a world
+   containing no 7 — blind to exactly the figures a model invents, and sitting on top of fixture 3's
+   headcount premise.
+2. A `getattr(result, "bridge", None)` guard that could only ever no-op, reading as coverage while
+   asserting nothing.
+3. Three live tests that had never run and could never pass, leaving the phase's central proof half
+   complete.
+4. A load-bearing test I broke myself in `08d8dba` and shipped.
+
+**The expensive half of this session was two full chain runs. The cheap half — the spec, the blind
+fixtures, the figure-check fix, the guard falsification, the six-sample bridge probe, all the docs —
+cost almost nothing and found everything.** Same finding as session 9. Front-load the zero-quota
+work.
+
 ### Session 9 — 2026-08-04 — the two smokes, and what they actually found
 
 **Session 8's prediction held: the uncommitted agents were sound, not abandoned drafts.** Both are
@@ -2081,25 +2109,35 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🟢 SESSION 10, 2026-08-05. STORIES 3.1 AND 3.2 ARE DONE. THE INTERVIEW LOOP RUNS OVER HTTP.
+## 🟢 SESSION 10, 2026-08-05. PHASE 1 IS COMPLETE. STORIES 3.1 AND 3.2 DONE. THE INTERVIEW RUNS.
+
+**`git status` is clean. Four commits, all pushed to local `main`:**
+
+```
+1ba75cd  Close Phase 1 gate #4, and prove a corrected level drives the interview
+3056bf8  Delete the bridge LLM call: it was measured to be a constant function
+08d8dba  Story 3.2: the conduct loop, with the looping interrupt falsified on both sides
+b485cb6  Story 3.1: Interviewer spec and blind golden fixtures, at zero token cost
+```
 
 **Run these three first (~30s, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 221 passed, 94 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 221 passed, 95 deselected
 cd frontend && npm test -- --run                                          # expect 84 passed
 curl -s https://pm-interview-panel.onrender.com/openapi.json              # expect the /session routes
 ```
 
-**🔴 The third will now be SHORT of what is deployed.** Story 3.2 added
-`POST /session/{id}/interview/reply` and changed `/level/confirm`'s response, and **none of it is
-pushed or deployed.** Production still serves session 9's build. That is fine and expected — but
-**do not read a passing `/health` as "production is current"**; that is exactly the four-day failure
-of session 9.
+**🔴 The third will be SHORT of what the repo has, and that is expected, not a fault.** Story 3.2
+added `POST /session/{id}/interview/reply` and changed `/level/confirm`'s response; **none of it is
+pushed to GitHub or deployed.** Production still serves session 9's build. **Do not read a passing
+`/health` as "production is current"** — that is precisely the four-day failure of session 9. Run
+the `curl` and read the route list.
 
 ### 🔴 Start here: story 3.3, the interview UI — and it needs NO LLM budget
 
-`PHASE-3-SPEC.md` § 3.3. Six acceptance boxes. The backend it talks to is built and proven.
+`PHASE-3-SPEC.md` § 3.3. Six acceptance boxes. The backend it talks to is built and proven end to
+end over real HTTP.
 
 - The question is revealed **whole, never streamed token by token** (design v1: no typewriter).
 - Answer and clarify are **visibly distinct actions**, and the API already separates them:
@@ -2111,26 +2149,60 @@ of session 9.
   2.7 proved that is all a new agent needs.
 - **No persona header, no interviewer name.** Binding since 2026-07-31.
 - **No em-dashes in anything rendered from model output.** The Interviewer generates prose at
-  runtime, which `test_user_facing_copy.py` cannot see.
+  runtime, which `test_user_facing_copy.py` cannot see. (The transition lines between questions ARE
+  covered statically now — they are source strings, not generated.)
 
-**The third is not optional.** Production was broken for four days in session 9 and no test suite
-could see it — a failed Render deploy keeps serving the last healthy build, so `/health` stays green.
-Verified passing at the start of session 10.
+**One question worth putting to Karthik while building 3.3:** the level selector on
+`ConfirmationScreen.tsx` has existed since story 1.6b, but he asked for it on 2026-08-05 as though it
+were missing. **It may not be prominent enough in the browser.** That is a UI-prominence judgment,
+not a missing feature — see § Decisions 2026-08-05.
 
-### 🔴 ONE thing story 3.2 found that Phase 4 inherits
+### 🔴 Budget at session 10's close — `fast` is SPENT, `deep` has room
 
-**`transcript_turns` holds NO candidate answers** — only the Interviewer's own utterances get a row.
-A completed interview stores 3 questions and 1 clarification and zero answers. **Phase 4's
-`answer_evaluations.turn_idx` references `transcript_turns.idx`, so Phase 4 cannot attach a score to
-an answer that has no row.** Decide this before Phase 4 starts, not during it.
+```
+fast (gpt-oss-20b)    197,178 / 200,000   MEASURED, off a 429 body. Effectively exhausted.
+deep (gpt-oss-120b)   ~35,000 / 200,000   estimated: 2 full chain runs + a few Planner calls
+```
 
-*(The second finding, the repetitive bridge, was resolved the same day — see Decisions. The LLM call
-was measured to be a constant function and deleted.)*
+Rolling window refills at ~138 tokens/min, so `fast` is genuinely usable again roughly 24h from
+about 13:00 IST on 2026-08-05. **Story 3.3 needs neither**, which is why it is the recommended start.
+
+### 🔴 TWO defects carried out of this session, both recorded and NOT chased
+
+1. **`transcript_turns` holds NO candidate answers** — only the Interviewer's own utterances get a
+   row. A completed interview stores 3 questions and 1 clarification and zero answers. **Phase 4's
+   `answer_evaluations.turn_idx` references `transcript_turns.idx`, so Phase 4 cannot attach a score
+   to an answer that has no row.** **This is the one to settle before Phase 4 starts, not during.**
+2. **`years_pm_experience` reports 8.0 where the true value is 10** (Karthik's CV, PM from 2016).
+   No longer gates anything now the level is candidate-selected, but it is shown to the candidate
+   and feeds `level_rationale`. Reference value recorded for any future re-gate.
+
+*(A third, the repetitive bridge, was resolved the same day — see Decisions. The LLM call was
+measured to be a constant function and deleted.)*
+
+### 🔴 The lesson session 10 exists to teach, and it cost twice
+
+**"Deselected is not passed."** It bit two separate times, one commit apart:
+
+- A subagent reported `14 passed, 3 deselected` on `test_conduct_loop.py` and called story 3.2
+  verified. **The 3 deselected were the only tests that observe the property the phase exists to
+  prove**, and all three died instantly on `KeyError: 'resume_text'`. Worse, the falsification script
+  only ever runs the WRONG graph, so the correct-side observation lived entirely in those dead tests
+  — **the phase's central proof was half complete and looked finished.**
+- Then **I did the same thing.** Story 3.2 extended the graph past `confirm_level`, breaking
+  `test_resume_analyst_llm_call_fires_exactly_once_across_the_confirm_cycle` — the test that file's
+  own docstring calls THE load-bearing one. I verified the subagent's fix to a *different* stale
+  assertion in that same file and never ran the rest of it. **Committed broken in `08d8dba`, found
+  and fixed in `1ba75cd`.**
+
+**The rule that follows: when a change touches the GRAPH, re-run every live file that builds a
+graph, not just the one you edited.** CLAUDE.md already says this for shared database objects
+(story 0.5's row); the graph is the same kind of shared object and the table does not say so.
 
 ### What 3.2 delivered, with the numbers
 
 ```
-offline        221 passed, 94 deselected, 1 warning in 4.26s     (was 199/91)
+offline        221 passed, 95 deselected, 1 warning in 4.41s     (was 199/91)
 live loop      3 passed, 20 deselected in 28.78s
 golden smoke   apm_consumer_world        PASS on fast, retry_fired=False
                senior_pm_platform_world  PASS on fast, retry_fired=True   (the refusal branch)
