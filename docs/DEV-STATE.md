@@ -36,7 +36,17 @@ at 197,178/200,000 at session 10's close. It also closed the em-dash-on-model-ou
 
 **🟢 AND IT IS ALL DEPLOYED.** Six commits pushed 2026-08-05 (`bc44041..db4eaf7`); Render and
 Netlify both serve current `main`, verified by route list and by grepping the served bundle rather
-than by trusting a dashboard. **The deployed site can run an interview for the first time.**
+than by trusting a dashboard.
+
+**🟢🟢 PHASE 3 IS COMPLETE. GATE #4 IS CLOSED.** Karthik sat a real interview on the deployed stack
+on 2026-08-05: the whole flow ran with **no bugs**, on **both the answer and the clarify path**, and
+an adversarial clarifying question got a **correct refusal instead of an invented fact** — the one
+failure mode ARCHITECTURE §9 says nothing can detect at runtime.
+
+**🔴 The open work is question QUALITY, and it belongs to the PLANNER, not the Interviewer.** Two
+defects across three served questions: a decorative statistic stapled to the front (2 of 3), and one
+question answerable by reciting the case back. **Karthik is bringing his own examples before the
+prompt is touched.** See § Decisions and § Next session.
 
 **🟢 PHASE 2 IS COMPLETE AND THE DEPLOYED PRODUCT WORKS END TO END. Confirmed by Karthik in a
 browser on 2026-08-04**, after four days of production being silently broken. `git status` is clean,
@@ -127,7 +137,7 @@ toggle no script can flip.** See Blockers.
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
-| 3 Interviewer + conduct loop | 🟢 **ALL THREE STORIES DONE 2026-08-05. 3 of 4 gate conditions met.** Loop built, **the looping interrupt falsified on BOTH sides**, 2 golden cases smoked on `fast`, chain runs end to end over real HTTP, and the interview UI is built with **TRAP 2 and the dash guard falsified by deliberate mutation**. The em-dash ban on model output is now **deterministic, not prompted**. Gate #4 (an interview Karthik sits and believes) is HIS and still open | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, chain proven over HTTP |
+| 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -141,7 +151,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 |---|---|---|---|
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 written blind 2026-08-02. **1 of 7 smoked live 2026-08-04: `apm_consumer` PASSES on `fast`.** Other 6 never run. 47 offline assertion tests | 2026-08-04 — placeholder ban + ACV market conditioning. **~3,400 chars, ceiling ~15,557** |
-| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 written blind 2026-08-02. **1 of 5 smoked live 2026-08-04, 5 runs: grounding/coverage/timing/immutability all pass, genericness FLAPS 1-of-7-questions.** Accepted, see Decisions | 2026-08-04 — grounding verbatim rules, value-only entries, company name in every question. **~4,300 chars, ceiling ~12,197. Runs on `deep`, NOT `fast`** |
+| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 written blind 2026-08-02. **1 of 5 smoked live 2026-08-04, 5 runs: grounding/coverage/timing/immutability all pass, genericness FLAPS 1-of-7-questions.** Accepted, see Decisions. **🔴 QUALITY WORK OPEN as of 2026-08-05: decorative stats and recitation-shaped questions, observed live. Assertions to widen BEFORE the prompt** | 2026-08-04 — grounding verbatim rules, value-only entries, company name in every question. **~4,300 chars, ceiling ~12,197. Runs on `deep`, NOT `fast`** |
 | Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — written 2026-08-05, **before the prompt** | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests. **2 of 5 smoked live on `fast` 2026-08-05: `apm_consumer_world` (no retry) and `senior_pm_platform_world` (the refusal branch, retry fired then passed).** Other 3 never run | 2026-08-05 — bridge **1,099 chars**, clarification **2,728 chars**, ceiling ~20,000. **Runs on `fast`, measured** |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
@@ -2164,18 +2174,43 @@ strings, nothing else.
 a pre-story positive control** so the grep cannot pass vacuously. That test is env-independent and
 is what actually confirmed the deploy.
 
-### 🔴 Start here: SIT THE INTERVIEW. That is the whole remaining Phase 3 gate.
+### 🟢 GATE #4 IS CLOSED. PHASE 3 IS COMPLETE. The interview was sat and the flow worked.
 
-Everything is built, green and deployed. What is missing is that **Karthik has never seen it**, and
-gate #4 is exactly "an interview he sits and believes".
+Karthik ran a real interview against the deployed stack on 2026-08-05 and reported **no bugs**.
+**Both paths were exercised**, and an adversarial clarifying question produced a **correct refusal
+rather than an invented fact** — see § Decisions for why that is the session's most valuable result.
 
-1. **Sit a real interview end to end at https://pmaiinterviewpanel.netlify.app.** Upload a CV,
-   correct the level, answer three questions, and **ask at least one clarifying question** — the
-   clarify path is the one with a live LLM call and the one the UI treats specially.
-2. **Budget it first.** A full journey is roughly one Resume Analyst call (~5,000 `deep`), one Case
-   Architect, one Planner (~6,000 `deep`), and one `fast` call per clarification. Check the budget
-   note below before starting, and do not start a journey you cannot finish.
-3. **Expect a cold start.** Render free tier measured 32.3s on first hit (story 0.8).
+### 🔴 Start here tomorrow: KARTHIK'S EXAMPLES, THEN THE PLANNER PROMPT. In that order.
+
+**Do not touch the prompt before his examples arrive.** He is bringing specific cases of what a good
+PM case-interview question looks like. That is a deliberate sequencing decision, not a delay: three
+observations is enough to name a problem and **not** enough to specify a fix, and **the Planner runs
+on `deep`** (measured 2026-08-04), so a speculative iteration is the expensive kind.
+
+**The work, once the examples land:**
+
+1. **Read § Decisions 2026-08-05, the gate-#4 entry.** The three questions actually served are
+   recorded there verbatim, with the two defects and the one strength. **That is the evidence base;
+   do not re-derive it.** Headline: a decorative statistic stapled to the front in 2 of 3, and Q1
+   answerable by reciting the case back. Q3 is the shape to generalize from.
+2. **The file to change is `docs/specs/agents/AGENT-PLANNER-SPEC.md` and the Planner's prompt in
+   `backend/app/agents/planner.py`.** 🔴 **NOT the Interviewer.** `ask_question` copies
+   `question_plan` byte for byte by design (§ Decisions 2026-08-05), so the Interviewer is faithfully
+   serving whatever the Planner wrote. Changing the Interviewer would fix nothing.
+3. **Widen the golden assertions BEFORE the prompt**, same order that worked in 3.1 and that
+   §"widen the assertion first" already prescribes for the Case Architect's round figures. A
+   decorative-statistic check is mechanical and cheap: a question that still parses the same with
+   its leading stat clause deleted is a question whose stat did no work.
+4. **Then change the prompt and run ONE golden case.** Per the portfolio calibration, not the full
+   set, not an A/B. Read the output, move on.
+
+**Budget note for that work:** the Planner needs `deep`, ~6,000 tokens a run. Do not start prompt
+iteration on a `deep` budget you have not checked.
+
+### The rest of Phase 3's handoff, now closed
+
+- **Deployed and verified**, both Render and Netlify (see above).
+- **Expect a cold start** on the first hit: Render free tier measured 32.3s (story 0.8).
 
 ### 🔴 Two things to watch while sitting it, both recorded and neither chased
 
@@ -3005,6 +3040,63 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟢🔴 2026-08-05 (session 11) · PHASE 3 GATE #4 IS CLOSED. THE FLOW WORKS. THE QUESTIONS ARE THE
+PROBLEM, AND THAT IS A PLANNER ISSUE, NOT AN INTERVIEWER ISSUE.**
+
+Karthik sat a real interview in the browser against the deployed stack and reported **the whole
+flow working smoothly with no bugs.** That closes the gate this phase existed to reach.
+
+**Scope of the pass, stated precisely: BOTH paths were exercised.** Three questions were served and
+advanced through, **and Karthik asked clarifying questions** — including one whose answer was not in
+`case_world`, **which the agent correctly refused rather than inventing.**
+
+**🟢 That last observation is the most valuable single result of the session.** ARCHITECTURE §9
+lists "the Interviewer improvises a fact `case_world` does not contain" as a failure mode with **no
+runtime detection** — no assertion, no log line, nothing catches it in production. A human asking an
+adversarial clarifying question is the *only* thing that ever could, and it was done, and **the
+refusal branch fired.** That matches golden fixture `senior_pm_platform_world`, the one that smoked
+PASS on `fast` with `retry_fired=True` on 2026-08-05.
+
+**One observation is not a measurement.** This is a single sample of a generative branch on a
+non-deterministic model, so it retires the risk far enough for a portfolio artifact and no further.
+The three golden fixtures that have never run are still the cheap way to strengthen it if it ever
+matters more.
+
+**The real finding is question QUALITY.** The Interviewer is doing its job correctly — `ask_question`
+copies `question_plan` byte for byte by design, so **every observation below is about the Planner's
+prompt, `AGENT-PLANNER-SPEC.md`, not the Interviewer's.**
+
+The three questions actually served, verbatim, as the evidence base:
+
+```
+Q1  At Nimbus Capital, how does the AI Risk Suite's current module mix support the company's
+    revenue model given the $12.3B market size and the 31.4% ARR growth last year?
+
+Q2  Considering Nimbus Capital's position in a market worth $12.3B, how does the competitive
+    landscape with LendWise Analytics influence your go-to-market strategy for the AI Risk Suite?
+
+Q3  Given Nimbus Capital's constraints, would you prioritize building the BehavioralRisk AI
+    module, improve existing modules, or target SME lending, and why?
+```
+
+Two defects, one strength:
+
+| Observation | Count | Detail |
+|---|---|---|
+| **Decorative statistic stapled to the front** | 2 of 3 | "given the $12.3B market size", "in a market worth $12.3B". The number does **no work** in the question and can be deleted without changing what is asked. Reads as the prompt reaching for `case_world` facts to make a question *feel* grounded |
+| **Recitation-shaped, not judgment-shaped** | 1 of 3 | Q1's "how does X support Y given Z" can be answered by summarizing the case back. A candidate can sound fine without exercising product judgment, which makes it **weak signal for the Evaluator in Phase 4** |
+| **Quality IMPROVES through the plan** | — | Q1 recitation + stat · Q2 judgment + stat · Q3 clean forced trade-off, no stat. The opener is the weakest slot, which suggests the later slots are better conditioned than the first |
+
+Q3 is the shape to generalize from: a **forced trade-off between materially different kinds of bet**
+(product expansion / quality / market expansion), impossible to answer by summarizing. Its one
+weakness is "given Nimbus Capital's constraints" without naming them, so the candidate must invent
+the constraint.
+
+**Deliberately NOT fixed on 2026-08-05.** Karthik is bringing his own specific examples of what good
+looks like before the prompt is touched, which is the right order: a prompt change driven by three
+observations is a guess, and **the Planner runs on `deep`** so iterating on it is the expensive kind.
+See § Next session.
 
 **🔴 2026-08-05 (session 11) · THE EM-DASH BAN ON MODEL OUTPUT IS NOW DETERMINISTIC, NOT PROMPTED.
 `stripDashes` runs at the frontend render boundary.**

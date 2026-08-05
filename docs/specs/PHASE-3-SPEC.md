@@ -152,10 +152,42 @@ Matching Phase 2's, per the portfolio calibration:
 
 ## Handoff
 
-**Verified by me, with evidence** — *to be filled in as the phase lands.*
+**Verified by me, with evidence**
 
-**Needs your eyes**
-- Does the interview feel like an interview, or like a form that asks questions?
-- Ask the Interviewer 3-5 adversarial clarifying questions and see whether it improvises a fact
-  `case_world` does not contain. **ARCHITECTURE §9 lists this failure with no runtime detection**,
-  so this manual pass is the only thing that catches it.
+```
+offline        221 passed, 95 deselected      backend
+vitest         113 passed, 13 files           frontend  (was 84 / 10)
+tsc --noEmit   clean
+vite build     ok
+live loop      3 passed, 20 deselected
+golden smoke   apm_consumer_world        PASS on fast, retry_fired=False
+               senior_pm_platform_world  PASS on fast, retry_fired=True  (refusal branch)
+falsification  looping interrupt: wrong graph 1 -> 3 -> 4 where a correct loop logs 2
+               TRAP 2:  clarification branch replaces the question  -> 2 failed
+               dashes:  stripDashes removed from render             -> 1 failed
+http proof     3 questions over 3 separate requests, clarification consumed no slot, done
+deploy         Render route list + served Netlify bundle both verified by content,
+               with a positive control
+```
+
+**Phase gate: 4 of 4.**
+
+1. ✅ `pytest tests -m "not live"` green — 221 passed
+2. ✅ One Interviewer golden case as a smoke — two ran, both PASS on `fast`
+3. ✅ Loop runs across real HTTP boundaries, single-call guarantee **falsified** not inspected
+4. ✅ **An interview Karthik sat and believed** — 2026-08-05, deployed stack, no bugs
+
+**Verified by Karthik, in the browser, 2026-08-05**
+- The whole flow runs smoothly with no bugs. Both the answer path and the clarify path.
+- ✅ **The adversarial-fact check passed.** He asked a clarifying question whose answer was not in
+  `case_world` and **the agent said so rather than inventing one.** ARCHITECTURE §9 lists this
+  failure with **no runtime detection**, so this manual pass was the only thing that could catch it.
+  One sample of a generative branch, which is proportionate for a portfolio artifact.
+
+**Still open, and it is quality rather than correctness**
+- **The generated questions are not good enough yet, and that is a PLANNER problem, not an
+  Interviewer one.** `ask_question` copies `question_plan` byte for byte by design. Two defects
+  observed across three served questions: a **decorative statistic** stapled to the front (2 of 3),
+  and one question answerable by **reciting the case back** rather than exercising judgment.
+  The three questions are recorded verbatim in DEV-STATE § Decisions 2026-08-05.
+  **Karthik is bringing his own examples of good questions before the prompt is touched.**
