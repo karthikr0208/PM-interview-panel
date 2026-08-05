@@ -34,6 +34,10 @@ are met; the open one is #4, an interview Karthik sits and believes — his to j
 at 197,178/200,000 at session 10's close. It also closed the em-dash-on-model-output rule
 **deterministically** after prompting had failed at it twice. See § Decisions 2026-08-05.
 
+**🟢 AND IT IS ALL DEPLOYED.** Six commits pushed 2026-08-05 (`bc44041..db4eaf7`); Render and
+Netlify both serve current `main`, verified by route list and by grepping the served bundle rather
+than by trusting a dashboard. **The deployed site can run an interview for the first time.**
+
 **🟢 PHASE 2 IS COMPLETE AND THE DEPLOYED PRODUCT WORKS END TO END. Confirmed by Karthik in a
 browser on 2026-08-04**, after four days of production being silently broken. `git status` is clean,
 everything is pushed, and both Render and Netlify serve current `main`.
@@ -2124,26 +2128,54 @@ cd frontend && npm test -- --run                                          # expe
 curl -s https://pm-interview-panel.onrender.com/openapi.json              # read the ROUTE LIST, not /health
 ```
 
-**🔴 The third is still SHORT of what the repo has, and nothing in session 11 changed that.**
-`POST /session/{id}/interview/reply` and `/level/confirm`'s `first_question` **have never been
-pushed to GitHub or deployed.** Production still serves session 9's build, so **the deployed site
-cannot run an interview** even though local `main` can. Do not read a passing `/health` as
-"production is current" — that was session 9's four-day failure.
+### 🟢 EVERYTHING IS DEPLOYED as of 2026-08-05, session 11. Verified, not assumed.
 
-### 🔴 Start here: DEPLOY, then sit the interview. That order.
+Six commits pushed (`bc44041..db4eaf7`). **Both Render and Netlify serve current `main`**, so for
+the first time the deployed site can actually run an interview:
 
-Everything Phase 3 needs is built and green locally. What is missing is that **Karthik has never
-seen it**, and gate #4 is exactly "an interview he sits and believes". So:
+```
+GitHub    bc44041..db4eaf7  main -> main
+Render    /session/{session_id}/interview/reply   present in the route list
+          /health                                 200  {"status":"ok"}
+          POST .../interview/reply  (no auth)     422, NOT 404   <- route genuinely wired
+Netlify   all five story-3.3 strings present in the SERVED bundle,
+          with a pre-3.3 positive control proving the grep works
+```
 
-1. **Push and deploy.** `git push`, confirm Render rebuilds, and re-run the `curl` above until
-   `/session/{id}/interview/reply` appears in the route list. Netlify needs a rebuild too, since
-   `lib/api.ts`, `App.tsx` and three new frontend files changed.
-2. **Sit a real interview end to end in the browser.** Upload a CV, correct the level, answer three
-   questions, and **ask at least one clarifying question** — the clarify path is the one with a live
-   LLM call and the one the UI treats specially.
-3. **Budget it first.** A full journey is roughly one Resume Analyst call (~5,000 `deep`), one Case
+Preflight before the push, all clean: no real `.env` ever committed (only the two `.env.example`),
+credential grep hit documentation placeholders only, **no migration in the six commits** (so this
+was a code-only deploy), no dependency manifest change, `npm run build` green.
+
+**The migration check is the one worth keeping.** Had 3.2 added a table, pushing would have
+deployed code expecting a schema production does not have. It cost one `git diff --name-only`.
+
+### 🔴 THE FALSE TEST THIS SESSION BUILT, AND WHY IT COULD NEVER HAVE WORKED
+
+**Do not verify a Netlify deploy by comparing the bundle hash to a local build.** It cannot work,
+and it read as a stale deploy for ten minutes:
+
+`VITE_*` env vars are **inlined into the bundle at build time** (proven back in story 1.6a). Netlify
+builds with its own env values, so its output differs from a local build **byte for byte, for
+identical source**, and therefore always has a different content hash. Local `index-DKTCjjeJ.js`
+against deployed `index-D5Hqg8mO.js` was a difference of 27 bytes in a 435,127-byte file: the env
+strings, nothing else.
+
+**Verify deployed frontend code by grepping the SERVED bundle for strings unique to the story, plus
+a pre-story positive control** so the grep cannot pass vacuously. That test is env-independent and
+is what actually confirmed the deploy.
+
+### 🔴 Start here: SIT THE INTERVIEW. That is the whole remaining Phase 3 gate.
+
+Everything is built, green and deployed. What is missing is that **Karthik has never seen it**, and
+gate #4 is exactly "an interview he sits and believes".
+
+1. **Sit a real interview end to end at https://pmaiinterviewpanel.netlify.app.** Upload a CV,
+   correct the level, answer three questions, and **ask at least one clarifying question** — the
+   clarify path is the one with a live LLM call and the one the UI treats specially.
+2. **Budget it first.** A full journey is roughly one Resume Analyst call (~5,000 `deep`), one Case
    Architect, one Planner (~6,000 `deep`), and one `fast` call per clarification. Check the budget
    note below before starting, and do not start a journey you cannot finish.
+3. **Expect a cold start.** Render free tier measured 32.3s on first hit (story 0.8).
 
 ### 🔴 Two things to watch while sitting it, both recorded and neither chased
 
