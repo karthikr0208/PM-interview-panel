@@ -1,0 +1,5 @@
+{
+  "world_fixture": "pm_b2b_world",
+  "planned_question": "Circuitway's forecasting module is accurate for single-warehouse customers, but only 34.7% of multi-site customers reach their first accurate forecast within 30 days, versus 81.2% of single-site customers. What do you do about the multi-site segment, which is 46% of the pipeline this quarter?",
+  "clarifying_question": "How urgent is this, really -- how big is the activation gap between multi-site and single-site customers, and how much of this quarter's pipeline actually rides on fixing it?"
+}

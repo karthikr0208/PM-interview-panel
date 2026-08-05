@@ -1,6 +1,6 @@
 # Development State
 
-**Last updated:** 2026-08-04 · Session 9
+**Last updated:** 2026-08-05 · Session 10
 
 ---
 
@@ -24,6 +24,10 @@ than an assumption:
 | Does Supabase work from Render at all? | Yes. Session pooler, and a checkpoint step costs **~27ms** in production |
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
+
+**🟡 PHASE 3 IS UNDERWAY. Story 3.1 is DONE as of 2026-08-05 and cost ZERO tokens** — the agent spec
+and five blind golden fixtures, written before the prompt. **Next is 3.2, the agent itself and the
+looping interrupt.** See § Next session.
 
 **🟢 PHASE 2 IS COMPLETE AND THE DEPLOYED PRODUCT WORKS END TO END. Confirmed by Karthik in a
 browser on 2026-08-04**, after four days of production being silently broken. `git status` is clean,
@@ -114,7 +118,7 @@ toggle no script can flip.** See Blockers.
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
-| 3 Interviewer + conduct loop | ⬜ not started — **spec WRITTEN 2026-08-04, thin: 3 stories, asks 2-3 questions, does NOT score.** Start at 3.1, which is zero-quota | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | — |
+| 3 Interviewer + conduct loop | 🟡 **STORY 3.1 DONE 2026-08-05 at ZERO token cost.** Agent spec + 5 blind fixtures + 40 offline assertion tests; suite deliberately RED in 0.17s. **Next: 3.2, the agent and the looping interrupt** | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **199 offline**, 84 vitest |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -129,7 +133,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 written blind 2026-08-02. **1 of 7 smoked live 2026-08-04: `apm_consumer` PASSES on `fast`.** Other 6 never run. 47 offline assertion tests | 2026-08-04 — placeholder ban + ACV market conditioning. **~3,400 chars, ceiling ~15,557** |
 | Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 written blind 2026-08-02. **1 of 5 smoked live 2026-08-04, 5 runs: grounding/coverage/timing/immutability all pass, genericness FLAPS 1-of-7-questions.** Accepted, see Decisions | 2026-08-04 — grounding verbatim rules, value-only entries, company name in every question. **~4,300 chars, ceiling ~12,197. Runs on `deep`, NOT `fast`** |
-| Interviewer | ⬜ (Phase 3) | — | — |
+| Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — written 2026-08-05, **before the prompt** | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests. **None run live — the agent does not exist (3.2)** | — (no prompt yet). **Ceiling computed: ~20,000 chars for `answer_clarification` at `max_tokens=2048`, and neither call ever sees the transcript** |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
 
@@ -2077,6 +2081,101 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🟢 SESSION 10, 2026-08-05. STORY 3.1 IS DONE AND IT COST ZERO TOKENS.
+
+**Both `deep` and `fast` budgets are untouched by this session.** Session 9's close estimated `deep`
+at ~130-150k of 200k; more than 24h has passed at ~138 tokens/min refill, so **the bucket should be
+full.** Not measured — run `probe_groq.py` before assuming it.
+
+**Run these three first (~30s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 199 passed, 91 deselected
+cd frontend && npm test -- --run                                          # expect 84 passed
+curl -s https://pm-interview-panel.onrender.com/openapi.json              # expect FOUR /session routes
+```
+
+**The third is not optional.** Production was broken for four days in session 9 and no test suite
+could see it — a failed Render deploy keeps serving the last healthy build, so `/health` stays green.
+Verified passing at the start of session 10.
+
+### What 3.1 delivered
+
+```
+docs/specs/agents/AGENT-INTERVIEWER-SPEC.md      the contract, written before the prompt
+backend/tests/golden/interviewer/                assertions.py, cases.py, 5 fixtures,
+                                                 test_assertions.py (40 offline), test_golden.py
+
+offline suite    199 passed, 91 deselected, 1 warning in 3.91s     (was 159/85)
+collection       6 tests collected in 0.02s      <- clean while the agent module is absent
+deliberate red   ModuleNotFoundError: No module named 'app.agents.interviewer'
+                 1 error in 0.17s                <- dies before any network call, zero tokens
+```
+
+**Fixture premises were verified independently, not taken on report.** Fixture 3's eNPS and fixture
+5's year-ago churn are genuinely absent from their worlds, and fixture 4's leading question is
+genuinely false: `gpm_portfolio_world` states *"Business banking ARR is $28M, the smallest of the
+three product lines."*
+
+### 🔴 Start here: story 3.2, and read these three things first
+
+1. **DEV-STATE § Decisions 2026-08-05, all three entries.** One of them changes what 3.2 builds:
+   **`ask_question` does not regenerate the planned question.** Python emits it verbatim; the model
+   writes only a bridge line. This diverges from ARCHITECTURE §3 deliberately.
+2. **AGENT-INTERVIEWER-SPEC §6.** The prompt ceiling is computed and **the naive design does not
+   fit** — handing every call the world plus the transcript blows the 8,000 TPM bucket by question 3,
+   because this is the only agent whose input grows during a session. The fix is scoping: **neither
+   call ever receives the transcript.** Build to that table, do not re-derive it.
+3. **`max_tokens=2048` for the clarification call is a PROJECTION, not a measurement.** gpt-oss emits
+   reasoning tokens against `max_tokens` before the JSON starts; 1,600 and 2,600 both failed on the
+   Resume Analyst's far larger schema. If it returns `json_validate_failed`, **raise it — that error
+   reads like a prompt problem and is not one.**
+
+### What story 3.2 owes that 3.1 could not cover
+
+- **The bridge has no dash guard.** 3.1's harness exercises `answer_clarification` only, so `bridge`
+  is an unguarded candidate-facing generative surface. It needs its own case shape. See Decisions.
+- **The looping interrupt must be FALSIFIED, not inspected.** `backend/scripts/falsify_single_call.py`
+  exists and covers one interrupt; a looping one is not the same proof and needs its sibling.
+  **Assert on `app/llm.py`'s call log, never on state** — a loop that re-runs `ask_question` looks
+  correct from state, because the transcript still reads fine.
+- **Whether `fast` holds `ClarificationAnswer` is unmeasured.** Three fields is far smaller than
+  `QuestionPlan`, so `fast` is likely — but the Planner needing `deep` was also a surprise. Measure;
+  do not assume either way.
+
+### 🔴 THREE THINGS ONLY KARTHIK CAN DO — all still open, none block Phase 3
+
+1. **Phase 1 gate #4** — his CV produced `Senior PM`, `years_pm_experience 8.0`. Defensible per the
+   rubric (GPM requires managing PMs). If he thinks a 15-year AI Product Leader should read GPM,
+   **that is a rubric change, not a bug.**
+2. **Phase 2 gate #4** — read a generated `case_world` and say whether the company could exist.
+3. **A `deep` budget decision.** Planner ~6,000/run, Resume Analyst ~5,000, so ~35 candidate
+   journeys a day, shared with all development.
+
+### 🔴 TWO OPEN DEFECTS from session 9, still deliberately not chased
+
+Neither breaks a demo. Both violate rules their own golden suites already encode.
+
+1. **The Planner ships em-dashes into candidate-facing questions.** Prompting has now failed twice on
+   a mechanical rule. **The fix is deterministic, not another prompt line** — strip dash variants from
+   generated candidate-facing text. Free to build, and it would protect the Interviewer's prose
+   *before* 3.2 writes it. **Story 3.1's §2a decision is the same instinct applied structurally.**
+2. **The Case Architect produces round figures** (`arr_usd "$150M"`, `customer_count 500000`).
+   `is_round_dollar_amount` covers `arr_usd`/`size_usd` but nothing checks `supporting_facts` free
+   text or `customer_count`. Widen the assertion first, then fix the prompt.
+
+### The pattern session 10 repeated, deliberately
+
+**Session 9's lesson was "front-load the zero-quota work."** Story 3.1 was chosen precisely because
+it needs no budget, and it produced two real findings before a single token was spent: a figure check
+that was blind to the figures models actually invent, and an assertion that could only ever no-op.
+**Both were found by re-verifying independently rather than reading the report** — the same thing
+that has paid every time it has been done in this project.
+
+---
+
+## Superseded — session 9's handoff, kept for the record
+
 ## 🟢 SESSION 9 ENDED CLEAN, 2026-08-04. PHASE 2 IS COMPLETE. PRODUCTION WORKS.
 
 **`git status` is clean and everything is pushed.** Both Render and Netlify serve current `main`,
@@ -2637,6 +2736,73 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🔴 2026-08-05 (session 10) · THE INTERVIEWER DOES NOT REGENERATE THE PLANNED QUESTION. Python
+emits it verbatim; the model only writes a bridge line. This diverges from ARCHITECTURE §3, which
+draws `ask_question` as an Interviewer LLM call.**
+
+The reason is not budget, though it saves budget. **The Planner's `question` string is the
+most-tested string in the product** — it passed `missing_grounding`, `is_generic_question`,
+`no_dash_variants`, `contains_fake_round_number` and `contains_banned_register_name` before it
+reached state. **Regenerating it at runtime would void all five, on a surface no static test can
+see.** A rewrite moves the question from the best-guarded string in the codebase to the worst.
+
+So `ask_question` composes `[bridge] + [the Planner's string, byte for byte]`. The bridge is one or
+two sentences, exists only to answer the Phase 3 gate's "form or interview?" question, and is
+**starved of input on purpose: it receives the candidate's previous answer and nothing else.** No
+`case_world`, no plan. It has no facts available to improvise with, which is cheaper than trusting
+it not to. **Question 1 has nothing to acknowledge, so the first thing a candidate sees costs ZERO
+LLM calls.**
+
+Follows CLAUDE.md § Style directly ("prefer deterministic Python where the decision can be made from
+state") and is the same instinct as open defect 1 in session 9's handoff, where prompting had
+already failed twice to enforce a mechanical rule.
+
+**Probing is explicitly NOT in Phase 3, and the reason is falsifiability.** PRD §7's criterion for
+probes is "two runs with deliberately different answer quality produce visibly different probes" —
+and answer quality is a **score**, which Phase 4 produces. A probe built now would fire on no signal
+and its adaptivity would be unfalsifiable. `followup_count` stays `0` for all of Phase 3, and the
+Planner's `probe_angles` go unused. **Expected, not a defect.**
+
+**🔴 2026-08-05 (session 10) · `ungrounded_figures` WAS WRITTEN AS A SUBSTRING SEARCH AND WAS BLIND
+TO EXACTLY THE FIGURES A MODEL INVENTS. Found by independent re-verification, before the agent that
+would have been graded by it exists.**
+
+The new figure check — this suite's teeth, and the one assertion the Planner has no equivalent of —
+originally normalised the whole flattened `case_world` and substring-matched each figure from the
+answer against it. Measured:
+
+```
+'about 62,000 subscribers'                    ungrounded=['62,000']   <- caught
+'churn is 9.9%'                               ungrounded=['9.9%']     <- caught
+'roughly 7 designers'                         ungrounded=[]           <- 🔴 PASSED
+'we have 8 teams'                             ungrounded=[]           <- 🔴 PASSED
+```
+
+**A single digit is a substring of almost any world** (187 employees, $2.8B, 76.5%). So the check
+was strongest against large distinctive figures, which a model has little reason to invent, and
+blind to small integers, which it invents constantly. **That is backwards, and the hole sat directly
+on top of fixture 3's premise** — that fixture asks a headcount question, which is precisely where
+"about 7 designers" appears.
+
+Fixed by extracting the world's figures with the same regex and comparing **whole tokens** rather
+than substrings. Verified in both directions, which is the part that matters: `7` now fails, while
+`187 employees` and `within 8 seconds` still pass against a world that states them, and `41,000`
+written with a comma still matches a stored `41000`. Pinned by three new offline tests.
+
+**Residual, accepted and recorded:** a coincidental collision still passes (an invented `8` against
+a world that happens to say "8 seconds"). Same class of mechanical imprecision the Planner's
+`is_generic_question` accepts, for the same stated reason.
+
+**2026-08-05 (session 10) · A DEFENSIVE `getattr` WAS REMOVED FOR BEING WORSE THAN THE GAP IT HID.**
+
+Spec §5's table originally read "no em-dash in `bridge` or `answer`" as though one call produced
+both; §3 puts `bridge` on a separate schema from a separate call. The harness bridged the mismatch
+with `getattr(result, "bridge", None)` and a truthiness guard — which **can only ever no-op**, since
+`ClarificationAnswer` has no `bridge`. It reads as coverage while asserting nothing: story 1.3a's
+bug wearing a different hat, in a suite written specifically to prevent it. Removed, the spec
+corrected, and **the gap recorded instead: the bridge is a candidate-facing generative surface with
+no dash guard until story 3.2 builds one.**
 
 **🔴🔴 2026-08-04 (session 9) · THE UPLOAD SILENTLY NEVER STARTED THE RESUME ANALYST IN PRODUCTION.
 A stale closure, in the seam between three individually-tested components.**

@@ -1,0 +1,5 @@
+{
+  "world_fixture": "apm_consumer_world",
+  "planned_question": "Ferngrove's Discover feed shows new users a mix of trending videos during their first session, but only 11.3% of new signups return on day 2, well below the 19.0% day-2 return rate for users who follow at least three creators in their first session. Would you redesign the first-session flow to push new users toward following creators immediately, or keep the current trending-first feed and improve recommendation quality instead?",
+  "clarifying_question": "Before I answer, how many paying subscribers does Ferngrove actually have?"
+}

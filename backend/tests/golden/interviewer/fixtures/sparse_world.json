@@ -1,0 +1,5 @@
+{
+  "world_fixture": "sparse_world",
+  "planned_question": "Palewell has 38 paying customers and no dedicated support team; when a customer's time-tracking export breaks, the founder personally fixes it, and it has happened 4 times this quarter. Do you invest engineering time in a self-serve export repair tool, or hire the company's first support hire?",
+  "clarifying_question": "What was Palewell's exact monthly churn rate one year ago, before this recent run of export breakages?"
+}

@@ -63,19 +63,19 @@ per-turn cost before building the loop, not after.
 
 ## Stories
 
-### 3.1 `AGENT-INTERVIEWER-SPEC.md` and its golden fixtures, both written before the prompt
+### 3.1 `AGENT-INTERVIEWER-SPEC.md` and its golden fixtures, both written before the prompt — ✅ DONE 2026-08-05
 
-**Zero LLM cost. Do this on a day with no budget.**
+**Zero LLM cost. Do this on a day with no budget.** Held: the whole story cost **zero tokens**.
 
 **Acceptance**
-- [ ] `docs/specs/agents/AGENT-INTERVIEWER-SPEC.md` defines both behaviours the agent has: **asking a planned question** and **answering a clarifying question from `case_world` alone**
-- [ ] It states the prompt-size ceiling, **computed** from the largest real `case_world` plus the transcript, against the 8,000 TPM bucket. The Planner's ceiling was computed this way and was ~22% tighter than expected
-- [ ] Golden fixtures at `backend/tests/golden/interviewer/`, **written blind**, reusing Phase 2's hand-written case worlds so a `CaseWorld` change breaks every suite loudly
-- [ ] **The assertion with teeth: an answer to a clarifying question invents nothing.** Same set-membership shape as the Planner's `grounded_in`, checked against `case_world`
-- [ ] A **positive control** for it: a clarification answer citing an entity no world contains must FAIL
-- [ ] A **vacuity floor** beneath it, asserted first — an empty or non-committal answer must not pass the membership check trivially
-- [ ] No em-dash or en-dash in generated question or clarification text
-- [ ] Suite is **deliberately RED**, proven by running it (free — the lazy import fails before any LLM call)
+- [x] `docs/specs/agents/AGENT-INTERVIEWER-SPEC.md` defines both behaviours the agent has: **asking a planned question** and **answering a clarifying question from `case_world` alone**. §2a decides the first is **deterministic Python plus a small LLM bridge**, not a regeneration — see the decision in DEV-STATE
+- [x] It states the prompt-size ceiling, **computed** from the largest real `case_world` plus the transcript, against the 8,000 TPM bucket. §6. **The naive design does not fit** and the finding is a constraint on story 3.2, not a footnote
+- [x] Golden fixtures at `backend/tests/golden/interviewer/`, **written blind**, reusing Phase 2's hand-written case worlds so a `CaseWorld` change breaks every suite loudly. Fixtures hold a `world_fixture` pointer and never copy a world; a test pins that
+- [x] **The assertion with teeth: an answer to a clarifying question invents nothing.** `grounded_in` set-membership **plus `ungrounded_figures`**, which is new and has no Planner equivalent
+- [x] A **positive control** for it: a clarification answer citing an entity no world contains must FAIL. Plus the cross-world control, both halves
+- [x] A **vacuity floor** beneath it, asserted first — and `can_answer=False` is **not** an exemption from it, which is the escape hatch this schema introduced
+- [x] No em-dash or en-dash in generated question or clarification text. **The question is emitted verbatim by Python** so it inherits the Planner's already-passing check. 🔴 **`bridge` is a known gap owed to 3.2** — see spec §5
+- [x] Suite is **deliberately RED**, proven by running it: `ModuleNotFoundError: No module named 'app.agents.interviewer'` in **0.17s**, before any network call
 
 ---
 
