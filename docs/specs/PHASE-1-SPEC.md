@@ -267,7 +267,12 @@ Do not start Phase 2 until every box above is ticked and these hold:
 1. `make test` passes, both legs, with output pasted into `DEV-STATE.md`.
 2. `make golden AGENT=resume_analyst` passes, with the pass rate recorded.
 3. **Cross-session RLS denial is proven empirically**, with the output pasted. Not "policies exist."
-4. A real resume, uploaded through the deployed Netlify URL, produces a level you agree with.
+4. ~~A real resume, uploaded through the deployed Netlify URL, produces a level you agree with.~~
+   **✅ CLOSED 2026-08-05, and the condition was REPLACED rather than met.** Seniority is
+   company-relative, so this condition asked for something no rubric can deliver. **The candidate
+   selects the level; the agent's guess is a default.** The replacement condition, which IS met:
+   *a corrected level provably reaches the Case Architect and the Planner* — asserted and falsified.
+   See the Handoff note below.
 5. The design foundation is implemented, not merely specified.
 
 ---
@@ -294,9 +299,18 @@ Do not start Phase 2 until every box above is ticked and these hold:
 - ✅ **Cross-process interrupt/resume still proven** — story 1.7 was stopped from deleting it
 
 ### Needs your eyes
-- **🔴 PHASE GATE #4, the only unmet gate condition: upload a real resume through the deployed
-  Netlify URL and judge the level.** Everything upstream of this is verified; this one cannot be.
-  Golden cases prove consistency, not correctness. Use your own resume and several others.
+- ~~**🔴 PHASE GATE #4: upload a real resume through the deployed Netlify URL and judge the
+  level.**~~ — **✅ CLOSED 2026-08-05, by rejecting the question.** Karthik: *"the level of seniority
+  changes from company to company. In a service based company this level might be treated as more
+  than senior level whereas in a product company it might be treated as PM or SPM, so let the user
+  select the level on UI."* **A title whose meaning is company-relative cannot have a correct
+  answer, so "did the agent get it right" was never well-formed.** The right property is that the
+  candidate can override it and the override drives the interview. The selector has existed since
+  story 1.6b (`ConfirmationScreen.tsx`, a four-level `radiogroup`); the untested half was whether a
+  correction reaches the two downstream agents, now asserted and falsified in
+  `test_a_corrected_level_reaches_the_case_architect_and_the_planner`. **Recorded for any future
+  re-gate: on Karthik's CV the agent says `years_pm_experience 8.0`; the true value is 10, PM from
+  2016.** See DEV-STATE § Decisions 2026-08-05.
 - **The first genuine design review.** Phase 0 had nothing visually assessable. Judge the shell,
   the type, the motion, and whether the orchestration column reads as informative or as decoration.
   The confirmation screen became reachable only on 2026-08-02, so **nobody has looked at it in a

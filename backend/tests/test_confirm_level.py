@@ -42,6 +42,7 @@ own checkpoint rows, same pattern as `tests/conftest.py`'s `thread_ids` and
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
@@ -57,6 +58,32 @@ from langgraph.types import Command
 from app.config import settings
 from app.graph.build import build_graph
 from app.main import app
+
+# ══════════════════════════════════════════════════════════════════════════
+# TPM pacing. Added 2026-08-05, after this file went 2-failed/7-passed with
+# BOTH failures being `tokens per minute (TPM): Limit 8000` -- rate limiting,
+# not defects, classified before being believed (CLAUDE.md).
+#
+# Every live test here drives the Resume Analyst on a real resume, ~3,800
+# tokens per call measured from the 429 body itself ("Used 4547, Requested
+# 3783"). Two of them inside one minute is already 7,600 of the 8,000 TPM
+# bucket, so the file was always one test away from this and simply had
+# fewer tests before.
+#
+# 35s, not the golden suites' 60/90: those send a whole case_world or a
+# resume plus a large schema, this sends a SHORT_RESUME. 8,000/60 = 133
+# tokens/sec refill, so 3,800 tokens needs ~29s of refill; 35 is that plus
+# margin. The three golden suites set the precedent for pacing as an autouse
+# fixture rather than a retry -- a retry would hide the pacing problem and
+# spend the budget twice.
+# ══════════════════════════════════════════════════════════════════════════
+_PACE_SECONDS = 35
+
+
+@pytest.fixture(autouse=True)
+async def _pace_for_tokens_per_minute():
+    yield
+    await asyncio.sleep(_PACE_SECONDS)
 
 pytestmark = pytest.mark.live
 
@@ -248,12 +275,135 @@ async def test_command_resume_carries_the_candidates_level_into_state(
     )
 
 
+async def test_a_corrected_level_reaches_the_case_architect_and_the_planner(
+    checkpointer: AsyncPostgresSaver,
+    graph_sessions: Callable[[str | None], str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """🔴 The candidate's CORRECTION must drive the interview, not just land
+    in state. Added 2026-08-05, on Karthik's Phase 1 gate #4 decision: PM
+    seniority is company-relative (a title worth Senior PM at a services firm
+    reads as PM at a product company), so **the candidate selects the level
+    and the agent's guess is a default, not a verdict.** That makes this
+    propagation the load-bearing property of the whole confirmation flow --
+    if a correction does not reach the two agents downstream, the selector
+    in `ConfirmationScreen.tsx` is decoration.
+
+    Nothing asserted it before. `build.py`'s node docstrings CLAIM it
+    ("Reads `assessed_level` from STATE, never from `candidate_profile`"),
+    and `test_command_resume_carries_the_candidates_level_into_state` proves
+    it reaches state, and the HTTP test proves it reaches `sessions.level`.
+    **None of those watch the value a downstream agent is actually called
+    with** -- exactly the seam-shaped gap that let the upload bug survive
+    nine sessions (DEV-STATE § Decisions 2026-08-04).
+
+    Zero LLM tokens: both agents are stubbed to capture the level they are
+    handed and return a minimal valid artifact. That is the point -- the
+    property under test is what the NODES pass, not what the models say.
+    """
+    captured: dict[str, str] = {}
+
+    class _World:
+        @staticmethod
+        def model_dump() -> dict:
+            return {"company": {"name": "Stubbed Co"}, "supporting_facts": ["stub"]}
+
+    async def _fake_case_world(level, profile, *, role="fast"):
+        captured["case_architect"] = level
+        return _World()
+
+    class _Q:
+        @staticmethod
+        def model_dump() -> dict:
+            return {"idx": 0, "question": "Stub?", "primary_dimension": "decision_quality"}
+
+    class _Plan:
+        questions = [_Q()]
+
+    async def _fake_plan(level, case_world, *, role="deep"):
+        captured["planner"] = level
+        return _Plan()
+
+    monkeypatch.setattr("app.graph.build._generate_case_world", _fake_case_world)
+    monkeypatch.setattr("app.graph.build._plan_interview", _fake_plan)
+
+    session_id = graph_sessions(SHORT_RESUME)
+    graph = build_graph(checkpointer, resume_analyst_role="fast")
+    config = _config(session_id)
+
+    started = await graph.ainvoke(
+        {"session_id": session_id, "resume_text": SHORT_RESUME}, config
+    )
+    original_level = started["__interrupt__"][0].value["assessed_level"]
+    corrected_level = _a_different_level(original_level)
+
+    await graph.ainvoke(Command(resume=corrected_level), config)
+
+    # Positive control first: a test that captured nothing would pass both
+    # assertions below vacuously, which is story 1.3a's bug in a new place.
+    assert set(captured) == {"case_architect", "planner"}, (
+        f"one of the two downstream agents was never called: captured {captured}"
+    )
+    assert captured["case_architect"] == corrected_level, (
+        f"the Case Architect built a world for {captured['case_architect']!r}, but the "
+        f"candidate corrected their level to {corrected_level!r} (assessed was "
+        f"{original_level!r}) -- the correction was discarded"
+    )
+    assert captured["planner"] == corrected_level, (
+        f"the Planner planned for {captured['planner']!r}, but the candidate corrected "
+        f"their level to {corrected_level!r} -- the correction was discarded"
+    )
+
+
 async def test_resume_analyst_llm_call_fires_exactly_once_across_the_confirm_cycle(
     checkpointer: AsyncPostgresSaver,
     graph_sessions: Callable[[str | None], str],
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """THE test of story 1.4. See the module docstring."""
+    """THE test of story 1.4. See the module docstring.
+
+    🔴 The two downstream agents are STUBBED, and that is load-bearing to
+    this test rather than a convenience. Story 3.2 extended the graph past
+    `confirm_level` into `generate_case_world -> plan_interview`, so a
+    resume now legitimately makes three LLM calls where story 1.4's graph
+    made one. This test broke on that change and was committed broken in
+    `08d8dba`, undetected because this file's live tests were not re-run
+    after story 3.2 -- the same "deselected is not passed" lesson as
+    `test_conduct_loop.py`, one commit later.
+
+    Counting ALL `outcome=ok` records can no longer answer this test's
+    question, and loosening the count to `== 3` would be worse than
+    useless: it would pass just as happily if `level_candidate` re-ran and
+    the Planner did not. Stubbing the two downstream agents restores the
+    original property EXACTLY -- the Resume Analyst is then the only thing
+    in the graph that can log an LLM call, so `== 1` means what it always
+    meant. It also stops this test spending a `deep` Planner call it never
+    needed.
+    """
+
+    class _World:
+        @staticmethod
+        def model_dump() -> dict:
+            return {"company": {"name": "Stubbed Co"}, "supporting_facts": ["stub"]}
+
+    class _Q:
+        @staticmethod
+        def model_dump() -> dict:
+            return {"idx": 0, "question": "Stub?", "primary_dimension": "decision_quality"}
+
+    class _Plan:
+        questions = [_Q()]
+
+    async def _fake_case_world(level, profile, *, role="fast"):
+        return _World()
+
+    async def _fake_plan(level, case_world, *, role="deep"):
+        return _Plan()
+
+    monkeypatch.setattr("app.graph.build._generate_case_world", _fake_case_world)
+    monkeypatch.setattr("app.graph.build._plan_interview", _fake_plan)
+
     session_id = graph_sessions(SHORT_RESUME)
     graph = build_graph(checkpointer, resume_analyst_role="fast")
     config = _config(session_id)

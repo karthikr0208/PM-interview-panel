@@ -116,7 +116,7 @@ toggle no script can flip.** See Blockers.
 |---|---|---|---|
 | Planning docs | ✅ complete | — | 2026-07-29 — PRD, ARCHITECTURE, CLAUDE.md, research all written |
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
-| 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
+| 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟡 **STORIES 3.1 AND 3.2 DONE 2026-08-05.** Loop built, **the looping interrupt is falsified on BOTH sides**, 2 golden cases smoked on `fast`, and the chain runs end to end over real HTTP. **Next: 3.3, the interview UI** | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **213 offline (+3 live)**, 84 vitest, chain proven over HTTP |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
@@ -2189,13 +2189,16 @@ three product lines."*
   `QuestionPlan`, so `fast` is likely — but the Planner needing `deep` was also a surprise. Measure;
   do not assume either way.
 
-### 🔴 THREE THINGS ONLY KARTHIK CAN DO — all still open, none block Phase 3
+### 🟢 PHASE 1 GATE #4 IS CLOSED — 2026-08-05. TWO THINGS REMAIN FOR KARTHIK.
 
-1. **Phase 1 gate #4** — his CV produced `Senior PM`, `years_pm_experience 8.0`. Defensible per the
-   rubric (GPM requires managing PMs). If he thinks a 15-year AI Product Leader should read GPM,
-   **that is a rubric change, not a bug.**
-2. **Phase 2 gate #4** — read a generated `case_world` and say whether the company could exist.
-3. **A `deep` budget decision.** Planner ~6,000/run, Resume Analyst ~5,000, so ~35 candidate
+**Gate #4 was answered by rejecting its premise, which was the right answer.** Seniority is
+company-relative, so no rubric can be "right" about it; the candidate picks the level and the
+agent's guess is a default. The selector already existed (story 1.6b); what was missing was any
+assertion that a **correction reaches the Case Architect and Planner**, now added and falsified. See
+§ Decisions 2026-08-05. **Phase 1 is COMPLETE.**
+
+1. **Phase 2 gate #4** — read a generated `case_world` and say whether the company could exist.
+2. **A `deep` budget decision.** Planner ~6,000/run, Resume Analyst ~5,000, so ~35 candidate
    journeys a day, shared with all development.
 
 ### 🔴 TWO OPEN DEFECTS from session 9, still deliberately not chased
@@ -2840,6 +2843,85 @@ product defect: uvicorn dies at startup on Windows with `ProactorEventLoop` (psy
 Render is Linux and unaffected), and the reply route nests its payload under `next` with a `done`
 flag rather than at the top level — reading the top level made the script over-post and 404. **The
 route's shape is right; I read it wrong.**
+
+**🟢🔴 2026-08-05 (session 10) · PHASE 1 GATE #4 IS CLOSED, AND ITS PREMISE WAS WRONG. THE LEVEL IS
+THE CANDIDATE'S TO PICK; THE AGENT'S GUESS IS A DEFAULT, NOT A VERDICT.**
+
+Gate #4 asked for "a real resume producing a level Karthik agrees with." **He declined the question
+as posed, and the reasoning supersedes the gate:**
+
+> "The level of seniority changes from company to company. In a service based company this level
+> might be treated as more than senior level whereas in a product company it might be treated as PM
+> or SPM, so let the user select the level on UI."
+
+**That is correct and it makes the gate unsatisfiable as written.** No rubric can be right about a
+title whose meaning is company-relative, so "did the agent get it right" is not a well-formed
+question. The right property is **"can the candidate correct it, and does the correction drive the
+interview."**
+
+**The selector already exists** — story 1.6b built it. `ConfirmationScreen.tsx` renders all four
+levels as a `radiogroup`, any of them is clickable, and the button switches to "Confirm corrected
+level". No UI work was needed.
+
+**🔴 But the half that actually matters was never asserted.** Three tests covered the correction and
+none of them watched what the downstream agents were CALLED with:
+
+```
+test_command_resume_carries_the_candidates_level_into_state   -> reaches STATE
+test_confirm_route_persists_a_correction_to_sessions_level    -> reaches sessions.level
+build.py's node docstrings                                    -> a COMMENT, not an assertion
+```
+
+`test_a_corrected_level_reaches_the_case_architect_and_the_planner` now closes it, stubbing both
+agents to capture the level they are handed. **Falsified, not assumed:**
+
+```
+broken (node passes a stale level):
+  AssertionError: the Case Architect built a world for '__STALE_LEVEL__', but the
+  candidate corrected their level to 'APM' (assessed was 'PM') -- the correction was discarded
+```
+
+**A note for whoever falsifies this next: the first attempt PASSED against a broken graph and that
+was a coincidence, not vacuity.** The break hardcoded `"APM"` and `_a_different_level` happened to
+choose `APM` that run. Use a sentinel that cannot collide with a real level.
+
+**The years field IS wrong, and is recorded rather than chased.** Karthik: *"the CV clearly shows
+that Product management experience starts from 2016, so it's 10 years."* The agent reported **8.0**
+against a true **10**. Smaller than the 3.5-vs-15 error the prompt diet fixed on 2026-08-04, and it
+no longer gates anything now that the level is candidate-selected, but **`years_pm_experience` is
+still shown to the candidate and still feeds `level_rationale`.** Reference value for any future
+re-gate: **10, PM from 2016.**
+
+**🔴🔴 2026-08-05 (session 10) · STORY 3.2 BROKE THE MOST IMPORTANT TEST IN
+`test_confirm_level.py` AND I COMMITTED IT BROKEN IN `08d8dba`.**
+
+`test_resume_analyst_llm_call_fires_exactly_once_across_the_confirm_cycle` — the test that file's own
+docstring calls THE load-bearing one — asserted `len(calls_after_resume) == 1`. Story 3.2 extended
+the graph past `confirm_level` into `generate_case_world -> plan_interview`, so a resume now
+legitimately logs three calls:
+
+```
+assert 3 == 1
+  role=fast  (Resume Analyst)  role=fast  (Case Architect)  role=deep  (Planner)
+```
+
+**Undetected because this file's live tests were never re-run after story 3.2.** The subagent fixed
+one stale assertion in this same file and missed this one; I verified its fix and did not think to
+run the rest of the file. **That is "deselected is not passed" a second time, one commit later, and
+this time it was mine.**
+
+Fixed by stubbing the two downstream agents so the Resume Analyst is again the only thing in the
+graph that can log a call, restoring `== 1` to meaning exactly what it meant in story 1.4.
+**Loosening it to `== 3` would have been worse than useless** — it would pass just as happily if
+`level_candidate` re-ran and the Planner did not.
+
+**2026-08-05 (session 10) · `test_confirm_level.py` now paces for TPM, which it never did.** The
+file went 2-failed/7-passed with both failures reading `tokens per minute (TPM): Limit 8000` —
+classified as quota before being believed. Every live test here drives the Resume Analyst at ~3,800
+tokens (read off the 429 body itself), so two inside one minute is 7,600 of 8,000. **The file was
+always one test away from this and simply had fewer tests.** 35s autouse fixture, sized to a
+measured refill of 133 tokens/sec, matching the three golden suites' precedent of pacing rather than
+retrying.
 
 **🔴🔴 2026-08-05 (session 10) · THE BRIDGE WAS AN LLM CALL THAT PRODUCED A CONSTANT. DELETED, on
 Karthik's decision, and replaced with deterministic source strings.**
