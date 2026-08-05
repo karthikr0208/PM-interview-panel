@@ -105,11 +105,11 @@ describe('OrchestrationColumn', () => {
   // Story 2.7: the Case Architect and the Interview Planner.
   // ==========================================================================
 
-  it('renders all three agents, in the order the graph runs them', () => {
+  it('renders all four agents, in the order the graph runs them', () => {
     useAgentEvents.mockReturnValue([])
     render(<OrchestrationColumn sessionId="sess-1" />)
     const names = screen.getAllByRole('status').map((el) => el.getAttribute('aria-label'))
-    expect(names).toEqual(['Resume Analyst', 'Case Architect', 'Interview Planner'])
+    expect(names).toEqual(['Resume Analyst', 'Case Architect', 'Interview Planner', 'Interviewer'])
   })
 
   it('drives each agent independently off its OWN events', () => {
@@ -165,6 +165,49 @@ describe('OrchestrationColumn', () => {
     ])
     render(<OrchestrationColumn sessionId="sess-1" />)
     expect(row('Interview Planner').getByText('Planned interview questions.')).toBeTruthy()
+  })
+
+  // ==========================================================================
+  // Story 3.3: the Interviewer.
+  // ==========================================================================
+
+  it('renders the Interviewer row with all four states, and byte-identical copy to the backend', () => {
+    // These strings are asserted byte-identical to `_ASK_STARTED_SUMMARY`,
+    // `_ASK_DONE_SUMMARY` and `_CLARIFY_ERROR_SUMMARY` in
+    // `backend/app/graph/build.py`, which is why the panel never visibly
+    // rewrites itself once a real event's summary arrives.
+    useAgentEvents.mockReturnValue([])
+    const { unmount: unmountWaiting } = render(<OrchestrationColumn sessionId="sess-1" />)
+    expect(row('Interviewer').getByText('Waiting')).toBeTruthy()
+    unmountWaiting()
+
+    useAgentEvents.mockReturnValue([event({ agent: 'interviewer', status: 'started', summary: null })])
+    const { unmount: unmountActive } = render(<OrchestrationColumn sessionId="sess-1" />)
+    expect(row('Interviewer').getByText('Asking the next interview question.')).toBeTruthy()
+    unmountActive()
+
+    useAgentEvents.mockReturnValue([event({ agent: 'interviewer', status: 'done', summary: null })])
+    const { unmount: unmountDone } = render(<OrchestrationColumn sessionId="sess-1" />)
+    expect(row('Interviewer').getByText('Asked the next interview question.')).toBeTruthy()
+    unmountDone()
+
+    useAgentEvents.mockReturnValue([event({ agent: 'interviewer', status: 'error', summary: null })])
+    render(<OrchestrationColumn sessionId="sess-1" />)
+    expect(
+      row('Interviewer').getByText('Ran into a problem answering your clarifying question.'),
+    ).toBeTruthy()
+  })
+
+  it('drives the Interviewer independently off its own events, alongside the other three', () => {
+    useAgentEvents.mockReturnValue([
+      event({ id: 'evt-1', agent: 'resume_analyst', status: 'done' }),
+      event({ id: 'evt-2', agent: 'case_architect', status: 'done' }),
+      event({ id: 'evt-3', agent: 'planner', status: 'done' }),
+      event({ id: 'evt-4', agent: 'interviewer', status: 'started' }),
+    ])
+    render(<OrchestrationColumn sessionId="sess-1" />)
+    expect(row('Interviewer').getByText('Working')).toBeTruthy()
+    expect(row('Interview Planner').getByText('Done')).toBeTruthy()
   })
 
   it('has no em-dash or en-dash in any candidate-facing copy', () => {

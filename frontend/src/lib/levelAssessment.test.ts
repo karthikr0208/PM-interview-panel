@@ -122,9 +122,15 @@ describe('useLevelAssessment', () => {
     })
   })
 
-  it('moves ready -> confirmed on a successful confirmation, keeping the analysis', async () => {
+  it('moves ready -> confirmed on a successful confirmation, keeping the analysis and the first question', async () => {
+    const firstQuestion = { kind: 'question' as const, text: 'Walk me through a product you shipped.', current_q_idx: 1 }
     startLevelAssessment.mockResolvedValue(ANALYSIS)
-    submitLevelCorrection.mockResolvedValue({ session_id: 'sess-1', level: 'PM', corrected: false })
+    submitLevelCorrection.mockResolvedValue({
+      session_id: 'sess-1',
+      level: 'PM',
+      corrected: false,
+      first_question: firstQuestion,
+    })
     const { result } = renderHook(() => useLevelAssessment('sess-1'))
 
     await act(async () => {
@@ -134,7 +140,12 @@ describe('useLevelAssessment', () => {
       await result.current.confirmLevel('PM')
     })
 
-    expect(result.current.state).toEqual({ kind: 'confirmed', analysis: ANALYSIS, level: 'PM' })
+    expect(result.current.state).toEqual({
+      kind: 'confirmed',
+      analysis: ANALYSIS,
+      level: 'PM',
+      firstQuestion,
+    })
     expect(submitLevelCorrection).toHaveBeenCalledWith('sess-1', 'PM')
   })
 

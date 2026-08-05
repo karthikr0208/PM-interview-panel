@@ -2,11 +2,14 @@ import { WarningCircle } from '@phosphor-icons/react'
 import { IconStandard } from './lib/icons'
 import { useCandidateSession } from './lib/session'
 import { useLevelAssessment } from './lib/levelAssessment'
+import { useInterview } from './lib/interview'
 import { AppShell } from './components/AppShell'
 import { OrchestrationColumn } from './components/OrchestrationColumn'
 import { EvaluationColumn } from './components/EvaluationColumn'
 import { UploadSurface } from './components/UploadSurface'
 import { ConfirmationScreen } from './components/ConfirmationScreen'
+import { InterviewSurface } from './components/InterviewSurface'
+import type { InterviewTurn } from './lib/types'
 
 // Skeletal, never a circular spinner (v1 §3 Rule 5) -- same treatment as
 // UploadSurface's ParsingState, reused here rather than imported since that
@@ -46,6 +49,22 @@ function LevelAssessmentErrorCard({ message, onRetry }: { message: string; onRet
   )
 }
 
+// Its own component, not inlined into `renderConversation`, so `useInterview`
+// mounts fresh exactly once the candidate's level is confirmed -- the hook's
+// initial state closes over `firstQuestion` on mount, and this component
+// mounting is what makes that mount happen at the right moment rather than
+// needing a placeholder question before one exists.
+function InterviewContainer({
+  sessionId,
+  firstQuestion,
+}: {
+  sessionId: string | null
+  firstQuestion: InterviewTurn
+}) {
+  const { state, submitAnswer, askClarification } = useInterview(sessionId, firstQuestion)
+  return <InterviewSurface state={state} onSubmitAnswer={submitAnswer} onAskClarification={askClarification} />
+}
+
 function App() {
   // Hoisted here, not inside UploadSurface, so a rejected file plus a retry
   // reuses the SAME session and so OrchestrationColumn can subscribe to the
@@ -60,7 +79,6 @@ function App() {
   function renderConversation() {
     switch (levelState.kind) {
       case 'ready':
-      case 'confirmed':
         return (
           <ConfirmationScreen
             analysis={levelState.analysis}
@@ -69,6 +87,13 @@ function App() {
             }}
           />
         )
+      case 'confirmed':
+        // ConfirmationScreen's own "Level confirmed." acknowledgment
+        // (`submitted` state) already showed while `confirmLevel`'s request
+        // was in flight -- this replaces it with the interview once the
+        // first question has actually arrived, rather than deleting that
+        // acknowledgment outright.
+        return <InterviewContainer sessionId={sessionId} firstQuestion={levelState.firstQuestion} />
       case 'assessing':
         return <AssessingLevelCard />
       case 'error':

@@ -98,15 +98,32 @@ same reason.
 
 ---
 
-### 3.3 The interview UI
+### 3.3 The interview UI — ✅ DONE 2026-08-05
 
 **Acceptance**
-- [ ] The question is revealed **whole, never streamed token by token** (design v1: no typewriter effect)
-- [ ] The candidate can answer, or ask a clarifying question, and the two are visibly distinct actions
-- [ ] Full loading / empty / error state cycle on the answer surface, matching 1.5's foundation
-- [ ] The orchestration column shows the Interviewer, **by adding a row to `AGENTS` in `OrchestrationColumn.tsx`** — story 2.7 proved that is all a new agent needs
-- [ ] **No em-dashes in any candidate-facing copy**, including anything rendered from model output
-- [ ] **No persona header and no interviewer name.** Deferred since 2026-07-31 and still binding: "Maya Chen" sits in the register design v1 §7 bans
+- [x] The question is revealed **whole, never streamed token by token** (design v1: no typewriter effect) — rendered in a single node, asserted on the complete string at first render
+- [x] The candidate can answer, or ask a clarifying question, and the two are visibly distinct actions — two separate labelled controls, primary and secondary; each asserted to post its own `type`
+- [x] Full loading / empty / error state cycle on the answer surface, matching 1.5's foundation — skeletal (never a spinner), disabled-with-a-visible-reason on empty, `role="alert"` plus a retry that resends the same action
+- [x] The orchestration column shows the Interviewer, **by adding a row to `AGENTS` in `OrchestrationColumn.tsx`** — story 2.7 proved that is all a new agent needs. Confirmed again: one appended row, nothing else
+- [x] **No em-dashes in any candidate-facing copy**, including anything rendered from model output — closed **deterministically, not by prompting**, via `stripDashes` at the render boundary. See DEV-STATE § Decisions 2026-08-05
+- [x] **No persona header and no interviewer name.** Deferred since 2026-07-31 and still binding: "Maya Chen" sits in the register design v1 §7 bans
+
+**Observed output**
+
+```
+frontend      13 files, 113 passed        (was 10 files / 84)
+tsc --noEmit  clean
+vite build    ok, dist/assets/index-DKTCjjeJ.js 435.10 kB
+backend       221 passed, 95 deselected   (unchanged; no backend file touched)
+```
+
+**Falsified, not inspected.** Two deliberate mutations, both reverted:
+
+```
+clarification branch replaces the question   -> 2 failed  (TRAP 2 tests, interview.test.ts)
+stripDashes removed from the question render -> 1 failed  (dash test, InterviewSurface.test.tsx)
+                                                3 failed | 110 passed
+```
 
 ---
 

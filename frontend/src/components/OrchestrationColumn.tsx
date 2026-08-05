@@ -52,9 +52,9 @@ interface PanelAgent {
 const WAITING_COPY = 'Waiting to start.'
 
 // Declaration order is render order, and it deliberately mirrors the graph:
-// level_candidate -> generate_case_world -> plan_interview. A candidate
-// watching the column sees work move down it in the order it actually
-// happens, so later phases append here rather than inserting.
+// level_candidate -> generate_case_world -> plan_interview -> ask_question.
+// A candidate watching the column sees work move down it in the order it
+// actually happens, so later phases append here rather than inserting.
 const AGENTS: readonly PanelAgent[] = [
   {
     key: 'resume_analyst',
@@ -84,6 +84,19 @@ const AGENTS: readonly PanelAgent[] = [
       active: 'Planning interview questions.',
       done: 'Planned interview questions.',
       error: 'Ran into a problem planning the interview.',
+    },
+  },
+  {
+    key: 'interviewer',
+    name: 'Interviewer',
+    copy: {
+      waiting: WAITING_COPY,
+      active: 'Asking the next interview question.',
+      done: 'Asked the next interview question.',
+      // `ask_question` is fully deterministic and has no error branch --
+      // `answer_clarification_node` is the only thing under this agent key
+      // that can fail, so this is its error string, not ask_question's.
+      error: 'Ran into a problem answering your clarifying question.',
     },
   },
 ]

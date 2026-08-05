@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { ApiError, startLevelAssessment, submitLevelCorrection } from './api'
-import type { Level, ResumeAnalysis } from './types'
+import type { InterviewTurn, Level, ResumeAnalysis } from './types'
 
 export type LevelAssessmentState =
   | { kind: 'idle' }
@@ -12,7 +12,11 @@ export type LevelAssessmentState =
   // locally (ConfirmationScreen.tsx's `submitted` state); swapping it out
   // for different UI here would replace that acknowledgement instead of
   // letting it stand.
-  | { kind: 'confirmed'; analysis: ResumeAnalysis; level: Level }
+  //
+  // `firstQuestion` (story 3.3) is the same resume's second pause,
+  // `await_candidate`'s interrupt payload -- it lets `App.tsx` hand the
+  // interview off without a second round trip.
+  | { kind: 'confirmed'; analysis: ResumeAnalysis; level: Level; firstQuestion: InterviewTurn }
   | { kind: 'error'; message: string }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -83,10 +87,10 @@ export function useLevelAssessment(sessionId: string | null) {
     async (level: Level) => {
       if (!sessionId) return
       try {
-        await submitLevelCorrection(sessionId, level)
+        const result = await submitLevelCorrection(sessionId, level)
         setState((prev) =>
           prev.kind === 'ready' || prev.kind === 'confirmed'
-            ? { kind: 'confirmed', analysis: prev.analysis, level }
+            ? { kind: 'confirmed', analysis: prev.analysis, level, firstQuestion: result.first_question }
             : prev,
         )
       } catch (err) {

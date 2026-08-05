@@ -1,5 +1,5 @@
 import { ensureAnonymousSession } from './supabase'
-import type { Level, ResumeAnalysis } from './types'
+import type { InterviewTurn, Level, ResumeAnalysis } from './types'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -131,6 +131,13 @@ export interface LevelConfirmationResult {
    * Resume Analyst originally assessed -- computed by the backend, which
    * has both values, rather than trusted from the caller. */
   corrected: boolean
+  /**
+   * Story 3.2's resume also drives `generate_case_world -> plan_interview
+   * -> ask_question -> await_candidate` inside the SAME graph call, which
+   * pauses again at the interview's first question. Surfaced here so the
+   * candidate gets question 1 without a second round trip.
+   */
+  first_question: InterviewTurn
 }
 
 /**
@@ -150,6 +157,39 @@ export async function submitLevelCorrection(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ level }),
+  })
+  if (!res.ok) {
+    throw new ApiError(await parseErrorDetail(res))
+  }
+  return res.json()
+}
+
+export type InterviewReplyResult =
+  | { session_id: string; done: true }
+  | { session_id: string; done: false; next: InterviewTurn }
+
+/**
+ * The conduct loop's one HTTP entry point (`/session/{id}/interview/reply`,
+ * story 3.2). `type: 'answer'` drives `route_input -> decide_next ->
+ * ask_question -> await_candidate` (loop continues) or `decide_next -> END`
+ * (loop exits, `done: true`). `type: 'clarify'` drives `route_input ->
+ * answer_clarification_node -> await_candidate` -- the ORIGINAL question is
+ * still owed, which is why its response is `next.kind === 'clarification'`
+ * rather than a new question (see `lib/interview.ts`).
+ */
+export async function sendInterviewReply(
+  sessionId: string,
+  type: 'answer' | 'clarify',
+  text: string,
+): Promise<InterviewReplyResult> {
+  const session = await ensureAnonymousSession()
+  const res = await fetch(`${API_URL}/session/${sessionId}/interview/reply`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ type, text }),
   })
   if (!res.ok) {
     throw new ApiError(await parseErrorDetail(res))

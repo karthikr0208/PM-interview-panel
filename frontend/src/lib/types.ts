@@ -45,3 +45,17 @@ export interface AgentEvent {
   tokens: number | null
   created_at: string
 }
+
+/**
+ * Mirrors `await_candidate`'s `interrupt()` payload in
+ * `backend/app/graph/build.py` field-for-field. `kind` and `text` are
+ * nullable because that node reads `messages[-1]` and yields `null` for
+ * both when `messages` is empty -- defensive, not decorative.
+ */
+export type InterviewTurnKind = 'question' | 'clarification'
+
+export interface InterviewTurn {
+  kind: InterviewTurnKind | null
+  text: string | null
+  current_q_idx: number
+}

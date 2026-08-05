@@ -1,6 +1,6 @@
 # Development State
 
-**Last updated:** 2026-08-05 · Session 10
+**Last updated:** 2026-08-05 · Session 11
 
 ---
 
@@ -25,9 +25,14 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
-**🟡 PHASE 3 IS UNDERWAY. Story 3.1 is DONE as of 2026-08-05 and cost ZERO tokens** — the agent spec
-and five blind golden fixtures, written before the prompt. **Next is 3.2, the agent itself and the
-looping interrupt.** See § Next session.
+**🟢 PHASE 3'S THREE STORIES ARE ALL DONE as of 2026-08-05. The candidate can now sit the whole
+interview in a browser.** 3.1 (spec + blind fixtures, zero tokens), 3.2 (the agent and the looping
+interrupt, falsified on both sides), 3.3 (the interview UI, zero tokens). **3 of 4 gate conditions
+are met; the open one is #4, an interview Karthik sits and believes — his to judge.**
+
+**Story 3.3 spent NO model budget at all**, which was the point of picking it: `fast` was measured
+at 197,178/200,000 at session 10's close. It also closed the em-dash-on-model-output rule
+**deterministically** after prompting had failed at it twice. See § Decisions 2026-08-05.
 
 **🟢 PHASE 2 IS COMPLETE AND THE DEPLOYED PRODUCT WORKS END TO END. Confirmed by Karthik in a
 browser on 2026-08-04**, after four days of production being silently broken. `git status` is clean,
@@ -118,7 +123,7 @@ toggle no script can flip.** See Blockers.
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
-| 3 Interviewer + conduct loop | 🟡 **STORIES 3.1 AND 3.2 DONE 2026-08-05.** Loop built, **the looping interrupt is falsified on BOTH sides**, 2 golden cases smoked on `fast`, and the chain runs end to end over real HTTP. **Next: 3.3, the interview UI** | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **213 offline (+3 live)**, 84 vitest, chain proven over HTTP |
+| 3 Interviewer + conduct loop | 🟢 **ALL THREE STORIES DONE 2026-08-05. 3 of 4 gate conditions met.** Loop built, **the looping interrupt falsified on BOTH sides**, 2 golden cases smoked on `fast`, chain runs end to end over real HTTP, and the interview UI is built with **TRAP 2 and the dash guard falsified by deliberate mutation**. The em-dash ban on model output is now **deterministic, not prompted**. Gate #4 (an interview Karthik sits and believes) is HIS and still open | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, chain proven over HTTP |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -2109,6 +2114,117 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🟢 SESSION 11, 2026-08-05. PHASE 3'S STORIES ARE ALL DONE. THE INTERVIEW IS SITTABLE IN A BROWSER.
+
+**Run these three first (~40s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 221 passed, 95 deselected
+cd frontend && npm test -- --run                                          # expect 113 passed, 13 files
+curl -s https://pm-interview-panel.onrender.com/openapi.json              # read the ROUTE LIST, not /health
+```
+
+**🔴 The third is still SHORT of what the repo has, and nothing in session 11 changed that.**
+`POST /session/{id}/interview/reply` and `/level/confirm`'s `first_question` **have never been
+pushed to GitHub or deployed.** Production still serves session 9's build, so **the deployed site
+cannot run an interview** even though local `main` can. Do not read a passing `/health` as
+"production is current" — that was session 9's four-day failure.
+
+### 🔴 Start here: DEPLOY, then sit the interview. That order.
+
+Everything Phase 3 needs is built and green locally. What is missing is that **Karthik has never
+seen it**, and gate #4 is exactly "an interview he sits and believes". So:
+
+1. **Push and deploy.** `git push`, confirm Render rebuilds, and re-run the `curl` above until
+   `/session/{id}/interview/reply` appears in the route list. Netlify needs a rebuild too, since
+   `lib/api.ts`, `App.tsx` and three new frontend files changed.
+2. **Sit a real interview end to end in the browser.** Upload a CV, correct the level, answer three
+   questions, and **ask at least one clarifying question** — the clarify path is the one with a live
+   LLM call and the one the UI treats specially.
+3. **Budget it first.** A full journey is roughly one Resume Analyst call (~5,000 `deep`), one Case
+   Architect, one Planner (~6,000 `deep`), and one `fast` call per clarification. Check the budget
+   note below before starting, and do not start a journey you cannot finish.
+
+### 🔴 Two things to watch while sitting it, both recorded and neither chased
+
+- **Ask 3-5 ADVERSARIAL clarifying questions** — things `case_world` does not contain. ARCHITECTURE
+  §9 lists "the Interviewer invents a fact" as a failure with **no runtime detection**, so this
+  manual pass is the only thing that catches it. Two of five golden fixtures cover the refusal
+  branch; the other three have never run.
+- **The level selector's prominence.** It has existed on `ConfirmationScreen.tsx` since story 1.6b,
+  but Karthik asked for it on 2026-08-05 as though it were missing. That is a UI judgment, not a
+  missing feature. Look at it in the browser and decide.
+
+### 🔴 Budget at session 11's close — unchanged, because 3.3 spent nothing
+
+```
+fast (gpt-oss-20b)    197,178 / 200,000   MEASURED at session 10's close, off a 429 body
+deep (gpt-oss-120b)   ~35,000 / 200,000   estimated
+```
+
+Rolling window refills at ~138 tokens/min, so `fast` is usable again roughly 24h from about
+13:00 IST on 2026-08-05. **A clarification needs `fast`** — if it is still exhausted, the clarify
+path will 429 and that is quota, not a defect. Classify before believing it.
+
+### 🔴 THE DEFECT TO SETTLE BEFORE PHASE 4 STARTS, NOT DURING
+
+**`transcript_turns` holds NO candidate answers.** Only the Interviewer's own utterances get a row,
+so a completed interview stores 3 questions and 1 clarification and **zero answers**. Phase 4's
+`answer_evaluations.turn_idx` references `transcript_turns.idx`, so **Phase 4 cannot attach a score
+to an answer that has no row.** This is a schema-shaped problem, not a prompt one. Carried since
+session 10 and still the first thing Phase 4 must resolve.
+
+### The other two defects carried forward, deliberately not chased
+
+1. **The Planner still generates em-dashes.** Session 11 stopped them reaching a candidate *through
+   the interview surface* (`stripDashes` at the render boundary) but **did not fix generation** — a
+   dash still lands in `question_plan` and `transcript_turns`. Anything Phase 4 renders from those
+   rows needs the same guard, or the generation side needs fixing properly.
+2. **The Case Architect produces round figures** (`arr_usd "$150M"`, `customer_count 500000`).
+   `is_round_dollar_amount` covers `arr_usd`/`size_usd` but nothing checks `supporting_facts` free
+   text or `customer_count`. **Widen the assertion first, then fix the prompt.**
+3. **`years_pm_experience` reports 8.0 where the true value is 10** (Karthik's CV, PM from 2016).
+   Gates nothing now the level is candidate-selected, but it is shown to the candidate.
+
+### What 3.3 delivered, with the numbers
+
+```
+frontend      13 files, 113 passed        (was 10 files / 84)
+tsc --noEmit  clean
+vite build    ok, dist/assets/index-DKTCjjeJ.js 435.10 kB
+backend       221 passed, 95 deselected   unchanged, no backend file touched
+```
+
+**Falsified, not inspected** — two deliberate mutations, both reverted:
+
+```
+clarification branch replaces the question   -> 2 failed  (TRAP 2, interview.test.ts)
+stripDashes removed from the question render -> 1 failed  (dash test, InterviewSurface.test.tsx)
+                                                3 failed | 110 passed
+```
+
+New: `lib/copy.ts` (`stripDashes`), `lib/interview.ts` (`useInterview`),
+`components/InterviewSurface.tsx`, plus a test file each. Edited: `lib/types.ts`, `lib/api.ts`
+(`first_question` was being **dropped on the floor** — the backend had returned it since 3.2),
+`lib/levelAssessment.ts`, `App.tsx`, `OrchestrationColumn.tsx` (one appended row, as 2.7 predicted).
+
+**`OrchestrationColumn` was deliberately left where it is** — in `AppShell`'s slot, outside
+`renderConversation()`, never remounted. Its docstring explains that this placement is the
+structural reason the Realtime startup race stays closed.
+
+### The pattern session 11 repeated, and it paid again
+
+**Both of session 11's real findings came from re-verifying independently rather than reading the
+subagent's report.** The report was accurate; the value was in the two mutations run afterward,
+which turned "the tests pass" into "the tests would have caught it". The subagent also edited two
+pre-existing test files, which is the exact shape of the regression CLAUDE.md warns about — both
+edits were checked and were **strengthenings** (full ordered equality including the new row;
+`firstQuestion` newly asserted), not weakenings. **Check that every time; it will not always be.**
+
+---
+
+## Superseded — session 10's handoff, kept for the record
+
 ## 🟢 SESSION 10, 2026-08-05. PHASE 1 IS COMPLETE. STORIES 3.1 AND 3.2 DONE. THE INTERVIEW RUNS.
 
 **`git status` is clean. Four commits, all pushed to local `main`:**
@@ -2857,6 +2973,54 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🔴 2026-08-05 (session 11) · THE EM-DASH BAN ON MODEL OUTPUT IS NOW DETERMINISTIC, NOT PROMPTED.
+`stripDashes` runs at the frontend render boundary.**
+
+Story 3.3's fifth acceptance box covers "anything rendered from model output", which **no static
+check can ever see** — `test_user_facing_copy.py` walks the AST of `app/`, and a dash the Planner
+or the Interviewer writes at runtime is not in any source file. The two prior attempts at this rule
+were prompt lines, and **both failed**: the Planner still ships em-dashes into candidate-facing
+questions (recorded as an open defect on 2026-08-04 and still open).
+
+**A prompted ban is not a ban.** So the fix is `frontend/src/lib/copy.ts`'s `stripDashes`, applied
+in `InterviewSurface.tsx` to every string that came from a model — the question text and the
+clarification answer — and to nothing else. Rules, in order:
+
+| Input | Output | Why |
+|---|---|---|
+| `2016–2019` | `2016 to 2019` | en-dash between digit runs is a range; a comma would be wrong |
+| `scope — the surface you owned` | `scope, the surface you owned` | an aside; a comma is the nearest single character |
+| `scope —.` | `scope.` | the inserted comma collapses into following punctuation |
+| no dashes at all | byte-identical | asserted, so the guard cannot quietly rewrite clean text |
+
+**It is deliberately NOT applied to this project's own source strings.** Those are covered by
+review and by `test_user_facing_copy.py`; running a sanitizer over them would hide a rule violation
+instead of surfacing it.
+
+**This also closes session 9's open defect #1 from the candidate's side** — the Planner still
+generates the dash, but it no longer reaches a candidate through the interview surface. **The
+generation-side defect stays open**: a dash still lands in `question_plan` and in
+`transcript_turns`, so anything Phase 4 renders from those rows needs the same treatment. Widening
+the fix to the generation side is the cleaner end state and was not done here because story 3.3 is
+frontend-only.
+
+**Falsified, not inspected.** Removing `stripDashes` from the question render turns
+`InterviewSurface.test.tsx`'s dash test red, observed.
+
+**🔴 2026-08-05 (session 11) · THE CLARIFICATION BRANCH IS THE ONE PLACE THIS UI CAN SILENTLY LOSE
+THE CANDIDATE'S PLACE, AND IT IS ASSERTED ON BOTH SIDES.**
+
+`answer_clarification_node` does not advance `current_q_idx` and does not replace the question: the
+candidate **still owes an answer to the original question**. A UI that swaps the question out for
+the clarification answer therefore loses the question, and **state still looks entirely correct** —
+the same shape as story 3.2's looping-interrupt bug, which also read fine from state.
+
+So `useInterview` carries `question` forward unchanged on `next.kind === 'clarification'` and only
+sets `clarification`; a `question` response does the opposite and **clears the stale clarification**,
+which belonged to the question just left behind. Both directions are asserted, and both were
+**falsified by deliberate mutation** (making the clarification branch replace the question turns 2
+tests red, observed) rather than inspected.
 
 **🔴🔴 2026-08-05 (session 10) · STORY 3.2 SHIPPED THREE LIVE TESTS THAT COULD NEVER PASS, AND THE
 OFFLINE SUITE WAS GREEN THE ENTIRE TIME. The falsification was half-proven until they ran.**
