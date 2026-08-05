@@ -118,7 +118,7 @@ toggle no script can flip.** See Blockers.
 | 0 Walking skeleton | ✅ complete | PHASE-0-SPEC.md | 2026-07-30 — 52 tests live, deployed, phase gate 6/6 |
 | 1 Resume Analyst + design foundation | 🟡 **ALL SEVEN STORIES DONE 2026-08-02. Phase gate pending** — 4 of 5 conditions met; the open one is #4, a real resume through the deployed URL, which only Karthik can judge. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-02 — 88 live tests, **60 offline, 74 vitest** |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
-| 3 Interviewer + conduct loop | 🟡 **STORY 3.1 DONE 2026-08-05 at ZERO token cost.** Agent spec + 5 blind fixtures + 40 offline assertion tests; suite deliberately RED in 0.17s. **Next: 3.2, the agent and the looping interrupt** | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **199 offline**, 84 vitest |
+| 3 Interviewer + conduct loop | 🟡 **STORIES 3.1 AND 3.2 DONE 2026-08-05.** Loop built, **the looping interrupt is falsified on BOTH sides**, 2 golden cases smoked on `fast`, and the chain runs end to end over real HTTP. **Next: 3.3, the interview UI** | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **213 offline (+3 live)**, 84 vitest, chain proven over HTTP |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -133,7 +133,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 written blind 2026-08-02. **1 of 7 smoked live 2026-08-04: `apm_consumer` PASSES on `fast`.** Other 6 never run. 47 offline assertion tests | 2026-08-04 — placeholder ban + ACV market conditioning. **~3,400 chars, ceiling ~15,557** |
 | Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 written blind 2026-08-02. **1 of 5 smoked live 2026-08-04, 5 runs: grounding/coverage/timing/immutability all pass, genericness FLAPS 1-of-7-questions.** Accepted, see Decisions | 2026-08-04 — grounding verbatim rules, value-only entries, company name in every question. **~4,300 chars, ceiling ~12,197. Runs on `deep`, NOT `fast`** |
-| Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — written 2026-08-05, **before the prompt** | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests. **None run live — the agent does not exist (3.2)** | — (no prompt yet). **Ceiling computed: ~20,000 chars for `answer_clarification` at `max_tokens=2048`, and neither call ever sees the transcript** |
+| Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — written 2026-08-05, **before the prompt** | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests. **2 of 5 smoked live on `fast` 2026-08-05: `apm_consumer_world` (no retry) and `senior_pm_platform_world` (the refusal branch, retry fired then passed).** Other 3 never run | 2026-08-05 — bridge **1,099 chars**, clarification **2,728 chars**, ceiling ~20,000. **Runs on `fast`, measured** |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
 
@@ -2081,23 +2081,67 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🟢 SESSION 10, 2026-08-05. STORY 3.1 IS DONE AND IT COST ZERO TOKENS.
-
-**Both `deep` and `fast` budgets are untouched by this session.** Session 9's close estimated `deep`
-at ~130-150k of 200k; more than 24h has passed at ~138 tokens/min refill, so **the bucket should be
-full.** Not measured — run `probe_groq.py` before assuming it.
+## 🟢 SESSION 10, 2026-08-05. STORIES 3.1 AND 3.2 ARE DONE. THE INTERVIEW LOOP RUNS OVER HTTP.
 
 **Run these three first (~30s, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 199 passed, 91 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 213 passed, 94 deselected
 cd frontend && npm test -- --run                                          # expect 84 passed
-curl -s https://pm-interview-panel.onrender.com/openapi.json              # expect FOUR /session routes
+curl -s https://pm-interview-panel.onrender.com/openapi.json              # expect the /session routes
 ```
+
+**🔴 The third will now be SHORT of what is deployed.** Story 3.2 added
+`POST /session/{id}/interview/reply` and changed `/level/confirm`'s response, and **none of it is
+pushed or deployed.** Production still serves session 9's build. That is fine and expected — but
+**do not read a passing `/health` as "production is current"**; that is exactly the four-day failure
+of session 9.
+
+### 🔴 Start here: story 3.3, the interview UI — and it needs NO LLM budget
+
+`PHASE-3-SPEC.md` § 3.3. Six acceptance boxes. The backend it talks to is built and proven.
+
+- The question is revealed **whole, never streamed token by token** (design v1: no typewriter).
+- Answer and clarify are **visibly distinct actions**, and the API already separates them:
+  `POST /session/{id}/interview/reply` with `{"type": "answer"|"clarify", "text": ...}`.
+- **The response nests the payload under `next` and flags the end with `done`** — not at the top
+  level. Reading the top level is what made the HTTP proof script over-post and 404. `done: true`
+  means the interview is over and there is no `next`.
+- The orchestration column needs **one row added to `AGENTS` in `OrchestrationColumn.tsx`**; story
+  2.7 proved that is all a new agent needs.
+- **No persona header, no interviewer name.** Binding since 2026-07-31.
+- **No em-dashes in anything rendered from model output.** The Interviewer generates prose at
+  runtime, which `test_user_facing_copy.py` cannot see.
 
 **The third is not optional.** Production was broken for four days in session 9 and no test suite
 could see it — a failed Render deploy keeps serving the last healthy build, so `/health` stays green.
 Verified passing at the start of session 10.
+
+### 🔴 Two things story 3.2 found that later phases inherit
+
+1. **`transcript_turns` holds NO candidate answers** — only the Interviewer's own utterances get a
+   row. A completed interview stores 3 questions and 1 clarification and zero answers. **Phase 4's
+   `answer_evaluations.turn_idx` references `transcript_turns.idx`, so Phase 4 cannot attach a score
+   to an answer that has no row.** Decide this before Phase 4 starts, not during it.
+2. **The bridge reads as a tell.** Consecutive turns produced "Understood, thanks for sharing that
+   approach. Let's continue." and "Understood, thanks for sharing that. Let's continue." It exists
+   to make the interview not feel like a form, and **at this quality it may be doing the opposite.**
+   Spec §8 already names deleting it as the option. **This is a gate question for Karthik**, not a
+   bug to fix blind.
+
+### What 3.2 delivered, with the numbers
+
+```
+offline        213 passed, 94 deselected, 1 warning in 3.65s     (was 199/91)
+live loop      3 passed, 14 deselected in 30.20s
+golden smoke   apm_consumer_world        PASS on fast, retry_fired=False
+               senior_pm_platform_world  PASS on fast, retry_fired=True   (the refusal branch)
+falsification  wrong graph 1 -> 3 -> 4 where a correct loop logs 2, exit 0
+http proof     3 questions over 3 separate requests, clarification consumed no slot, done
+prompts        bridge 1,099 chars · clarification 2,728 chars · ceiling ~20,000
+```
+
+**`fast` holds `ClarificationAnswer`** — measured, so unlike the Planner this agent needs no `deep`.
 
 ### What 3.1 delivered
 
@@ -2736,6 +2780,85 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🔴🔴 2026-08-05 (session 10) · STORY 3.2 SHIPPED THREE LIVE TESTS THAT COULD NEVER PASS, AND THE
+OFFLINE SUITE WAS GREEN THE ENTIRE TIME. The falsification was half-proven until they ran.**
+
+The agent reported `14 passed, 3 deselected` on `test_conduct_loop.py` and treated the story as
+verified. The 3 deselected were the `live` ones — **the only tests that observe the property the
+whole phase exists to prove.** Run independently, all three died immediately:
+
+```
+KeyError: 'resume_text'
+During task with name 'level_candidate'
+3 failed, 14 deselected in 13.82s
+```
+
+**Not a rate limit** — classified first, per CLAUDE.md: no `tokens per day`, no `tokens per minute`
+in the output. A genuine defect. The tests seeded `case_world` and `question_plan` straight into
+`ainvoke`, but `build_graph`'s entry point is `level_candidate`, so every one of them started the
+Resume Analyst and died on the missing `resume_text`.
+
+**Why this mattered more than a normal broken test.** `falsify_looping_interrupt.py` only ever runs
+the WRONG graph. Its "a correct 2-question loop would log exactly 2" is **reasoned, not observed** —
+and the observation of the correct side lived entirely in these three dead tests. **So the phase's
+central proof was half-complete and looked finished.** Fixed by seeding the checkpoint
+`as_node="plan_interview"`, which resumes from the real `plan_interview -> ask_question` edge and
+leaves the loop's own wiring under test. Both sides are now measured:
+
+```
+correct graph (live)   q1 = 0 calls, q2 = 1, q3 = 2, clarification = 3,
+                       and STILL 3 after the real answer resumes   <- 3 passed in 30.20s
+wrong graph (script)   1 -> 3 -> 4 where a correct loop logs 2     <- exit 0, FAILS as it must
+```
+
+**The standing lesson, third time in three sessions:** a subagent's green offline run says nothing
+about the tests it did not execute. **Deselected is not passed.**
+
+**2026-08-05 (session 10) · `fast` DOES hold `ClarificationAnswer`, closing spec §8's open question
+with evidence.** `apm_consumer_world` passed with `retry_fired=False`;
+`senior_pm_platform_world` (the refusal branch) passed with `retry_fired=True`, so the validate-retry
+path is exercised and works. **Unlike the Planner, this agent needs no `deep`** — three fields is far
+smaller than `QuestionPlan`, which is the distinction that mattered.
+
+**2026-08-05 (session 10) · The chain is proven over REAL HTTP, and two script bugs were mine, not
+the product's.** `backend/scripts/prove_interview_over_http.py` starts a real uvicorn subprocess and
+speaks HTTP over a socket, per story 0.7's rule that a rebuilt `TestClient` shares the parent's
+memory and therefore proves nothing. Observed:
+
+```
+POST /session -> /resume -> /level (Senior PM) -> /level/confirm (question 1, 282 chars)
+  clarification consumed NO question slot
+  3 questions asked, each over its own request
+  done, interview over
+```
+
+Two failures on the way were the script's, and both are worth recording because neither was a
+product defect: uvicorn dies at startup on Windows with `ProactorEventLoop` (psycopg refuses it;
+Render is Linux and unaffected), and the reply route nests its payload under `next` with a `done`
+flag rather than at the top level — reading the top level made the script over-post and 404. **The
+route's shape is right; I read it wrong.**
+
+**🔴 2026-08-05 (session 10) · TWO QUALITY DEFECTS VISIBLE IN THE LIVE INTERVIEW, RECORDED AND NOT
+CHASED, per the portfolio calibration.**
+
+1. **The bridge is repetitive to the point of being a tell.** Consecutive turns produced *"Understood,
+   thanks for sharing that approach. Let's continue."* and *"Understood, thanks for sharing that.
+   Let's continue."* The bridge exists specifically to answer the gate's "does it feel like an
+   interview or a form?" question, and **at this quality it may be answering it the wrong way.**
+   Spec §8 already names deleting it as the live option; the Phase 3 gate is where that gets decided.
+2. **No candidate turn is written to `transcript_turns`.** Only the Interviewer's own utterances get
+   a row, so a completed interview stores 3 questions and 1 clarification and **zero answers.**
+   Phase 4's `answer_evaluations.turn_idx` references `transcript_turns.idx`, so **Phase 4 cannot
+   attach a score to an answer that has no row.** This is a Phase 4 blocker discovered in Phase 3,
+   which is the cheapest place to find it.
+
+**2026-08-05 (session 10) · A Pydantic `UserWarning` on every structured-output call is LIBRARY-LEVEL
+and affects nothing this product persists.** `Expected 'none' but got 'BridgeLine'` traces to
+`langchain_openai.chat_models.base._create_chat_result` calling `model_dump()` on the OpenAI SDK's
+parsed response object. It therefore applies to **every** `with_structured_output` call in the
+product, not just this agent, and was simply never scrutinised before. Nothing we checkpoint is a
+model instance — the nodes extract `.bridge` and `.answer` as plain strings. Recorded, not chased.
 
 **🔴 2026-08-05 (session 10) · THE INTERVIEWER DOES NOT REGENERATE THE PLANNED QUESTION. Python
 emits it verbatim; the model only writes a bridge line. This diverges from ARCHITECTURE §3, which

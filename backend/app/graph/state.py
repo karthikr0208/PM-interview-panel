@@ -37,6 +37,15 @@ class InterviewState(TypedDict):
     followup_count: int
     dimension_coverage: dict[str, int]
     started_at: str
+    # The most recently resumed `await_candidate` payload, {"type":
+    # "answer"|"clarify", "text": str} -- written ONLY by await_candidate's
+    # return (its interrupt() value, unmodified), per AGENT-INTERVIEWER-SPEC
+    # and PHASE-3-SPEC.md 3.2's own suggested shape. route_input reads
+    # ["type"] to pick a branch; answer_clarification_node and ask_question
+    # read ["text"] (the clarifying question, or the previous answer for the
+    # bridge) -- neither re-derives it from `messages`, which stays the
+    # durable transcript rather than a second data source to keep in sync.
+    last_input: dict
 
     # ── Evaluator / Coach ────────────────────────────────────
     # operator.add concatenates each evaluate_answer's one-element return list.

@@ -212,6 +212,19 @@ async def test_command_resume_carries_the_candidates_level_into_state(
     covers the other half -- persistence to `sessions.level`, which is the
     route handler's job, not `confirm_level`'s (confirm_level may contain
     nothing but `interrupt()` and its return; see CLAUDE.md).
+
+    Story 3.2: this resume no longer runs the graph to completion. It now
+    also drives `generate_case_world -> plan_interview -> ask_question ->
+    await_candidate`, which pauses AGAIN at the interview's first question
+    -- so a SECOND `__interrupt__` here is the CORRECT outcome, not a
+    regression. (Before story 3.2, `plan_interview -> END` meant a resume
+    finished the graph outright, which is what this test's assertion used
+    to check.) `resumed["assessed_level"]` still carries the correction
+    either way, because LangGraph's `ainvoke` return holds every
+    accumulated state channel up to wherever it next pauses, not just the
+    last node's own delta -- that is the actual property this test exists
+    to prove, and it is unaffected by how much further the graph runs
+    afterward.
     """
     session_id = graph_sessions(SHORT_RESUME)
     graph = build_graph(checkpointer, resume_analyst_role="fast")
@@ -225,7 +238,10 @@ async def test_command_resume_carries_the_candidates_level_into_state(
 
     resumed = await graph.ainvoke(Command(resume=corrected_level), config)
 
-    assert "__interrupt__" not in resumed, "graph paused a second time instead of finishing"
+    assert "__interrupt__" in resumed, (
+        "graph did not pause at await_candidate for the interview's first "
+        "question -- expected the conduct loop (story 3.2) to have started"
+    )
     assert resumed["assessed_level"] == corrected_level, (
         f"the resumed value never reached state: expected {corrected_level!r}, "
         f"got {resumed['assessed_level']!r}"

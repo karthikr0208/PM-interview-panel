@@ -13,7 +13,12 @@ is what that skeleton exists to prove.
 The full graph (level_candidate -> confirm_level -> ... -> coach_report) is
 built incrementally across Phases 1-5. Stories 2.3 and 2.6 add
 `generate_case_world` (the Case Architect) and `plan_interview` (the
-Planner), chained after `confirm_level`. Four nodes exist today.
+Planner), chained after `confirm_level`. Story 3.2 adds the conduct loop --
+`ask_question`, `await_candidate`, `route_input`, `answer_clarification_node`,
+`decide_next` -- so the graph now pauses a SECOND kind of interrupt, this one
+inside a loop rather than a single pause-and-resume. See that section's own
+banner comment below for the loop's shape and its `transcript_turns.idx`
+scheme.
 
 THE load-bearing rule for every node in this graph, and especially for
 `confirm_level` (any node that calls `interrupt()`):
@@ -29,13 +34,18 @@ THE load-bearing rule for every node in this graph, and especially for
 from __future__ import annotations
 
 import time
-from typing import Any, Awaitable, Callable
+from datetime import datetime, timedelta, timezone
+from typing import Any, Awaitable, Callable, Literal
 
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
 from app.agents.case_architect import generate_case_world as _generate_case_world
+from app.agents.interviewer import answer_clarification as _answer_clarification
+from app.agents.interviewer import compose_question
+from app.agents.interviewer import write_bridge as _write_bridge
 from app.agents.planner import plan_interview as _plan_interview
 from app.agents.resume_analyst import analyse_resume
 from app.graph.state import InterviewState
@@ -57,6 +67,14 @@ _CASE_WORLD_ERROR_SUMMARY = "Ran into a problem building the case."
 _PLAN_STARTED_SUMMARY = "Planning interview questions."
 _PLAN_DONE_SUMMARY = "Planned interview questions."
 _PLAN_ERROR_SUMMARY = "Ran into a problem planning the interview."
+
+_ASK_STARTED_SUMMARY = "Asking the next interview question."
+_ASK_DONE_SUMMARY = "Asked the next interview question."
+_ASK_ERROR_SUMMARY = "Ran into a problem asking the next question."
+
+_CLARIFY_STARTED_SUMMARY = "Answering your clarifying question."
+_CLARIFY_DONE_SUMMARY = "Answered your clarifying question."
+_CLARIFY_ERROR_SUMMARY = "Ran into a problem answering your clarifying question."
 
 
 def _make_level_candidate(
@@ -317,15 +335,351 @@ def _make_plan_interview(
     return plan_interview
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# Story 3.2: the conduct loop. Five graph waypoints, per PHASE-3-SPEC.md:
+#
+#   plan_interview -> ask_question -> await_candidate -> route_input
+#       clarify -> answer_clarification_node -> await_candidate
+#       answer  -> decide_next
+#           ask  -> ask_question
+#           exit -> END
+#
+# `transcript_turns.idx` is `len(state["messages"])` at the moment a node
+# writes its OWN utterance -- i.e. the index the message it is about to
+# append will occupy once merged. `messages` only ever grows in this loop
+# (both the candidate's and the Interviewer's turns are appended to it, via
+# `add_messages`), so this is monotonic and unique per session without a
+# separate counter field. Only the Interviewer's own generated utterances
+# are mirrored into `transcript_turns` (ask_question's question,
+# answer_clarification_node's answer) -- the candidate's words live in
+# `messages`, durable via the Postgres checkpointer, which is this phase's
+# "transcript in state" (PHASE-3-SPEC.md's own "Done when" bar). Phase 4
+# will need to decide how the Evaluator sources the candidate's raw answer
+# text; deferred rather than guessed at here. See story 3.2's final report.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _make_ask_question(
+    role: Role = "fast",
+) -> Callable[[InterviewState], Awaitable[dict]]:
+    """Factory, same reasoning as the three above: tests build a graph on
+    `role="fast"` (or any other role) without touching production's
+    default. AGENT-INTERVIEWER-SPEC.md §1 and §8 both land on `fast` as the
+    production default already -- this parameter exists for symmetry with
+    the other three roles and so a future measurement can change it at the
+    call site without touching this function's body.
+    """
+
+    async def ask_question(state: InterviewState) -> dict:
+        """The only node that composes an utterance the candidate reads.
+
+        Question 1 (`current_q_idx` unset, i.e. 0): ZERO LLM calls -- there
+        is nothing yet to bridge from (AGENT-INTERVIEWER-SPEC.md §2a).
+        Question 2+: exactly one `write_bridge` call, fed ONLY the
+        candidate's most recent answer (`state["last_input"]["text"]`) --
+        never `case_world`, never the plan (spec §2a's deliberate
+        starvation). The planned question text itself is never regenerated:
+        `compose_question` copies it byte for byte from `question_plan`
+        (spec §2a's central rule; DEV-STATE § Decisions 2026-08-05).
+
+        Owns every side effect this node is responsible for: one
+        `agent_events` row on start, one on completion (or error), and one
+        `transcript_turns` row for the composed question. Sets
+        `started_at` only on question 1 -- every later call leaves it
+        alone, so `decide_next`'s elapsed-time read is stable across the
+        whole loop.
+        """
+        session_id = state["session_id"]
+        q_idx = state.get("current_q_idx", 0)
+        planned = state["question_plan"][q_idx]
+
+        started = time.perf_counter()
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "interviewer",
+                "status": "started",
+                "summary": _ASK_STARTED_SUMMARY,
+            },
+        )
+
+        bridge_text: str | None = None
+        try:
+            if q_idx > 0:
+                previous_answer = (state.get("last_input") or {}).get("text", "")
+                bridge = await _write_bridge(previous_answer, role=role)
+                bridge_text = bridge.bridge
+        except Exception:
+            await rest_insert(
+                "agent_events",
+                {
+                    "session_id": session_id,
+                    "agent": "interviewer",
+                    "status": "error",
+                    "summary": _ASK_ERROR_SUMMARY,
+                },
+            )
+            raise
+
+        question_text = compose_question(planned["question"], bridge_text)
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        idx = len(state.get("messages") or [])
+        await rest_insert(
+            "transcript_turns",
+            {
+                "session_id": session_id,
+                "idx": idx,
+                "role": "interviewer",
+                "kind": "question",
+                "content": question_text,
+            },
+        )
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "interviewer",
+                "status": "done",
+                "summary": _ASK_DONE_SUMMARY,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        dimension_coverage = dict(state.get("dimension_coverage") or {})
+        dimension = planned["primary_dimension"]
+        dimension_coverage[dimension] = dimension_coverage.get(dimension, 0) + 1
+
+        update: dict = {
+            "messages": [AIMessage(content=question_text, additional_kwargs={"kind": "question"})],
+            "current_q_idx": q_idx + 1,
+            "dimension_coverage": dimension_coverage,
+        }
+        if q_idx == 0:
+            update["started_at"] = datetime.now(timezone.utc).isoformat()
+        return update
+
+    return ask_question
+
+
+def await_candidate(state: InterviewState) -> dict:
+    """`interrupt()` and its return. Nothing else, ever -- see module
+    docstring and CLAUDE.md "Rules that must never be broken". LangGraph
+    re-runs this ENTIRE node from the top on every resume, so anything
+    computed above the `interrupt()` line would silently re-run on every
+    single candidate turn for the rest of the interview -- the exact bug
+    `scripts/falsify_looping_interrupt.py` demonstrates against a
+    deliberately wrong graph.
+
+    The payload surfaces the LAST thing state already holds -- the question
+    just asked, or the clarification answer just given -- by reading
+    `messages[-1]`, exactly like `confirm_level`'s payload above: a pure
+    read of an already-computed value, not a new computation. `kind`
+    (written by `ask_question` / `answer_clarification_node` into each
+    message's `additional_kwargs`) tells the caller which of the two this
+    is, so the HTTP layer can distinguish "here is the next question" from
+    "here is your clarification answer; the original question is still
+    owed."
+
+    The resumed value -- `{"type": "answer"|"clarify", "text": str}` -- is
+    written to BOTH `messages` (the durable, checkpointer-backed
+    transcript) and `last_input` (so `route_input` and the next node can
+    read the type/text without re-deriving it from `messages`). Both come
+    straight from `value`; nothing above the `interrupt()` line computed
+    either.
+    """
+    existing = state.get("messages") or []
+    last_message = existing[-1] if existing else None
+    value = interrupt(
+        {
+            "kind": (last_message.additional_kwargs or {}).get("kind") if last_message else None,
+            "text": last_message.content if last_message else None,
+            "current_q_idx": state.get("current_q_idx", 0),
+        }
+    )
+    return {
+        "messages": [HumanMessage(content=value.get("text", ""))],
+        "last_input": value,
+    }
+
+
+def route_input(state: InterviewState) -> Literal["clarify", "answer"]:
+    """Conditional edge off `await_candidate`. Deterministic: reads the
+    type of the just-resumed payload from `last_input`, which
+    `await_candidate`'s own return already wrote -- no computation of its
+    own beyond a dict lookup. Defaults to "answer" on a missing/unknown
+    type rather than raising, matching this graph's uniform failure
+    behaviour of not stalling the interview on a malformed client payload.
+    """
+    reply_type = (state.get("last_input") or {}).get("type")
+    return "clarify" if reply_type == "clarify" else "answer"
+
+
+def _make_answer_clarification_node(
+    role: Role = "fast",
+) -> Callable[[InterviewState], Awaitable[dict]]:
+    """Factory, same reasoning as the others above."""
+
+    async def answer_clarification_node(state: InterviewState) -> dict:
+        """Answers ONE clarifying question from `case_world` alone, writes
+        its own `transcript_turns` row and `agent_events` rows, appends its
+        answer to `messages`, then routes back to `await_candidate` -- the
+        candidate still owes an answer to the planned question, and
+        `current_q_idx` has NOT advanced past it (only `ask_question`
+        advances it).
+
+        Reads the still-pending planned question from
+        `question_plan[current_q_idx - 1]` -- `current_q_idx` already
+        points PAST the question currently on the table, because
+        `ask_question` increments it the moment it asks.
+        """
+        session_id = state["session_id"]
+        clarifying_question = (state.get("last_input") or {}).get("text", "")
+        pending_idx = max(state.get("current_q_idx", 1) - 1, 0)
+        planned_question = state["question_plan"][pending_idx]["question"]
+
+        started = time.perf_counter()
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "interviewer",
+                "status": "started",
+                "summary": _CLARIFY_STARTED_SUMMARY,
+            },
+        )
+
+        try:
+            result = await _answer_clarification(
+                state["case_world"], planned_question, clarifying_question, role=role
+            )
+        except Exception:
+            await rest_insert(
+                "agent_events",
+                {
+                    "session_id": session_id,
+                    "agent": "interviewer",
+                    "status": "error",
+                    "summary": _CLARIFY_ERROR_SUMMARY,
+                },
+            )
+            raise
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        idx = len(state.get("messages") or [])
+        await rest_insert(
+            "transcript_turns",
+            {
+                "session_id": session_id,
+                "idx": idx,
+                "role": "interviewer",
+                # Neither "question" nor "answer" (the candidate's own kind,
+                # never written by this agent) nor "followup" (Phase 3
+                # builds no probe edge) -- "meta" is the honest bucket for
+                # an aside answering a clarification, not advancing the plan.
+                "kind": "meta",
+                "content": result.answer,
+            },
+        )
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "interviewer",
+                "status": "done",
+                "summary": _CLARIFY_DONE_SUMMARY,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        return {
+            "messages": [AIMessage(content=result.answer, additional_kwargs={"kind": "clarification"})],
+        }
+
+    return answer_clarification_node
+
+
+# The ONE place the exit condition lives (PHASE-3-SPEC.md 3.2's 🔴
+# requirement). Phase 3 asks 2-3 questions, never the plan's full 5-7 --
+# CLAUDE.md's portfolio calibration, restated at the top of PHASE-3-SPEC.md.
+_QUESTIONS_THIS_PHASE = 3
+
+# Safety valve, not the primary exit path: at 2-3 questions this almost
+# never fires, but a candidate who spends a long time on clarifications
+# should not turn a 45-minute interview into an unbounded one.
+_TIME_BUDGET_MINUTES = 40
+
+
+def _decide_next_node(state: InterviewState) -> dict:
+    """No-op body. Exists only because LangGraph's conditional-edge
+    `path_map` values must name a real node: `route_input`'s "answer"
+    branch needs a destination before `decide_next` (below)'s own outgoing
+    conditional edge -- registered under this SAME node name -- can read
+    state and choose ask/exit. Writes nothing: this phase mirrors only the
+    Interviewer's own utterances into `transcript_turns` (see the module
+    banner above), and this node exists between two of the candidate's, not
+    the Interviewer's.
+    """
+    return {}
+
+
+def decide_next(state: InterviewState) -> Literal["ask", "exit"]:
+    """Deterministic Python, NO LLM call, no I/O -- pure enough to test
+    directly against a bare dict, offline. Reads `followup_count`, elapsed
+    time (from `started_at`) and `dimension_coverage` from state, per
+    PHASE-3-SPEC.md 3.2's acceptance box.
+
+    `followup_count` MUST be 0 for the whole of Phase 3: no probe edge
+    exists in this graph (AGENT-INTERVIEWER-SPEC.md §2c -- probing needs
+    answer quality, a score Phase 4 produces, and building it now would be
+    unfalsifiable). Asserted rather than merely read: a nonzero value here
+    means something wrote to a field this graph has no edge to act on,
+    which is a real bug worth surfacing loudly, not absorbing silently.
+
+    `dimension_coverage` is read but does not gate the decision in this
+    phase. Phase 3 fills it from the ASKED question's `primary_dimension`
+    (the Planner's own field, `ask_question`'s write) rather than from a
+    score, because no score exists yet (PHASE-3-SPEC.md's opening section).
+    Deciding "have we covered enough" needs that same score to know whether
+    a question was answered adequately, so coverage stays informational
+    here; Phase 4 is expected to replace the SOURCE without changing this
+    function's shape.
+
+    The exit condition lives in exactly ONE place: `_QUESTIONS_THIS_PHASE`.
+    """
+    followup_count = state.get("followup_count", 0)
+    assert followup_count == 0, (
+        "decide_next assumes no probe edge exists in Phase 3 (spec §2c), but "
+        f"followup_count={followup_count} -- something wrote to a field this "
+        "graph has no edge to act on"
+    )
+    _ = state.get("dimension_coverage", {})  # read; not yet gated on, see docstring
+
+    if state.get("current_q_idx", 0) >= _QUESTIONS_THIS_PHASE:
+        return "exit"
+
+    started_at = state.get("started_at")
+    if started_at:
+        elapsed = datetime.now(timezone.utc) - datetime.fromisoformat(started_at)
+        if elapsed >= timedelta(minutes=_TIME_BUDGET_MINUTES):
+            return "exit"
+
+    return "ask"
+
+
 def build_graph(
     checkpointer: BaseCheckpointSaver,
     *,
     resume_analyst_role: Role = "deep",
     case_architect_role: Role = "fast",
     planner_role: Role = "deep",
+    interviewer_role: Role = "fast",
 ) -> Any:
     """Compiles level_candidate -> confirm_level -> generate_case_world ->
-    plan_interview -> END with the given checkpointer attached.
+    plan_interview -> ask_question -> await_candidate -> ... -> END (the
+    conduct loop, story 3.2) with the given checkpointer attached.
 
     `checkpointer` must be an `AsyncPostgresSaver` (session pooler, port
     5432) in every environment including local dev. Never `MemorySaver` —
@@ -348,15 +702,32 @@ def build_graph(
     DEV-STATE § Decisions 2026-08-04. Kept as parameters, not hardcoded, so
     production can switch either at the call site without touching this
     function's body.
+
+    `interviewer_role` defaults to `fast` -- the one agent where
+    ARCHITECTURE §4's table and the portfolio calibration agree
+    (AGENT-INTERVIEWER-SPEC.md §1/§8): it is the only agent that runs while
+    a candidate is watching a cursor.
     """
     graph = StateGraph(InterviewState)
     graph.add_node("level_candidate", _make_level_candidate(resume_analyst_role))
     graph.add_node("confirm_level", confirm_level)
     graph.add_node("generate_case_world", _make_generate_case_world(case_architect_role))
     graph.add_node("plan_interview", _make_plan_interview(planner_role))
+    graph.add_node("ask_question", _make_ask_question(interviewer_role))
+    graph.add_node("await_candidate", await_candidate)
+    graph.add_node("answer_clarification_node", _make_answer_clarification_node(interviewer_role))
+    graph.add_node("decide_next", _decide_next_node)
     graph.set_entry_point("level_candidate")
     graph.add_edge("level_candidate", "confirm_level")
     graph.add_edge("confirm_level", "generate_case_world")
     graph.add_edge("generate_case_world", "plan_interview")
-    graph.add_edge("plan_interview", END)
+    graph.add_edge("plan_interview", "ask_question")
+    graph.add_edge("ask_question", "await_candidate")
+    graph.add_conditional_edges(
+        "await_candidate",
+        route_input,
+        {"clarify": "answer_clarification_node", "answer": "decide_next"},
+    )
+    graph.add_edge("answer_clarification_node", "await_candidate")
+    graph.add_conditional_edges("decide_next", decide_next, {"ask": "ask_question", "exit": END})
     return graph.compile(checkpointer=checkpointer)

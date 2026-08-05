@@ -79,17 +79,17 @@ per-turn cost before building the loop, not after.
 
 ---
 
-### 3.2 The Interviewer agent and the `conduct_round` loop
+### 3.2 The Interviewer agent and the `conduct_round` loop — ✅ DONE 2026-08-05
 
 **Acceptance**
-- [ ] `app/agents/interviewer.py` exposes **pure** functions, no database and no session, matching the other three agents
-- [ ] `ask_question` and `await_candidate` are **separate nodes**, and `await_candidate` contains **only** `interrupt()` and its return
-- [ ] `route_input` is a conditional edge on the resume payload's type: `clarify` or `answer`
-- [ ] `decide_next` is **deterministic Python, no LLM call** — reads `followup_count`, elapsed time and `dimension_coverage` from state
-- [ ] The loop **exits after 2-3 questions** in this phase, not the plan's full length, and the exit condition is in one place
-- [ ] **🔴 The single-call guarantee is FALSIFIED for the looping interrupt**, not inspected: build the wrong graph, observe the duplicate, the way story 1.4 and story 0.6 did. Extend `backend/scripts/falsify_single_call.py` or write its sibling
-- [ ] One golden case smoked live, per the calibration. Not the full suite
-- [ ] The chain runs end to end from one resume through 2-3 answered questions, **across real HTTP request boundaries** — proven with separate requests, not one in-process invocation
+- [x] `app/agents/interviewer.py` exposes **pure** functions, no database and no session, matching the other three agents
+- [x] `ask_question` and `await_candidate` are **separate nodes**, and `await_candidate` contains **only** `interrupt()` and its return
+- [x] `route_input` is a conditional edge on the resume payload's type: `clarify` or `answer`. 4 offline tests including both defaults
+- [x] `decide_next` is **deterministic Python, no LLM call** — 10 offline tests, covered at its boundaries
+- [x] The loop **exits after 2-3 questions**, exit condition in one place (`_QUESTIONS_THIS_PHASE`). Observed asking exactly 3 over HTTP
+- [x] **🔴 The single-call guarantee is FALSIFIED for the looping interrupt.** `backend/scripts/falsify_looping_interrupt.py` — **and both sides are now observed**, which the script alone did not do: the wrong graph logs 4 where a correct 2-question loop logs 2, and the correct graph's own baseline (`q1=0, q2=1, q3=2`, staying at 3 across a clarification resume) is pinned by three live tests
+- [x] **Two** golden cases smoked live on `fast`, not one: the plainly-answerable case and the refusal case, because the refusal branch is where the design risk lives. Both passed
+- [x] The chain runs end to end from one resume through 3 answered questions, **across real HTTP request boundaries** — `backend/scripts/prove_interview_over_http.py`, a real uvicorn subprocess driven over a socket
 
 **The trap specific to this story:** a loop that re-runs `ask_question` on resume looks *correct
 from state* — the transcript still reads sensibly. Only the call log shows the duplicate. **Assert

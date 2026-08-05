@@ -335,6 +335,15 @@ async def confirm_level_route(
     404 covers both an unknown `session_id` and one with no paused level
     confirmation (never started, or already confirmed) -- `.next` is empty
     in both cases, matching `/skeleton/resume`'s existing pattern.
+
+    Story 3.2: the graph no longer ends at `plan_interview`. This same
+    resume now also runs `generate_case_world -> plan_interview ->
+    ask_question -> await_candidate`, which pauses AGAIN at the interview's
+    first question -- `result["assessed_level"]` still reads correctly
+    (LangGraph's `ainvoke` return holds every accumulated state channel up
+    to wherever it next pauses, not just the last node's own delta), and
+    `first_question` surfaces `await_candidate`'s interrupt payload so the
+    frontend gets question 1 without a second round trip.
     """
     await _authorize_session(session_id, authorization)
 
@@ -352,4 +361,60 @@ async def confirm_level_route(
 
     await rest_update("sessions", "id", session_id, {"level": confirmed_level, "status": "leveled"})
 
-    return {"session_id": session_id, "level": confirmed_level, "corrected": corrected}
+    if "__interrupt__" not in result:
+        raise HTTPException(500, "The graph did not pause at await_candidate as expected.")
+
+    return {
+        "session_id": session_id,
+        "level": confirmed_level,
+        "corrected": corrected,
+        "first_question": result["__interrupt__"][0].value,
+    }
+
+
+# ── Story 3.2: the conduct loop's one HTTP entry point ──────────────────
+
+
+class InterviewReplyRequest(BaseModel):
+    type: Literal["answer", "clarify"]
+    text: str
+
+
+@app.post("/session/{session_id}/interview/reply")
+async def interview_reply(
+    session_id: str,
+    body: InterviewReplyRequest,
+    authorization: str = Header(...),
+) -> dict:
+    """Resumes the paused `await_candidate` interrupt with the candidate's
+    reply and returns whatever the graph pauses at (or finishes with) next:
+
+    - another question ("kind": "question" in `next`)
+    - a clarification answer, with the ORIGINAL question still owed
+      ("kind": "clarification" in `next`)
+    - an end-of-interview marker, once `decide_next` exits the loop
+      (`done: true`, no `next`)
+
+    404 covers both an unknown `session_id` and one with nothing paused --
+    `.next` empty in both cases, matching `/level/confirm`'s existing
+    pattern. Drives the SAME chain `route_input` -> `answer_clarification_node`
+    -> `await_candidate` (clarify) or `route_input` -> `decide_next` ->
+    `ask_question` -> `await_candidate` (answer, loop continues) or
+    `decide_next` -> `END` (answer, loop exits) -- across this one real HTTP
+    request boundary, resuming from whichever Postgres checkpoint this
+    session was paused at, possibly in an entirely different process.
+    """
+    await _authorize_session(session_id, authorization)
+
+    config = _config(session_id)
+    state = await app.state.interview_graph.aget_state(config)
+    if not state.next:
+        raise HTTPException(404, f"No paused interview turn for session_id={session_id!r}.")
+
+    result = await app.state.interview_graph.ainvoke(
+        Command(resume={"type": body.type, "text": body.text}), config
+    )
+
+    if "__interrupt__" in result:
+        return {"session_id": session_id, "done": False, "next": result["__interrupt__"][0].value}
+    return {"session_id": session_id, "done": True}
