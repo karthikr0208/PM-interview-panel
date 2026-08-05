@@ -2,8 +2,7 @@
 
     backend/.venv/Scripts/python.exe backend/scripts/falsify_looping_interrupt.py
 
-Takes no arguments. Costs a few `fast` calls (`write_bridge`'s prompt is
-tiny -- one candidate answer, no case_world). Exit 0 = the assertion can
+Takes no arguments. Costs a few `fast` calls. Exit 0 = the assertion can
 detect the bug; exit 2 = it is VACUOUS and story 3.2 is not done.
 
 
@@ -13,23 +12,30 @@ PHASE-3-SPEC.md 3.2 says so explicitly: "a loop that re-runs ask_question on
 resume looks correct from state -- the transcript still reads sensibly. Only
 the call log shows the duplicate." This script is that sibling.
 
-Builds the WRONG graph -- `write_bridge` (the Interviewer's real per-question
-LLM call) placed ABOVE `interrupt()`, in the SAME node, INSIDE a two-question
-loop -- drives two full question turns, and confirms the wrong graph logs
-MORE `outcome=ok` records than a correctly-built loop would for the same
-number of turns.
+Builds the WRONG graph -- `answer_clarification` (since 2026-08-05 the ONLY
+LLM call anywhere in the conduct loop, because `ask_question` became fully
+deterministic when the bridge was deleted) placed ABOVE `interrupt()`, in
+the SAME node, INSIDE a two-turn loop -- drives two full turns, and confirms
+the wrong graph logs MORE `outcome=ok` records than a correctly-built loop
+would for the same number of turns.
 
-Reasoning for "correctly built": a correct N-question loop calls
-`write_bridge` exactly once per question (this toy graph calls it on every
-question, unlike the real `ask_question`, which skips question 1 -- kept
-simple here since the property under test is "does resume duplicate the
-call," not "does question 1 skip it," which `test_conduct_loop.py` already
-covers) and does NOT repeat that call when `await_candidate` is resumed --
-so N questions cost exactly N calls. The broken graph calls `write_bridge`
-on EVERY pass through its single merged node, including the pass LangGraph
-re-runs on each resume, so N questions cost 2N calls.
+Reasoning for "correctly built": a correct loop calls `answer_clarification`
+exactly once per clarification and does NOT repeat that call when
+`await_candidate` is resumed with the real answer -- so N clarifications
+cost exactly N calls. The broken graph calls it on EVERY pass through its
+single merged node, including the pass LangGraph re-runs on each resume, so
+N turns cost 2N calls.
 
-EXPECTED for `_QUESTIONS = 2`: correct = 2, wrong = 4. If the wrong graph's
+🔴 THE CORRECT SIDE IS NOT ASSERTED HERE, AND THAT IS THE POINT OF THE
+PAIRING. This script only ever runs the WRONG graph, so "a correct loop logs
+2" is reasoned, not observed. The observation lives in
+`tests/test_conduct_loop.py::test_await_candidate_does_not_redo_the_clarification_call_when_the_real_answer_resumes`,
+which drives the REAL graph and pins the count. **Neither half is a proof on
+its own** -- and on 2026-08-05 the test half was found dead (it had never
+run, and died on `KeyError: 'resume_text'`), leaving this script looking
+like a complete proof when it was not. Run both.
+
+EXPECTED for `_TURNS = 2`: correct = 2, wrong = 4. If the wrong graph's
 final count equals 2 (the correct count), the assertion this script exists
 to falsify cannot tell a duplicated call from a clean one, and exits 2.
 
@@ -51,13 +57,22 @@ import psycopg
 BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
 
-from app.agents.interviewer import write_bridge  # noqa: E402
+from app.agents.interviewer import answer_clarification  # noqa: E402
 from app.config import settings  # noqa: E402
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver  # noqa: E402
 from langgraph.graph import END, StateGraph  # noqa: E402
 from langgraph.types import Command, interrupt  # noqa: E402
 
-_QUESTIONS = 2
+_TURNS = 2
+
+# Minimal, hand-written, and deliberately tiny: this script measures graph
+# mechanics, not answer quality, so the world only has to be non-empty
+# enough for `answer_clarification` to accept it.
+_WORLD = {
+    "company": {"name": "Palewell Analytics"},
+    "metrics": {"customer_count": 340, "monthly_churn_pct": 4.6},
+    "supporting_facts": ["340 paying customers as of this quarter."],
+}
 
 
 class _LoopState(TypedDict, total=False):
@@ -86,19 +101,25 @@ class _Counter(logging.Handler):
 
 
 async def broken_loop_node(state: _LoopState) -> dict:
-    """THE BUG, on purpose: `write_bridge` (a real per-question LLM call)
-    placed ABOVE `interrupt()`, in the SAME node, inside a loop -- the exact
-    shape CLAUDE.md's load-bearing rule exists to prevent, and the exact
-    shape a merged `ask_question`/`await_candidate` would take if someone
-    "simplified" the real graph by folding them into one node."""
+    """THE BUG, on purpose: `answer_clarification` (a real per-turn LLM
+    call) placed ABOVE `interrupt()`, in the SAME node, inside a loop -- the
+    exact shape CLAUDE.md's load-bearing rule exists to prevent, and the
+    exact shape a merged `answer_clarification_node`/`await_candidate` would
+    take if someone "simplified" the real graph by folding them into one
+    node."""
     q_idx = state.get("q_idx", 0)
-    await write_bridge(f"the candidate's answer to question {q_idx}", role="fast")
+    await answer_clarification(
+        _WORLD,
+        "How would you prioritize the mobile dashboard decision?",
+        "How many customers does Palewell Analytics have?",
+        role="fast",
+    )
     answer = interrupt({"q_idx": q_idx})
     return {"q_idx": q_idx + 1, "last_answer": answer}
 
 
 def decide(state: _LoopState) -> str:
-    return "ask" if state.get("q_idx", 0) < _QUESTIONS else "exit"
+    return "ask" if state.get("q_idx", 0) < _TURNS else "exit"
 
 
 async def main() -> int:
@@ -127,13 +148,13 @@ async def main() -> int:
         await graph.ainvoke(Command(resume="answer to question 1"), cfg)
         final = len(handler.ok_calls())
 
-    expected_correct = _QUESTIONS  # one write_bridge call per question, never repeated on resume
+    expected_correct = _TURNS  # one clarification call per turn, never repeated on resume
 
-    print("\nWRONG graph (write_bridge above interrupt, inside a 2-question loop)")
-    print(f"  outcome=ok records after question 1's pause        : {after_q1}")
-    print(f"  outcome=ok records after question 1's resume+pause : {after_q2}")
-    print(f"  outcome=ok records after question 2's resume+exit  : {final}")
-    print(f"\n  a correctly-built {_QUESTIONS}-question loop would log exactly {expected_correct}")
+    print("\nWRONG graph (answer_clarification above interrupt, inside a 2-turn loop)")
+    print(f"  outcome=ok records after turn 1's pause        : {after_q1}")
+    print(f"  outcome=ok records after turn 1's resume+pause : {after_q2}")
+    print(f"  outcome=ok records after turn 2's resume+exit  : {final}")
+    print(f"\n  a correctly-built {_TURNS}-turn loop would log exactly {expected_correct}")
     print(
         f"  assertion 'exactly {expected_correct} across the loop' -> "
         + ("PASSES (VACUOUS -- CANNOT DETECT THE BUG)" if final == expected_correct else "FAILS as it must")

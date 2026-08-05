@@ -29,34 +29,40 @@ from pydantic import BaseModel
 from app.llm import Role, get_llm
 
 
-class BridgeLine(BaseModel):
-    bridge: str  # 1-2 sentences; candidate-facing
-
-
 class ClarificationAnswer(BaseModel):
     can_answer: bool  # False => the world does not specify this
     answer: str  # candidate-facing prose
     grounded_in: list[str]  # case_world facts this answer rests on
 
 
-# Starved of input on purpose (spec §2a): the bridge receives ONLY the
-# candidate's previous answer, never case_world or the plan, so it has no
-# facts available to improvise with -- cheaper than trusting it not to.
-_BRIDGE_SYSTEM_PROMPT = """You write ONE short transition line between two interview questions, based only on the \
-candidate's previous answer below. Answer directly with the JSON object; do not deliberate at length before answering.
-
-Write 1-2 short sentences that acknowledge the answer was heard and move the conversation forward, the way a real \
-interviewer says "Got it, let's shift gears" before asking the next thing. You have no information about the company, \
-the market, or the next question, so do not invent a fact, a number, a name, or any company detail -- and do not judge \
-whether the answer was good or bad.
-
-Never restate or paraphrase the candidate's answer, and never preview or paraphrase the question that comes next -- the \
-next question is printed verbatim on the line directly below yours, so a bridge that repeats or previews it is \
-redundant and risks getting it wrong.
-
-Do not evaluate, hint, or coach. No em-dash or en-dash anywhere (use a comma or "and" instead). No fake-round numbers \
-("50% of that", "twice as many"). No persona name or self-introduction -- you are the interviewer, not a character.
-"""
+# 🔴 The transition between questions is DETERMINISTIC, and it used to be an
+# LLM call. Deleted 2026-08-05 on measurement, not on taste: `write_bridge`
+# was a CONSTANT FUNCTION wearing an LLM call. Six materially different
+# candidate answers -- a sharp segmented analysis, a flat "I don't know", a
+# pushback on the premise, a three-word answer -- produced the same sentence
+# six times with the words shuffled:
+#
+#   strong+specific  -> "Got it, thanks for sharing that. Let's move on."
+#   refuses/stuck    -> "Thanks for sharing that. Let's continue."
+#   disagrees        -> "Understood. Let's move on to the next topic."
+#   very short       -> "Thanks for sharing that. Let's continue."
+#
+# It bought nothing and cost a `fast` call per question, latency while a
+# candidate watches a cursor, and a candidate-facing generative surface with
+# no static dash guard. CLAUDE.md § Style: prefer deterministic Python where
+# the decision can be made from state. See DEV-STATE § Decisions 2026-08-05
+# and AGENT-INTERVIEWER-SPEC.md §2a.
+#
+# Source strings, so `tests/test_user_facing_copy.py` can see them -- which
+# is the second win: the em-dash ban on this surface is now STATICALLY
+# enforced instead of merely prompted, and prompting had already failed
+# twice on that exact rule.
+_TRANSITIONS: tuple[str, ...] = (
+    "Thanks. Next one.",
+    "Good, let's move on.",
+    "Understood. Next question.",
+    "Thanks for that. Let's keep going.",
+)
 
 # The real work (spec §2b): reads case_world and the current question, and
 # nothing else -- no resume, no profile, no level, no transcript. Every
@@ -97,23 +103,20 @@ you are the interviewer, not a character. Answer the question asked; do not rest
 """
 
 
-async def write_bridge(previous_answer: str, *, role: Role = "fast") -> BridgeLine:
-    """One or two sentences acknowledging `previous_answer`, and nothing
-    else. Pure function: no DB, no session, no side effects.
+def transition_for(q_idx: int) -> str | None:
+    """The transition line preceding question `q_idx` (0-based), or `None`
+    for question 1, which opens the interview and has nothing to transition
+    from. Deterministic and total: no LLM, no state, no clock.
 
-    Receives ONLY `previous_answer` -- not `case_world`, not the plan (spec
-    §2a). `max_tokens=512`: this call's input is tiny (one candidate answer,
-    no case_world) and its output schema is one string field, so the 8,000
-    TPM ceiling is never in play here; the low cap is a candidate-facing
-    latency lever, not a budget one -- ARCHITECTURE-INTERVIEWER-SPEC.md §6
-    calls this call's prompt room "irrelevant."
+    Rotates rather than picking at random so a given interview is
+    reproducible from `q_idx` alone -- a random line would make the
+    transcript differ run to run for no benefit, and this project already
+    has enough non-determinism it cannot remove (DEV-STATE § Decisions
+    2026-08-01).
     """
-    llm = get_llm(role, max_tokens=512).with_structured_output(BridgeLine)
-    messages = [
-        ("system", _BRIDGE_SYSTEM_PROMPT),
-        ("human", "Candidate's previous answer:\n" + (previous_answer or "").strip()),
-    ]
-    return await llm.ainvoke(messages)
+    if q_idx <= 0:
+        return None
+    return _TRANSITIONS[(q_idx - 1) % len(_TRANSITIONS)]
 
 
 async def answer_clarification(
@@ -170,12 +173,17 @@ async def answer_clarification(
     return await llm.ainvoke(messages)
 
 
-def compose_question(planned_question: str, bridge: str | None = None) -> str:
-    """DETERMINISTIC, no LLM call, ever. Concatenates an optional bridge
+def compose_question(planned_question: str, transition: str | None = None) -> str:
+    """DETERMINISTIC, no LLM call, ever. Concatenates an optional transition
     line and the Planner's question, and that is ALL it does -- spec §2a's
     central rule. `planned_question` is emitted BYTE FOR BYTE; nothing here
-    rewrites, trims, or reformats it beyond joining it to `bridge`.
+    rewrites, trims, or reformats it beyond joining it to `transition`.
+
+    As of 2026-08-05 the whole of `ask_question` is deterministic, so the
+    conduct loop's ONLY LLM call is `answer_clarification`. That is worth
+    knowing when reading the call-count assertions in
+    `tests/test_conduct_loop.py`: every question costs zero.
     """
-    if bridge and bridge.strip():
-        return f"{bridge.strip()}\n\n{planned_question}"
+    if transition and transition.strip():
+        return f"{transition.strip()}\n\n{planned_question}"
     return planned_question

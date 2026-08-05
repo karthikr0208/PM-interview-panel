@@ -37,8 +37,62 @@ import pytest
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
 
+from app.agents.interviewer import _TRANSITIONS, compose_question, transition_for
 from app.config import settings
 from app.graph.build import build_graph, decide_next, route_input
+
+# ═══════════════════════════════════════════════════════════════════════
+# transition_for / compose_question -- pure, offline, no LLM at all.
+#
+# These replaced `write_bridge` on 2026-08-05 after it was measured to be a
+# constant function (DEV-STATE § Decisions). The tests below pin the two
+# properties that made the replacement safe: question 1 still opens cold,
+# and the Planner's question text still survives byte for byte.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def test_question_one_has_no_transition() -> None:
+    """Question 1 opens the interview and has nothing to transition from --
+    the same property the bridge had, kept deliberately."""
+    assert transition_for(0) is None
+
+
+def test_later_questions_get_a_transition() -> None:
+    for q_idx in range(1, 8):
+        assert transition_for(q_idx) in _TRANSITIONS
+
+
+def test_consecutive_transitions_differ() -> None:
+    """The defect that killed the LLM bridge was repetition: consecutive
+    turns produced "Understood, thanks for sharing that. Let's continue."
+    twice in a row. Rotating guarantees mechanically what prompting failed
+    to deliver -- for any run shorter than the tuple, no line repeats."""
+    lines = [transition_for(i) for i in range(1, len(_TRANSITIONS) + 1)]
+    assert len(set(lines)) == len(lines), f"a transition repeated within one rotation: {lines}"
+
+
+def test_transition_for_is_total_and_deterministic() -> None:
+    """No clock, no randomness, no state: the same index always gives the
+    same line, so a transcript is reproducible from `q_idx` alone."""
+    assert transition_for(5) == transition_for(5)
+    assert transition_for(99) in _TRANSITIONS
+
+
+def test_compose_question_emits_the_planned_question_byte_for_byte() -> None:
+    """Spec §2a's central rule, and the reason `ask_question` is
+    deterministic at all: the Planner's string already passed five checks,
+    so nothing here may alter it."""
+    planned = "At Ferngrove Media, how would you weigh the 11.3% day-2 return rate?"
+    assert compose_question(planned, None) == planned
+    assert compose_question(planned, "Thanks. Next one.").endswith(planned)
+
+
+def test_compose_question_keeps_the_transition_and_question_separate() -> None:
+    """A candidate must be able to tell the acknowledgement from the
+    question. Blank line, not a run-on sentence."""
+    composed = compose_question("Why?", "Thanks. Next one.")
+    assert composed == "Thanks. Next one.\n\nWhy?"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # route_input -- pure, offline.
@@ -380,11 +434,18 @@ async def test_await_candidate_does_not_redo_the_clarification_call_when_the_rea
     equivalent test, restated in the docstring `falsify_looping_interrupt.py`
     exists to prove is not vacuous.
 
-    Drives all the way to question 3 (2 bridge calls) THEN clarifies (1
-    call, total 3) so that the final real answer triggers `decide_next` ->
-    "exit" with NO further legitimate call to muddy the count -- isolating
-    the one question this test asks: did the resume re-fire the
-    clarification call. It must stay at 3.
+    Drives all the way to question 3 THEN clarifies, so the final real
+    answer triggers `decide_next` -> "exit" with NO further legitimate call
+    to muddy the count -- isolating the one question this test asks: did the
+    resume re-fire the clarification call.
+
+    🔴 Every question costs ZERO LLM calls as of 2026-08-05, when the bridge
+    was deleted for being a constant function (DEV-STATE § Decisions). So
+    `answer_clarification` is the ONLY LLM call in the whole conduct loop,
+    and the expected count across this entire interview is exactly 1. That
+    makes this assertion sharper than it was, not weaker: any nonzero count
+    before the clarification is now a defect by itself, and there is no
+    legitimate second call anywhere for a duplicate to hide behind.
     """
     session_id = loop_sessions()
     graph = build_graph(checkpointer, interviewer_role="fast")
@@ -395,29 +456,29 @@ async def test_await_candidate_does_not_redo_the_clarification_call_when_the_rea
         assert len(_ok_llm_calls(caplog)) == 0, "question 1 must cost zero LLM calls"
 
         await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd ship the web view first."}), config)
-        assert len(_ok_llm_calls(caplog)) == 1, "question 2's bridge should be the first LLM call"
+        assert len(_ok_llm_calls(caplog)) == 0, "question 2 must cost zero LLM calls"
 
         await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd run a two-week beta."}), config)
-        assert len(_ok_llm_calls(caplog)) == 2, "question 3's bridge should be the second LLM call"
+        assert len(_ok_llm_calls(caplog)) == 0, "question 3 must cost zero LLM calls"
 
         await graph.ainvoke(
             Command(resume={"type": "clarify", "text": "How big is Palewell's customer base?"}), config
         )
         calls_after_clarify = len(_ok_llm_calls(caplog))
-        assert calls_after_clarify == 3, (
-            f"expected exactly one answer_clarification call (3 total), got {calls_after_clarify}"
+        assert calls_after_clarify == 1, (
+            f"expected exactly one answer_clarification call, got {calls_after_clarify}"
         )
 
         # The real answer resumes `await_candidate` a SECOND time for this
         # SAME (final) question, and `current_q_idx` is already 3, so
-        # `decide_next` exits with NO further ask_question/bridge call. If
+        # `decide_next` exits with NO further call of any kind. If
         # `await_candidate` (or anything upstream of it on this resume)
         # re-ran `answer_clarification_node`'s LLM call, this count would
-        # jump to 4 here -- it must not.
+        # jump to 2 here -- it must not.
         final = await graph.ainvoke(Command(resume={"type": "answer", "text": "About 340 customers."}), config)
         assert "__interrupt__" not in final, "the loop should have exited after question 3's real answer"
         calls_after_real_answer = len(_ok_llm_calls(caplog))
-        assert calls_after_real_answer == 3, (
+        assert calls_after_real_answer == 1, (
             "resuming await_candidate with the real answer re-ran an LLM call -- "
-            f"expected the clarification count to stay at 3, got {calls_after_real_answer}"
+            f"expected the clarification count to stay at 1, got {calls_after_real_answer}"
         )

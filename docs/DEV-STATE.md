@@ -2086,7 +2086,7 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 **Run these three first (~30s, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 213 passed, 94 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 221 passed, 94 deselected
 cd frontend && npm test -- --run                                          # expect 84 passed
 curl -s https://pm-interview-panel.onrender.com/openapi.json              # expect the /session routes
 ```
@@ -2117,31 +2117,33 @@ of session 9.
 could see it — a failed Render deploy keeps serving the last healthy build, so `/health` stays green.
 Verified passing at the start of session 10.
 
-### 🔴 Two things story 3.2 found that later phases inherit
+### 🔴 ONE thing story 3.2 found that Phase 4 inherits
 
-1. **`transcript_turns` holds NO candidate answers** — only the Interviewer's own utterances get a
-   row. A completed interview stores 3 questions and 1 clarification and zero answers. **Phase 4's
-   `answer_evaluations.turn_idx` references `transcript_turns.idx`, so Phase 4 cannot attach a score
-   to an answer that has no row.** Decide this before Phase 4 starts, not during it.
-2. **The bridge reads as a tell.** Consecutive turns produced "Understood, thanks for sharing that
-   approach. Let's continue." and "Understood, thanks for sharing that. Let's continue." It exists
-   to make the interview not feel like a form, and **at this quality it may be doing the opposite.**
-   Spec §8 already names deleting it as the option. **This is a gate question for Karthik**, not a
-   bug to fix blind.
+**`transcript_turns` holds NO candidate answers** — only the Interviewer's own utterances get a row.
+A completed interview stores 3 questions and 1 clarification and zero answers. **Phase 4's
+`answer_evaluations.turn_idx` references `transcript_turns.idx`, so Phase 4 cannot attach a score to
+an answer that has no row.** Decide this before Phase 4 starts, not during it.
+
+*(The second finding, the repetitive bridge, was resolved the same day — see Decisions. The LLM call
+was measured to be a constant function and deleted.)*
 
 ### What 3.2 delivered, with the numbers
 
 ```
-offline        213 passed, 94 deselected, 1 warning in 3.65s     (was 199/91)
-live loop      3 passed, 14 deselected in 30.20s
+offline        221 passed, 94 deselected, 1 warning in 4.26s     (was 199/91)
+live loop      3 passed, 20 deselected in 28.78s
 golden smoke   apm_consumer_world        PASS on fast, retry_fired=False
                senior_pm_platform_world  PASS on fast, retry_fired=True   (the refusal branch)
 falsification  wrong graph 1 -> 3 -> 4 where a correct loop logs 2, exit 0
+               plus the CORRECT side observed live: 1 call across a whole interview
 http proof     3 questions over 3 separate requests, clarification consumed no slot, done
-prompts        bridge 1,099 chars · clarification 2,728 chars · ceiling ~20,000
+prompt         clarification 2,728 chars, ceiling ~20,000
 ```
 
 **`fast` holds `ClarificationAnswer`** — measured, so unlike the Planner this agent needs no `deep`.
+
+**`ask_question` is fully deterministic**, so the conduct loop's only LLM call is the clarification
+and its token cost is **flat in the number of questions**.
 
 ### What 3.1 delivered
 
@@ -2839,19 +2841,55 @@ Render is Linux and unaffected), and the reply route nests its payload under `ne
 flag rather than at the top level — reading the top level made the script over-post and 404. **The
 route's shape is right; I read it wrong.**
 
-**🔴 2026-08-05 (session 10) · TWO QUALITY DEFECTS VISIBLE IN THE LIVE INTERVIEW, RECORDED AND NOT
-CHASED, per the portfolio calibration.**
+**🔴🔴 2026-08-05 (session 10) · THE BRIDGE WAS AN LLM CALL THAT PRODUCED A CONSTANT. DELETED, on
+Karthik's decision, and replaced with deterministic source strings.**
 
-1. **The bridge is repetitive to the point of being a tell.** Consecutive turns produced *"Understood,
-   thanks for sharing that approach. Let's continue."* and *"Understood, thanks for sharing that.
-   Let's continue."* The bridge exists specifically to answer the gate's "does it feel like an
-   interview or a form?" question, and **at this quality it may be answering it the wrong way.**
-   Spec §8 already names deleting it as the live option; the Phase 3 gate is where that gets decided.
-2. **No candidate turn is written to `transcript_turns`.** Only the Interviewer's own utterances get
-   a row, so a completed interview stores 3 questions and 1 clarification and **zero answers.**
-   Phase 4's `answer_evaluations.turn_idx` references `transcript_turns.idx`, so **Phase 4 cannot
-   attach a score to an answer that has no row.** This is a Phase 4 blocker discovered in Phase 3,
-   which is the cheapest place to find it.
+The live interview showed it repeating itself (*"Understood, thanks for sharing that approach. Let's
+continue."* then *"Understood, thanks for sharing that. Let's continue."*). **The right question
+turned out not to be "is this prose good" but "does this output vary with its input at all."** Six
+materially different candidate answers, one `fast` call each:
+
+```
+strong+specific  -> "Got it, thanks for sharing that. Let's move on."
+weak/vague       -> "Got it, let's move on."
+refuses/stuck    -> "Thanks for sharing that. Let's continue."
+disagrees        -> "Understood. Let's move on to the next topic."
+very short       -> "Thanks for sharing that. Let's continue."
+rambling         -> "Got it, thanks for sharing that. Let's continue."
+```
+
+**The same sentence six times with the words shuffled.** The candidate who said "I don't know, I've
+never worked on a churn problem" got "Thanks for sharing that." The one who **challenged the
+premise** — the single place a real interviewer visibly reacts — got a generic move-on.
+
+Replaced by `_TRANSITIONS`, a rotating 4-tuple, and `transition_for(q_idx)`. **Three wins, and the
+third is the one that matters:**
+
+1. Zero tokens, zero added latency, on the one surface where a candidate watches a cursor.
+   `ask_question` is now **fully deterministic** and the loop's cost is **flat in question count**.
+2. Consecutive turns cannot repeat, because it rotates. Mechanically guaranteed, where prompting
+   was not.
+3. **The em-dash ban on this surface is now STATICALLY ENFORCED**, by
+   `test_user_facing_copy.py::test_no_dashes_in_interview_transitions` — and the guard is
+   **falsified, not assumed**: injecting an em-dash makes it go red, verified. Prompting had already
+   failed twice on that exact rule, so this converts a prompt into a gate.
+
+**Consequence worth carrying: `answer_clarification` is now the ONLY LLM call in the entire conduct
+loop.** That is what the call-count assertions rest on, and it makes them sharper rather than
+weaker — there is no longer any legitimate second call for a duplicate to hide behind. Expected
+across a whole 3-question interview with one clarification: **exactly 1**.
+`falsify_looping_interrupt.py` was rebuilt around `answer_clarification` for the same reason.
+
+**The general rule this earns:** before spending an LLM call on a generative surface, run one varied
+sample set and look at whether the output moves. If it does not, it is a constant, and CLAUDE.md
+§ Style says write the constant.
+
+**🔴 2026-08-05 (session 10) · ONE DEFECT RECORDED AND NOT CHASED: no candidate turn is written to
+`transcript_turns`.** Only the Interviewer's own utterances get a row, so a completed interview
+stores 3 questions and 1 clarification and **zero answers.** Phase 4's `answer_evaluations.turn_idx`
+references `transcript_turns.idx`, so **Phase 4 cannot attach a score to an answer that has no row.**
+A Phase 4 blocker found in Phase 3, which is the cheapest place to find it. **Decide it before Phase
+4 starts, not during.**
 
 **2026-08-05 (session 10) · A Pydantic `UserWarning` on every structured-output call is LIBRARY-LEVEL
 and affects nothing this product persists.** `Expected 'none' but got 'BridgeLine'` traces to

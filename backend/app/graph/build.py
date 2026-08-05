@@ -44,8 +44,7 @@ from langgraph.types import interrupt
 
 from app.agents.case_architect import generate_case_world as _generate_case_world
 from app.agents.interviewer import answer_clarification as _answer_clarification
-from app.agents.interviewer import compose_question
-from app.agents.interviewer import write_bridge as _write_bridge
+from app.agents.interviewer import compose_question, transition_for
 from app.agents.planner import plan_interview as _plan_interview
 from app.agents.resume_analyst import analyse_resume
 from app.graph.state import InterviewState
@@ -70,7 +69,10 @@ _PLAN_ERROR_SUMMARY = "Ran into a problem planning the interview."
 
 _ASK_STARTED_SUMMARY = "Asking the next interview question."
 _ASK_DONE_SUMMARY = "Asked the next interview question."
-_ASK_ERROR_SUMMARY = "Ran into a problem asking the next question."
+# No _ASK_ERROR_SUMMARY: `ask_question` became fully deterministic on
+# 2026-08-05 and has no failure mode to report. Kept out rather than kept
+# unused -- an error summary nothing can emit is a promise the UI would
+# never see honoured.
 
 _CLARIFY_STARTED_SUMMARY = "Answering your clarifying question."
 _CLARIFY_DONE_SUMMARY = "Answered your clarifying question."
@@ -371,16 +373,26 @@ def _make_ask_question(
     """
 
     async def ask_question(state: InterviewState) -> dict:
-        """The only node that composes an utterance the candidate reads.
+        """The only node that composes an utterance the candidate reads,
+        and as of 2026-08-05 it is FULLY DETERMINISTIC: **zero LLM calls,
+        on every question, always.**
 
-        Question 1 (`current_q_idx` unset, i.e. 0): ZERO LLM calls -- there
-        is nothing yet to bridge from (AGENT-INTERVIEWER-SPEC.md §2a).
-        Question 2+: exactly one `write_bridge` call, fed ONLY the
-        candidate's most recent answer (`state["last_input"]["text"]`) --
-        never `case_world`, never the plan (spec §2a's deliberate
-        starvation). The planned question text itself is never regenerated:
-        `compose_question` copies it byte for byte from `question_plan`
-        (spec §2a's central rule; DEV-STATE § Decisions 2026-08-05).
+        It used to spend one `fast` call on a bridge line for question 2+.
+        That call was measured to be a constant function -- six materially
+        different candidate answers produced the same sentence with the
+        words shuffled -- so it was replaced by `transition_for`, a rotating
+        set of source strings. The em-dash ban on this surface is now
+        STATICALLY enforced by `tests/test_user_facing_copy.py` rather than
+        merely prompted, which matters because prompting had already failed
+        twice on that exact rule. See DEV-STATE § Decisions 2026-08-05.
+
+        The planned question text is never regenerated: `compose_question`
+        copies it byte for byte from `question_plan` (spec §2a's central
+        rule).
+
+        Consequence worth carrying: `answer_clarification_node` is now the
+        ONLY LLM call in the entire conduct loop, which is what the
+        call-count assertions in `tests/test_conduct_loop.py` rest on.
 
         Owns every side effect this node is responsible for: one
         `agent_events` row on start, one on completion (or error), and one
@@ -404,25 +416,12 @@ def _make_ask_question(
             },
         )
 
-        bridge_text: str | None = None
-        try:
-            if q_idx > 0:
-                previous_answer = (state.get("last_input") or {}).get("text", "")
-                bridge = await _write_bridge(previous_answer, role=role)
-                bridge_text = bridge.bridge
-        except Exception:
-            await rest_insert(
-                "agent_events",
-                {
-                    "session_id": session_id,
-                    "agent": "interviewer",
-                    "status": "error",
-                    "summary": _ASK_ERROR_SUMMARY,
-                },
-            )
-            raise
-
-        question_text = compose_question(planned["question"], bridge_text)
+        # No try/except around this any more: `transition_for` is total
+        # (a tuple index and a modulo) and cannot fail, so an error branch
+        # here would be unreachable code pretending to be a guard. The
+        # `agent_events` error row it used to write covered the bridge's
+        # LLM call, which no longer exists.
+        question_text = compose_question(planned["question"], transition_for(q_idx))
         duration_ms = int((time.perf_counter() - started) * 1000)
 
         idx = len(state.get("messages") or [])

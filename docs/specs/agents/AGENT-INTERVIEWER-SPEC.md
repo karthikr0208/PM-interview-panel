@@ -38,13 +38,18 @@ minutes in.
 
 ---
 
-## 2. The two behaviours, and why one of them is not an LLM call
+## 2. The two behaviours, and why only ONE of them is an LLM call
 
 Phase 3's spec names two behaviours: **asking a planned question**, and **answering a clarifying
 question from `case_world` alone.** They are not symmetric, and the asymmetry is the main design
 decision in this document.
 
-### 2a. Asking a planned question — deterministic, plus a bridge
+**🔴 Updated 2026-08-05, on measurement: asking a question is now FULLY deterministic — zero LLM
+calls, always.** It briefly had one, for a bridge line. That call was measured to be a constant
+function and was deleted. **`answer_clarification` is therefore the only LLM call anywhere in the
+conduct loop**, which is what every call-count assertion in `tests/test_conduct_loop.py` rests on.
+
+### 2a. Asking a planned question — fully deterministic
 
 **🔴 The planned question is emitted VERBATIM by Python. The model does not rewrite it, ever.**
 
@@ -60,19 +65,47 @@ would move the question from the most-tested string in the product to the least-
 So `ask_question` composes its utterance as:
 
 ```
-[bridge]  one or two sentences, LLM, ONLY from question 2 onward
-[question]  the Planner's `question` string, copied byte for byte
+[transition]  one fixed line from `_TRANSITIONS`, rotating, ONLY from question 2 onward
+[question]    the Planner's `question` string, copied byte for byte
 ```
 
-**The bridge is the only LLM call here, and it exists because of the Phase 3 handoff question**
-("does the interview feel like an interview, or like a form that asks questions?"). A question fired
-with no acknowledgement of the answer just given reads as a form. **Question 1 has nothing to
-acknowledge, so it costs ZERO LLM calls** — the first thing a candidate sees in the interview is
-free.
+A question fired with no acknowledgement of the answer just given reads as a form, which is what the
+Phase 3 handoff question asks about. **Question 1 has nothing to acknowledge, so it opens cold.**
 
-The bridge is deliberately starved of input: it receives **the candidate's previous answer and
-nothing else about the world.** Not `case_world`, not the question plan. It has no facts available
-to improvise with, which is cheaper than trusting it not to.
+**🔴 The transition was an LLM call until 2026-08-05, and it was deleted on evidence, not taste. It
+was a CONSTANT FUNCTION.** Six materially different candidate answers produced the same sentence
+with the words shuffled:
+
+```
+strong+specific  -> "Got it, thanks for sharing that. Let's move on."
+weak/vague       -> "Got it, let's move on."
+refuses/stuck    -> "Thanks for sharing that. Let's continue."
+disagrees        -> "Understood. Let's move on to the next topic."
+very short       -> "Thanks for sharing that. Let's continue."
+rambling         -> "Got it, thanks for sharing that. Let's continue."
+```
+
+The candidate who said *"I don't know, I've never worked on a churn problem"* got "Thanks for
+sharing that." The one who **challenged the premise** — the single place a real interviewer visibly
+reacts — got a generic move-on. It was buying nothing, and costing a `fast` call per question,
+latency while a candidate watches a cursor, and a candidate-facing generative surface no static
+check could see.
+
+**Three things improved by replacing it with source strings**, and the third is the one that
+matters most:
+
+1. Zero tokens and zero added latency, on the one surface where a candidate is watching.
+2. Consecutive turns can no longer repeat, because the set rotates. The old pair read *"Understood,
+   thanks for sharing that approach. Let's continue."* / *"Understood, thanks for sharing that.
+   Let's continue."*
+3. **The em-dash ban on this surface is now STATICALLY ENFORCED** by
+   `tests/test_user_facing_copy.py::test_no_dashes_in_interview_transitions`, not merely prompted.
+   Prompting had already failed twice on that exact rule. The guard is falsified, not assumed: an
+   injected em-dash makes it go red.
+
+**The general lesson, worth carrying to any future agent:** before spending an LLM call on a
+generative surface, check whether its output actually varies with its input. If it does not, it is a
+constant and CLAUDE.md § Style says write the constant.
 
 ### 2b. Answering a clarifying question — LLM, `case_world` only
 
@@ -101,8 +134,9 @@ and it is the answer to AGENT-PLANNER-SPEC §8's open question only once Phase 4
 Sketch. Story 3.2 implements it; story 3.1 writes assertions against it.
 
 ```python
-class BridgeLine(BaseModel):
-    bridge: str                        # 1-2 sentences; candidate-facing
+# `_TRANSITIONS: tuple[str, ...]` and `transition_for(q_idx) -> str | None`
+# replace what was a `BridgeLine` schema and an LLM call. No model, no
+# schema, no call. See §2a.
 
 class ClarificationAnswer(BaseModel):
     can_answer: bool                   # False => the world does not specify this
@@ -198,14 +232,13 @@ allow-list of ordinals and counts is legitimate** ("the three options", "your se
 it explicit and short, and re-read it whenever this check goes red, because widening it is the
 cheapest way to destroy it.
 
-**🔴 `bridge` is NOT covered by this suite, and story 3.2 owes it its own case shape.** Corrected
-2026-08-05: the table above originally read "in `bridge` or `answer`" as though one call produced
-both, but §3 puts `bridge` on a separate schema from a separate call. Story 3.1's harness exercises
-`answer_clarification` only, so there is no bridge output here to check — and the defensive
-`getattr(result, "bridge", None)` written first was **worse than the gap it papered over**: it can
-only ever no-op, so it reads as coverage while asserting nothing. Removed, and recorded here
-instead. **The bridge is a candidate-facing generative surface with no dash guard until 3.2 builds
-one.**
+**✅ The `bridge` gap this section recorded is CLOSED, and not by covering it.** The gap was that
+`bridge` was a candidate-facing generative surface no static check could see, and this golden suite
+could not reach it. **Deleting the LLM call removed the surface entirely** (§2a), and the
+transitions that replaced it are source strings covered by
+`test_user_facing_copy.py::test_no_dashes_in_interview_transitions`, which is falsified. The
+defensive `getattr(result, "bridge", None)` that briefly papered over the mismatch was removed on
+the way: it could only ever no-op, so it read as coverage while asserting nothing.
 
 **The vacuity floor is the lesson of story 1.3a, applied for the fourth time**, and this agent gives
 it a new escape hatch that the earlier three did not have: **`can_answer: False`.** A suite that
@@ -255,12 +288,17 @@ Sizing a prompt against a fixed ceiling here would be sizing it against the wron
 
 | Call | Input | Input tokens | `max_tokens` | Leaves for prompt |
 |---|---|---|---|---|
-| **bridge** | previous answer only | ~600 | 512 | ~6,880 tok — irrelevant, the prompt is tiny |
+| ~~bridge~~ | — | — | — | **deleted 2026-08-05, see §2a — it is not a call at all now** |
 | **clarification** | `case_world` + current question | ~1,150 | 2,048 | **~4,800 tok ~= 20,000 chars** |
 
-**Neither call ever receives the transcript, and that is the finding.** The bridge needs one turn of
-it; the clarification needs none. **The growing input problem is designed out rather than budgeted
-for**, and both calls sit comfortably under the ceiling at every turn of the interview.
+**The one remaining call never receives the transcript, and that is the finding.** **The growing
+input problem is designed out rather than budgeted for**, so the clarification sits at the same
+distance from the ceiling at question 3 as at question 1. Deleting the bridge made this stronger
+still: the loop's total token cost is now **flat in the number of questions** and varies only with
+how many clarifications a candidate asks.
+
+**Measured 2026-08-05:** clarification prompt **2,728 chars** against the ~20,000 ceiling. Far
+under, the same pattern the Case Architect and Planner showed.
 
 **🔴 The `max_tokens` figures above are PROJECTIONS and story 3.2 must measure them.** DEV-STATE
 § Decisions 2026-08-04 is explicit that **gpt-oss models emit reasoning tokens that count against
@@ -286,7 +324,8 @@ materially smaller than the Planner's, which needed 90.
 | **Accepts a false premise in a leading question** | Contradicts the world **without stating a new fact**, so the figure check cannot see it | Fixture 4, and the manual adversarial pass at the gate |
 | **Refuses everything** | Passes the whole suite by having nothing to check | `can_answer=False` still requires non-empty `grounded_in` and a refusal that names the silence |
 | **Rewrites the planned question** | Voids all five checks the Planner's text already passed, at runtime, invisibly | The question is emitted by Python, never by the model, §2a |
-| **Em-dash in generated prose** | No static guard can see runtime output; prompting has already failed twice | Asserted in the golden cases, not merely prompted |
+| **Em-dash in generated prose** | No static guard can see runtime output; prompting has already failed twice | Asserted in the golden cases for `answer`; for the transition, **statically enforced** since it is no longer generated (§2a) |
+| **An LLM call whose output does not vary with its input** | Costs tokens and latency to produce a constant. Cost the bridge its life on 2026-08-05 | Before shipping a generative surface, run one varied sample set and look at it |
 | **An LLM call above `interrupt()`** | Re-runs on every resume, silently, forever | `await_candidate` holds only `interrupt()`; **falsified**, not inspected, in story 3.2 |
 | **Input grows past the TPM ceiling mid-interview** | The interview dies at question 4, not at question 1, so a smoke test would not see it | Scoped inputs, §6 — neither call takes the transcript |
 | **Evaluates or hints** | The candidate learns their score from the interviewer; not an interview any more | Named in the prompt constraints, §4 |
@@ -295,9 +334,10 @@ materially smaller than the Planner's, which needed 90.
 
 ## 8. Open questions
 
-- **Does the bridge earn its LLM call?** It is here to answer the Phase 3 gate's "form or interview"
-  question. If the gate says the interview reads fine without it, **delete it** — that removes the
-  Interviewer's second generative surface entirely and leaves one place to guard instead of two.
+- ~~**Does the bridge earn its LLM call?**~~ **RESOLVED 2026-08-05: no, and it is gone.** Measured to
+  be a constant function, replaced by rotating source strings. That removed the Interviewer's second
+  generative surface entirely, exactly as this question anticipated — one place to guard instead of
+  two. See §2a. **Karthik's call**, made against the six-sample evidence rather than on taste.
 - **Is `can_answer` a field, or is it inferable from `grounded_in`?** Kept as a field because the
   suite needs to hold refusals to a *different* standard, which requires knowing one happened. If
   Phase 4 finds no second caller, revisit — no fields without a second caller.

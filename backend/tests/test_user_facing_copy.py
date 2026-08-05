@@ -97,6 +97,61 @@ def _agent_event_summaries() -> list[tuple[str, int, str, str]]:
     return found
 
 
+def _transition_lines() -> list[tuple[str, int, str, str]]:
+    """Every string inside a `_TRANSITIONS` tuple in `app/`.
+
+    In scope since 2026-08-05, and the reason this collector exists is the
+    whole argument for the change that created it. The transition between
+    interview questions used to be an LLM call, whose output no static check
+    could ever see; it was replaced by source strings precisely so the
+    em-dash ban on that surface could be ENFORCED rather than merely
+    prompted. Prompting had already failed twice on that exact rule (the
+    Planner shipped em-dashes into candidate-facing questions), so a
+    prompted ban is not a ban.
+
+    These are read aloud by the interviewer immediately before the question,
+    so they are as candidate-facing as copy gets.
+    """
+    found: list[tuple[str, int, str, str]] = []
+    for path in sorted(APP_ROOT.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AnnAssign | ast.Assign):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if not any(isinstance(t, ast.Name) and t.id == "_TRANSITIONS" for t in targets):
+                continue
+            if not isinstance(node.value, ast.Tuple | ast.List):
+                continue
+            for element in node.value.elts:
+                text = _literal(element)
+                if text:
+                    found.append((path.name, node.lineno, "_TRANSITIONS", text))
+    return found
+
+
+def test_the_transition_check_finds_the_interviewers_lines() -> None:
+    """Guards the guard, same reasoning as the two below. An AST walk that
+    silently matched nothing would make the dash test below pass vacuously,
+    which is the exact failure story 1.3a is named for."""
+    lines = _transition_lines()
+    assert len(lines) >= 3, (
+        f"expected the Interviewer's transition lines to be in scope, found {lines}"
+    )
+
+
+def test_no_dashes_in_interview_transitions() -> None:
+    offenders = [
+        f"{f}:{line} {name} -> {text[:80]}"
+        for f, line, name, text in _transition_lines()
+        if EM_DASH in text or EN_DASH in text
+    ]
+    assert not offenders, (
+        "em-dash or en-dash in an interview transition line, which is read "
+        "immediately before the question (CLAUDE.md § Design):\n" + "\n".join(offenders)
+    )
+
+
 def test_the_summary_check_finds_every_agents_copy() -> None:
     """Guards the guard, same reasoning as the one below it. A name-suffix
     match that drifted would silently stop covering the strings candidates
