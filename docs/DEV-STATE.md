@@ -138,6 +138,7 @@ toggle no script can flip.** See Blockers.
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
+| 3.5 Question quality | 🔴 **SPEC WRITTEN 2026-08-06, nothing built.** Five stories. Reverses three decisions on Karthik's call: **curated real-company worlds** replace generation, the Interviewer **may now invent** (as invent-and-record), and the interview becomes **ONE question probed live** instead of three. Stories 3.5.1 and 3.5.2 cost **zero tokens** | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | — |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -2128,6 +2129,66 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🔴 SESSION 12, 2026-08-06. PHASE 3.5 IS SPECCED AND NOTHING IS BUILT. START AT STORY 3.5.1.
+
+**Karthik's examples arrived and they reversed three decisions.** Read
+**[PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) § "THREE DECISIONS THIS PHASE REVERSES" first** — it
+is the only part that is not obvious from the code, and two of the three give up things this project
+has evidence for. Then § Decisions 2026-08-06 above for why the diagnosis changed once the examples
+landed. **Do not re-derive either.**
+
+**Run these three first (~40s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 221 passed, 95 deselected
+cd frontend && npm test -- --run                                          # expect 113 passed, 13 files
+curl -s https://pm-interview-panel.onrender.com/openapi.json              # read the ROUTE LIST, not /health
+```
+
+### Start at 3.5.1, then 3.5.2. Both cost ZERO tokens, and 3.5.1 unblocks everything.
+
+**3.5.1 — the transcript holds candidate turns.** `transcript_turns` stores zero candidate answers
+today, so nothing in this phase is verifiable and Phase 4 cannot attach a score to an answer with no
+row. **It needs NO migration** — the DDL already has `role='candidate'` and `kind='answer'`; the
+correction is written up under § Decisions 2026-08-06. The write goes in the node **after** the
+resume, reading `last_input`, **never in `await_candidate`** (it re-runs from the top and would
+double every row).
+
+**3.5.2 — the eight curated worlds and the twelve-shape bank.** This is the story that actually
+fixes the reported defect. **Widen the golden assertions before the Planner prompt is touched**, and
+the honest corpus for the new checks already exists: **2026-08-05's Q1 and Q2 must FAIL them, Q3
+must PASS.** All three are recorded verbatim under § Decisions 2026-08-05.
+
+**The eight worlds are Karthik's to check, not mine.** He knows these companies; a wrong fact about
+Reddit or Cursor is one he will spot and I will not. Get them in front of him before 3.5.3.
+
+### 🔴 Budget before starting 3.5.3 or 3.5.4
+
+```
+fast (gpt-oss-20b)    should have fully refilled since 2026-08-05  -- MEASURE, do not assume
+deep (gpt-oss-120b)   ~35,000 / 200,000   estimated, stale
+```
+
+3.5.3 must **re-measure whether the Planner still needs `deep`.** It needs it today because
+`QuestionPlan` was the largest generation in the product; one question with filled slots is a
+fraction of that, so **`fast` is plausible now and must be tested, not assumed.**
+
+### The defects this phase absorbs, and the one it does not
+
+- ✅ **Absorbed:** the `transcript_turns` gap (3.5.1), the decorative statistic (3.5.2, structurally),
+  the recitation-shaped question (3.5.2), the Case Architect's round figures (3.5.2 widens the
+  assertion against real data).
+- 🔴 **NOT absorbed: the Planner still generates em-dashes.** `stripDashes` stops them reaching a
+  candidate through the interview surface but **does not fix generation** — a dash still lands in
+  `question_plan` and `transcript_turns`. Anything Phase 4 renders from those rows needs the same
+  guard, or generation needs fixing properly.
+- 🔴 **NOT absorbed: `years_pm_experience` reports 8.0 where the true value is 10.** Gates nothing
+  now the level is candidate-selected, but it is shown to the candidate.
+
+---
+
+## Superseded — session 11's handoff, kept for the record
+
 ## 🟢 SESSION 11, 2026-08-05. PHASE 3'S STORIES ARE ALL DONE. THE INTERVIEW IS SITTABLE IN A BROWSER.
 
 **Run these three first (~40s, free, no LLM):**
@@ -3040,6 +3101,72 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🔴🔴 2026-08-06 (session 12) · KARTHIK'S EXAMPLES LANDED, AND THEY REVERSE THREE DECISIONS. PHASE
+3.5 IS WRITTEN. GENERATED FICTIONAL WORLDS, THE REFUSAL BRANCH, AND MULTI-QUESTION INTERVIEWS ARE
+ALL GOING.**
+
+The examples session 11 deferred the prompt fix for:
+
+> "Product interviews generally test Product strategy or product design aspects. Lets keep it to
+> product strategy which can have sample questions like 'what is reddit's biggest threat', should
+> samsung enter gaming, 'should apple make modular phones'. Some sub categories within product
+> strategy are Got to market questions … or Pricing questions … or growth question … As you can see
+> the questions are much more open ended"
+
+**The diagnosis changed once they arrived, and the change is the point of having waited.** Session
+11 read the defect as a Planner *prompt* problem. It is not. Every example is (a) about a **real
+company**, (b) **short**, and (c) has **no statistic in it**. The decorative stat in 2 of 3 served
+questions traces directly to [planner.py:80-82](../backend/app/agents/planner.py#L80-L82) — "cite a
+competitor or a figure from metrics or market as well" — which exists only to satisfy the
+genericness assertion in AGENT-PLANNER-SPEC §5. **The prompt was doing what it was told.** A prompt
+edit would have fought the assertion behind it.
+
+**Three reversals, all Karthik's, all deliberate.** Full detail in
+[PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md).
+
+| Reversal | Cost | Why anyway |
+|---|---|---|
+| **8 curated REAL-company worlds replace generation** (Reddit, Duolingo, YouTube, Airbnb, Figma, Cursor, OpenAI, Anthropic) | The Case Architect drops to a selector | Candidate intuition is the actual complaint. Zero hallucinated facts, zero tokens per interview. Its 47 assertions now run against hand-written worlds, which AGENT-PLANNER-SPEC §5 already calls the better direction — a **positive control on the assertions themselves** |
+| **The Interviewer MAY invent facts.** "The response need not be accurate or up to date" | **Deletes the strongest single result in the project** — the 2026-08-05 correct refusal, the only observation of ARCHITECTURE §9's undetectable failure mode not happening | A refusal reads as a broken interviewer. Real interviewers say "assume DAU is 50 million" |
+| **ONE question, probed live.** `_QUESTIONS_THIS_PHASE` 3 → 1 | Reopens the graph; `decide_next` asserts `followup_count == 0` today ([build.py:652](../backend/app/graph/build.py#L652)) | 2-3 pre-written `probe_angles` cannot fill 45 minutes. Closes AGENT-PLANNER-SPEC §8's open question against the current design |
+
+**🔴 The second reversal is implemented as INVENT-AND-RECORD, not invent-freely, and that distinction
+is mine, not his.** The damage in improvisation is not invention, it is **self-contradiction**: 50M
+at minute 8 and 20M at minute 30, which a candidate catches and which ends the illusion. So a new
+append-only `improvised_facts` state field carries every invented fact into every later probe and
+clarification. **`case_world` stays immutable and write-once** — the new list is a separate channel,
+so ARCHITECTURE §2 survives intact. **The assertion that replaces the refusal assertion: an
+improvised fact, asked for twice, returns the same value.** Mechanically checkable, and now the
+property that matters. `ungrounded_figures` is retargeted at `case_world ∪ improvised_facts`, not
+deleted.
+
+**🔴 The structural fix, and why this is a bank rather than a better prompt.** Twelve question
+shapes across four categories (strategy / gtm / pricing / growth) checked in as data. **No shape has
+a slot for a market size or a growth rate**, so the decorative statistic becomes unsayable rather
+than banned. **A prompted ban is not a ban** — the em-dash rule failed twice as prompt text and was
+only fixed deterministically by `stripDashes` on 2026-08-05. Same lesson, applied ahead of the
+failure this time instead of after it.
+
+**🔴 Correction to this file: the `transcript_turns` defect is NOT schema-shaped.** It has been
+recorded since session 10 as "a schema-shaped problem, not a prompt one." Wrong.
+[0001_initial_schema.sql:46-54](../backend/migrations/0001_initial_schema.sql#L46-L54) already
+declares `role` as `interviewer | candidate | system` and `kind` as
+`question | followup | answer | clarify | meta`. **The DDL has always supported candidate turns.**
+It is a missing write at [build.py:428](../backend/app/graph/build.py#L428), so it needs **no
+migration** and carries no deploy-ordering risk. That makes it story 3.5.1 and cheap, where it had
+been carried for two sessions as the expensive thing blocking Phase 4.
+
+**🔴 The budget profile changes more than anything else in this phase.** A whole interview costs
+roughly **one** `fast` call today (the transition is deterministic, the question is copied byte for
+byte). After 3.5 it costs **one call per probe**, 6-10 of them, each carrying `case_world` plus a
+transcript that grows every turn. Both ceilings have to be computed **before** the loop is built:
+does the probe call still fit under **8,000 TPM at probe 10**, and at N tokens per interview **how
+many interviews exist in a 200,000-token day?** If a full interview costs 30,000 `fast` tokens that
+is six, and iterating on this phase competes with sitting it.
+
+**Nothing was built and no tokens were spent on 2026-08-06.** Spec only, deliberately: two of the
+five stories cost zero tokens and should be done on a dead budget.
 
 **🟢🔴 2026-08-05 (session 11) · PHASE 3 GATE #4 IS CLOSED. THE FLOW WORKS. THE QUESTIONS ARE THE
 PROBLEM, AND THAT IS A PLANNER ISSUE, NOT AN INTERVIEWER ISSUE.**
