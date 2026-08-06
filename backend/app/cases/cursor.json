@@ -63,5 +63,6 @@
     "Employee count, gross margin, and churn figures in this brief are estimates; Anysphere is privately held and does not disclose these at this level of precision.",
     "Given Cursor's reported growth rate through 2025, the ARR figure in this brief ($100 million) is very likely understated by the time any interview using this brief takes place."
   ],
-  "as_of": "July 2025"
+  "as_of": "July 2025",
+  "suits_categories": ["strategy", "growth", "gtm"]
 }

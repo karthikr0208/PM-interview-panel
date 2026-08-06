@@ -23,6 +23,7 @@ import pytest
 
 from app.agents.case_architect import CaseWorld
 from app.cases import ALL_SLUGS, select_case_world
+from app.questions.shapes import CATEGORIES
 from tests.golden.case_architect.assertions import (
     banned_round_numbers,
     blank_or_short_fields,
@@ -263,6 +264,27 @@ def test_the_dash_check_would_actually_fire() -> None:
     matched nothing would make the test above pass vacuously."""
     assert not no_dash_variants("a real problem, not a fake one—see above")
     assert not no_dash_variants("2020–2024 growth")
+
+
+# ==============================================================================
+# Box 4b (PHASE-3.5-SPEC.md 3.5.3): every curated world carries
+# `suits_categories`, 2-3 entries, each one of the Planner's four canonical
+# categories -- a typo'd or empty category list would silently fall back to
+# the full category set (`select_category`'s documented behaviour for the
+# untouched generative path) rather than failing loudly, so this is asserted
+# here rather than trusted by construction.
+# ==============================================================================
+
+
+@pytest.mark.parametrize("slug", ALL_SLUGS)
+def test_world_carries_suits_categories(slug: str) -> None:
+    world = _load_world(slug)
+    assert world.suits_categories, f"{slug}: suits_categories is empty"
+    assert not count_out_of_range(world.suits_categories, 2, 3), (
+        f"{slug}: suits_categories has {len(world.suits_categories)} entries, want 2-3"
+    )
+    unknown = set(world.suits_categories) - set(CATEGORIES)
+    assert not unknown, f"{slug}: suits_categories names unknown categor{'y' if len(unknown)==1 else 'ies'} {unknown} (want a subset of {CATEGORIES})"
 
 
 # ==============================================================================

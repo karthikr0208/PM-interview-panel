@@ -276,27 +276,64 @@ eight worlds             0 em-dashes, 0 placeholders, 0 banned-register names
 
 ---
 
-### 3.5.3 The Planner picks a shape and fills it — ⬜
+### 3.5.3 The Planner picks a shape and fills it — ✅ DONE 2026-08-06
 
 **Acceptance**
-- [ ] Shape **selection** is deterministic Python from level and category; the LLM only **fills
-      slots** from `case_world`. Much smaller generation than `QuestionPlan`
-- [ ] 🔴 **Re-measure the model.** The Planner needs `deep` today because `QuestionPlan` was the
-      largest generation in the product (DEV-STATE § Decisions 2026-08-04). One question with filled
-      slots is a fraction of that, so **`fast` is plausible now and must be tested, not assumed**
-- [ ] `question_plan` holds **one** main question plus a **probe ladder**: an ordered list of
-      angles, each tagged with the `primary_dimension` it is there to surface
-- [ ] **All five rubric dimensions appear across the probe ladder** — coverage moved off the
-      question, which rewrites AGENT-PLANNER-SPEC.md §3
-- [ ] `grounded_in` survives unchanged and still set-membership checks against `case_world`
-- [ ] `AGENT-PLANNER-SPEC.md` updated: §3 coverage, §5 the new assertions, §8's probe question closed
-- [ ] **One golden case run as a smoke.** Not the full set, not an A/B — portfolio calibration
+- [x] Shape **selection** is deterministic Python from level and category; the LLM only **fills
+      slots** from `case_world`. The question string is built by
+      `shape.template.format(**slots)` **in Python** — the model never returns it, which is what
+      makes a decorative statistic unsayable rather than discouraged
+- [x] 🔴 **Re-measured, and the answer changed: the Planner now runs on `fast`.** Golden smoke
+      passed with **no retry fired**. It needed `deep` only because `QuestionPlan` was the largest
+      generation in the product; slots plus a ladder is a fraction of that
+- [x] `question_plan` holds **one** main question plus a **probe ladder** of 5-8 angles, each tagged
+      with the `primary_dimension` it surfaces
+- [x] **All five rubric dimensions appear across the probe ladder** — observed, 6 entries covering
+      all five on the smoke
+- [x] `grounded_in` survives unchanged and still set-membership checks against `case_world`
+- [x] Each of the eight worlds declares `suits_categories`, so category choice is **data, not an LLM
+      guess** — nothing can ask a pricing question about Reddit's AI-licensing tension
+- [x] `AGENT-PLANNER-SPEC.md` updated: §3 coverage, §5 assertions, §6 model, §8 probe question closed
+- [x] **One golden case run as a smoke.** Not the full set, not an A/B
+
+**Observed output**
+
+```
+offline            326 passed, 101 deselected, 0 failed   (baseline 306/101)
+golden smoke       apm_consumer_world, role=fast, PASS, retry_fired=False
+three gates        asserted in test_golden.py:142-151, not merely sampled
+
+QUESTION  What is Ferngrove Media's biggest threat over the next three years?
+LADDER    6 entries, all five rubric dimensions covered
+```
+
+That question is the target register, and it came out of the machine rather than out of a prompt
+asking nicely for it.
+
+**🔴 A collision in this story's own brief, resolved rather than papered over.** The brief said both
+"keep `question_plan` a list of dicts, do not break the working graph" and "do not touch
+`build.py`". Those conflict: `ask_question` reads `planned["primary_dimension"]`, and a one-question
+plan has no single such value now that coverage lives on the ladder. Resolved by setting it
+programmatically from `probe_ladder[0]`, documented at `_first_dimension`. **`build.py` untouched.**
 
 ---
 
 ### 3.5.4 Live probes, invent-and-record, and the probe edge — ⬜
 
 **The largest story, and the one that reopens the graph.**
+
+**🔴 TWO GAPS 3.5.3 SURFACED THAT NO STORY OWNED. THEY ARE THIS STORY'S NOW, AND THE FIRST ONE IS
+THE WHOLE POINT OF THE PHASE.**
+
+- [ ] 🔴 **Wire the curated worlds into the graph.** `generate_case_world` in `build.py` **still
+      calls the generative Case Architect**, so `select_case_world` and all eight fact sheets are
+      dead code in production and `suits_categories` is always empty at runtime. **The eight real
+      companies are not live.** My spec never assigned this to a story; that was my omission
+- [ ] 🔴 **`_QUESTIONS_THIS_PHASE = 3` against a one-question plan is an `IndexError` waiting to
+      fire.** Nothing catches it today because every graph-level test injects a static
+      `question_plan` fixture rather than running the real Planner through the compiled graph.
+      **That gap in the tests is itself worth closing** — a live test that drives the real Planner
+      through the graph would have caught this
 
 **Acceptance**
 - [ ] `generate_probe(case_world, improvised_facts, main_question, transcript, ladder)` is a **pure**

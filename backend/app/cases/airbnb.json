@@ -62,5 +62,6 @@
     "Airbnb's gross margin is among the highest of major travel marketplaces, reflecting its asset-light model of not owning the properties listed on it.",
     "Monthly churn figures in this brief are an estimate; a two-sided travel marketplace does not have a standard subscription-style churn metric."
   ],
-  "as_of": "August 2025"
+  "as_of": "August 2025",
+  "suits_categories": ["strategy", "gtm", "growth"]
 }

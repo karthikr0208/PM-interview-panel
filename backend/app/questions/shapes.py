@@ -34,6 +34,7 @@ and be correct; nothing here calls an LLM.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Sequence
 
 Category = str  # "strategy" | "gtm" | "pricing" | "growth"
 
@@ -174,3 +175,47 @@ def select_shape(level: str, category: Category) -> QuestionShape:
         raise ValueError(f"no shapes registered for category {category!r}")
     index = _LEVEL_INDEX.get(level, 0) % len(candidates)
     return candidates[index]
+
+
+def select_category(level: str, suits_categories: Sequence[str] | None) -> Category:
+    """Story 3.5.3: picks a category from the INTERSECTION of the four
+    canonical categories and `suits_categories` (`CaseWorld.suits_categories`,
+    set per curated world in `app/cases/*.json`) -- deterministic Python, no
+    LLM call, same reasoning as `select_shape` above. Iterates `CATEGORIES`
+    (not `suits_categories` itself) so a world listing its categories in an
+    arbitrary order still resolves to the same index for the same level.
+
+    `suits_categories` falsy (`None` or `[]`) falls back to the FULL
+    `CATEGORIES` tuple rather than raising -- this is what keeps the
+    untouched generative Case Architect path working: `CaseWorld.
+    suits_categories` defaults to `[]` there (only the eight curated worlds
+    set it), and a generated world with no curated category list must still
+    be able to get a question. Curated worlds always set 2-3 entries, so
+    this fallback never engages for the eight real companies.
+
+    Raises `ValueError` if none of `suits_categories` names a real category
+    -- a typo'd category in a curated world's JSON should fail loudly at
+    selection time, not silently fall back and mask the typo.
+    """
+    pool = suits_categories or CATEGORIES
+    candidates = tuple(c for c in CATEGORIES if c in set(pool))
+    if not candidates:
+        raise ValueError(
+            f"suits_categories {list(suits_categories or [])!r} names none of "
+            f"the known categories {CATEGORIES}"
+        )
+    index = _LEVEL_INDEX.get(level, 0) % len(candidates)
+    return candidates[index]
+
+
+def select_shape_for_world(level: str, suits_categories: Sequence[str] | None) -> QuestionShape:
+    """The one function story 3.5.3's Planner calls: composes
+    `select_category` and `select_shape` into a single deterministic pick
+    from `(level, case_world["suits_categories"])`. Same (level,
+    suits_categories) always resolves to the same shape -- matches
+    `select_case_world`'s determinism (`app/cases/__init__.py`), for the
+    same reason: a retried request must never mid-flight change which
+    question shape a candidate is being interviewed against.
+    """
+    category = select_category(level, suits_categories)
+    return select_shape(level, category)

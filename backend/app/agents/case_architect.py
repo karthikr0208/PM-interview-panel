@@ -75,6 +75,16 @@ class CaseWorld(BaseModel):
     # Left "" for agent-generated worlds, which have no real-world date to
     # anchor to -- generate_case_world's prompt is unchanged by this story.
     as_of: str = ""
+    # PHASE-3.5-SPEC.md 3.5.3: which of the Planner's four question
+    # categories (strategy | gtm | pricing | growth) this world's
+    # `situation.prompt` actually supports -- 2-3 per curated world, chosen
+    # by reading the situation honestly (asking a pricing question about
+    # Reddit's AI-licensing tension would be a bad interview). Consumed by
+    # `app.questions.shapes.select_shape_for_world`, deterministic Python,
+    # no LLM call. Left [] for agent-generated worlds, exactly like `as_of`
+    # above -- `select_category` falls back to the full category set when
+    # this is empty, so the untouched generative path keeps working.
+    suits_categories: list[str] = []
 
 
 # One block, not built up piecemeal — see resume_analyst.py's identical

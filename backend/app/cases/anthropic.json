@@ -62,5 +62,6 @@
     "Employee count, gross margin, and churn figures in this brief are estimates; Anthropic is privately held and does not disclose financials at this level of detail.",
     "Anthropic has been reported to be among the highest-valued private AI companies, with funding rounds through 2024 and 2025 valuing it in the tens of billions of dollars."
   ],
-  "as_of": "July 2025"
+  "as_of": "July 2025",
+  "suits_categories": ["strategy", "growth", "gtm"]
 }

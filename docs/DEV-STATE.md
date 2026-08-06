@@ -138,7 +138,7 @@ toggle no script can flip.** See Blockers.
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
-| 3.5 Question quality | 🟡 **2 of 5 stories DONE 2026-08-06, at ZERO token cost.** 3.5.1 the transcript now holds candidate turns; 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions. **Three separate defects were caught by independent re-verification, none visible in a green suite** — two assertions that did not generalize (1-of-6 and 2-of-6), a bank shape failing its own gate, and an allowlist that disarmed the generative round-number check. **3.5.3 next, and it spends the first token** | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **306 offline (was 221), 6 live transcript, 113 vitest** |
+| 3.5 Question quality | 🟡 **3 of 5 stories DONE 2026-08-06.** 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** 🔴 **The curated worlds are NOT wired into the graph yet** — that and the probe loop are 3.5.4 | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **326 offline (was 221), 6 live transcript, 113 vitest**, golden smoke PASS on `fast` |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -152,7 +152,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 |---|---|---|---|
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — written 2026-08-02, **before the prompt** | 7 written blind 2026-08-02. **1 of 7 smoked live 2026-08-04: `apm_consumer` PASSES on `fast`.** Other 6 never run. 47 offline assertion tests | 2026-08-04 — placeholder ban + ACV market conditioning. **~3,400 chars, ceiling ~15,557** |
-| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — written 2026-08-02, **before the prompt** | 5 written blind 2026-08-02. **1 of 5 smoked live 2026-08-04, 5 runs: grounding/coverage/timing/immutability all pass, genericness FLAPS 1-of-7-questions.** Accepted, see Decisions. **🔴 QUALITY WORK OPEN as of 2026-08-05: decorative stats and recitation-shaped questions, observed live. Assertions to widen BEFORE the prompt** | 2026-08-04 — grounding verbatim rules, value-only entries, company name in every question. **~4,300 chars, ceiling ~12,197. Runs on `deep`, NOT `fast`** |
+| Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — **§2, §3, §6 superseded 2026-08-06 by story 3.5.3**; see the box at the top of that file | Rewritten for the one-question-plus-ladder contract. **Smoked live on `fast` 2026-08-06, PASS, no retry.** Three new gates asserted on the generated question: `decorative_statistic`, `is_recitation_shaped`, `matches_no_shape` | 2026-08-06 — **the prompt no longer writes the question.** Slots + ladder only; Python formats the bank template. **Runs on `fast` (measured) — the `deep` requirement was about `QuestionPlan`'s size, not this agent** |
 | Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — written 2026-08-05, **before the prompt** | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests. **2 of 5 smoked live on `fast` 2026-08-05: `apm_consumer_world` (no retry) and `senior_pm_platform_world` (the refusal branch, retry fired then passed).** Other 3 never run | 2026-08-05 — bridge **1,099 chars**, clarification **2,728 chars**, ceiling ~20,000. **Runs on `fast`, measured** |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
@@ -2129,6 +2129,85 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🟡 SESSION 12, 2026-08-06. PHASE 3.5 IS 3 OF 5 DONE. START AT 3.5.4, AND WIRE THE WORLDS IN FIRST.
+
+**Run these three first (~40s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 326 passed, 101 deselected
+cd frontend && npm test -- --run                                          # expect 113 passed, 13 files
+curl -s https://pm-interview-panel.onrender.com/openapi.json              # read the ROUTE LIST, not /health
+```
+
+**🔴 NOTHING FROM THIS SESSION IS DEPLOYED.** Three commits sit on local `main`
+(`76d2937`, `8a17152`, and this session's third). Production still serves session 11's build. That
+is fine — 3.5 is mid-phase and the graph is about to change again — but **do not read a passing
+`/health` as "production is current"**, which was session 9's four-day failure.
+
+### 🔴 Start with the gap, not the story: THE EIGHT REAL COMPANIES ARE NOT LIVE
+
+`generate_case_world` in `app/graph/build.py` **still calls the generative Case Architect.**
+`select_case_world` and all eight fact sheets are **dead code in production**, and
+`suits_categories` is therefore always empty at runtime, so 3.5.3's category scoping never engages.
+
+**This is the entire point of the phase and it is one edge away.** My spec never assigned the wiring
+to a story, which is my omission, not a subagent's. It is now the first box on 3.5.4.
+
+**Do that before the probe loop.** It is small, it is free, and until it is done a real interview
+still runs against an invented company, which makes every judgment about question quality worthless.
+
+### Then 3.5.4, the largest story in the phase
+
+`PHASE-3.5-SPEC.md` § 3.5.4. Live probes, `improvised_facts` as invent-and-record,
+`_QUESTIONS_THIS_PHASE` 3 → 1, and the probe edge. **Read § "THREE DECISIONS THIS PHASE REVERSES"
+before writing any of it** — two of the three give up things this project has evidence for, and the
+invent-and-record design is what keeps the Interviewer from contradicting itself at minute 30.
+
+Three traps specific to it, all named in the spec:
+
+- **Compute the 8,000 TPM fit at probe 10 BEFORE building the loop**, not after. `case_world` alone
+  is ~1,200 tokens and the transcript grows every turn. AGENT-INTERVIEWER-SPEC §6 ran exactly this
+  computation once and found the naive design did not fit.
+- **A probe that reads identically against two different answers is `write_bridge` again** — that
+  function was deleted on 2026-08-05 for being a constant function wearing an LLM call. Check it the
+  same way: several different answers, compare the probes.
+- **`await_candidate` still contains only `interrupt()` and its return.** It has zero `rest_insert`
+  calls today; keep it that way.
+
+### 🔴 The open defect, found while verifying 3.5.3 and deliberately not half-fixed
+
+**`no_dash_variants` catches 2 of 6 dash variants, and `stripDashes` has the identical hole.**
+U+2011, U+2012, U+2015, U+2212 all pass silently and reach a candidate. The assertion is duplicated
+at `tests/golden/planner/assertions.py:141` and `tests/golden/interviewer/assertions.py:176`;
+the frontend copy is `frontend/src/lib/copy.ts`.
+
+**The fix is not "add them all to the comma rule."** U+2012/U+2013/U+2014/U+2015 are aside or range
+dashes and want the existing treatment; **U+2010, U+2011 and U+2212 are hyphen-like and want ASCII
+normalisation** — turning a non-breaking hyphen in "state-of-the-art" into a comma would be worse
+than leaving it. Widening shared infra may turn other golden suites red, and **that would be a
+finding, not a regression.**
+
+### 🔴 Budget
+
+`fast` and `deep` should both be near-full: `fast` was 197,178/200,000 at 2026-08-05 ~13:00 IST and
+the rolling window refills ~198,700 in 24h. **Only one golden smoke was spent this session.** The
+daily cap appears in **no header**, so `probe_groq.py` cannot measure it — it reports the 8,000 TPM
+per-minute limit only. Classify any 429 before calling it a defect.
+
+**3.5.4 is the first story in the phase with a real per-interview cost:** one `fast` call per probe,
+6-10 of them, each carrying a growing transcript. Estimate it before building, not after.
+
+### What Karthik decided this session
+
+- **Stale fact sheets are fine.** He read the review board and accepted July-September 2025 dates.
+- **Reddit's `$740.3B` market size stands.** No shape has a market-size slot, so it can only ever
+  surface in a clarification answer.
+- The fact-sheet review board: https://claude.ai/code/artifact/7427ebfd-da67-4b3a-b0dd-cfd209a0c088
+
+---
+
+## Superseded — session 12's opening handoff, kept for the record
+
 ## 🔴 SESSION 12, 2026-08-06. PHASE 3.5 IS SPECCED AND NOTHING IS BUILT. START AT STORY 3.5.1.
 
 **Karthik's examples arrived and they reversed three decisions.** Read
@@ -3164,6 +3243,59 @@ transcript that grows every turn. Both ceilings have to be computed **before** t
 does the probe call still fit under **8,000 TPM at probe 10**, and at N tokens per interview **how
 many interviews exist in a 200,000-token day?** If a full interview costs 30,000 `fast` tokens that
 is six, and iterating on this phase competes with sitting it.
+
+**🟢🔴 2026-08-06 (session 12) · STORY 3.5.3 DONE. THE PLANNER NO LONGER WRITES QUESTIONS, AND IT NO
+LONGER NEEDS `deep`.**
+
+The model now returns only **slot fills**, `grounded_in`, a **probe ladder**, and `intent`. **The
+question string is built in Python** by `shape.template.format(**slots)`. That is the whole fix: a
+model cannot staple a statistic onto a template that has no slot for one, however much it wants to.
+Observed on the smoke:
+
+```
+QUESTION  What is Ferngrove Media's biggest threat over the next three years?
+LADDER    6 entries, all five rubric dimensions covered
+role      fast, PASS, retry_fired=False
+offline   326 passed, 101 deselected
+```
+
+**🟢 The Planner runs on `fast` now, measured.** DEV-STATE has carried "the Planner needs `deep`"
+since 2026-08-04. That was true of `QuestionPlan` — 5-7 objects of 7 fields, which `fast` failed
+Groq's strict schema on twice. **It was never a fact about this agent's difficulty, only about its
+output size**, and the output is now a fraction of what it was. Worth remembering as a general
+lesson: a model requirement recorded against an agent may really be a requirement against a schema.
+
+**🔴 Rubric coverage moved from questions to the probe ladder**, and `suits_categories` on each
+curated world makes category choice **data rather than a model guess** — nothing can ask a pricing
+question about Reddit's AI-licensing tension.
+
+**🔴 TWO GAPS THIS STORY SURFACED THAT NO STORY OWNED. Both are now boxes on 3.5.4.**
+
+1. **The curated worlds are NOT wired into the graph.** `generate_case_world` still calls the
+   generative Case Architect, so all eight fact sheets and `select_case_world` are **dead code in
+   production** and `suits_categories` is always empty at runtime. **The eight real companies are
+   not live.** My spec never assigned the wiring to a story; that was my omission, not a subagent's.
+2. **`_QUESTIONS_THIS_PHASE = 3` against a one-question plan is an `IndexError` waiting to fire.**
+   Nothing catches it because **every graph-level test injects a static `question_plan` fixture**
+   rather than driving the real Planner through the compiled graph. That hole in the tests is worth
+   closing on its own merits.
+
+**🔴 A THIRD DEFECT, IN SHARED INFRA, FOUND WHILE VERIFYING AND NOT YET FIXED.** A subagent reported
+one dash variant slipping past `no_dash_variants`. Measured, it is **four of six**:
+
+```
+em U+2014  caught      non-breaking hyphen U+2011  PASSES
+en U+2013  caught      figure dash U+2012          PASSES
+                       horizontal bar U+2015       PASSES
+                       minus U+2212                PASSES
+```
+
+**The frontend `stripDashes` has the identical hole** (`/[—–]/` only), so a U+2011 or U+2015 from a
+model reaches a candidate through the interview surface. The assertion is **duplicated** in
+`tests/golden/planner/assertions.py:141` and `tests/golden/interviewer/assertions.py:176`
+(resume_analyst has no copy). This enforces a CLAUDE.md non-negotiable and is **open**; see
+§ Next session for the treatment, which is not "replace them all with a comma" — U+2011 and U+2212
+are hyphen-like and want ASCII normalisation, not an aside comma.
 
 **🟢 STORIES 3.5.1 AND 3.5.2 ARE DONE, same day, at ZERO token cost.** See PHASE-3.5-SPEC.md for the
 acceptance boxes and observed output. Three findings worth carrying:

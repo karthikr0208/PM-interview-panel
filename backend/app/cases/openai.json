@@ -62,5 +62,6 @@
     "Employee count, gross margin, and churn figures in this brief are estimates; OpenAI is privately held and does not disclose financials at this level of detail.",
     "Competition from Chinese AI labs releasing highly capable, low-cost, and sometimes open-weight models (widely discussed following DeepSeek's early 2025 releases) became a significant part of the public competitive narrative during 2025."
   ],
-  "as_of": "July 2025"
+  "as_of": "July 2025",
+  "suits_categories": ["strategy", "pricing", "growth"]
 }

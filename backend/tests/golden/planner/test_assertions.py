@@ -24,7 +24,13 @@ import json
 
 import pytest
 
-from app.questions.shapes import SHAPE_BANK, select_shape
+from app.questions.shapes import (
+    CATEGORIES,
+    SHAPE_BANK,
+    select_category,
+    select_shape,
+    select_shape_for_world,
+)
 from tests.golden.case_architect import assertions as ca_assertions
 from tests.golden.planner.assertions import (
     RUBRIC_DIMENSIONS,
@@ -1001,6 +1007,58 @@ def test_select_shape_covers_all_four_categories_across_the_four_levels() -> Non
         for category in {s.category for s in SHAPE_BANK}:
             shape = select_shape(level, category)
             assert shape.category == category
+
+
+# ==============================================================================
+# Story 3.5.3 -- select_category / select_shape_for_world, Part 1 of the
+# brief: shape selection is deterministic Python from (level,
+# suits_categories), picking from the INTERSECTION with the four canonical
+# categories.
+# ==============================================================================
+
+
+def test_select_category_is_deterministic() -> None:
+    first = select_category("PM", ["strategy", "gtm", "growth"])
+    second = select_category("PM", ["strategy", "gtm", "growth"])
+    assert first == second
+    assert first in {"strategy", "gtm", "growth"}
+
+
+def test_select_category_only_returns_a_category_the_world_supports() -> None:
+    """The whole point of the field: a world that does not list "pricing"
+    must never resolve to a pricing shape, for any level."""
+    suits = ["strategy", "gtm", "growth"]
+    for level in FOUR_LEVELS:
+        assert select_category(level, suits) in suits
+
+
+def test_select_category_falls_back_to_all_categories_when_empty() -> None:
+    """The untouched generative path: `CaseWorld.suits_categories` defaults
+    to `[]` there (only the eight curated worlds set it). An empty list
+    must fall back to the full bank, not raise -- a generated world must
+    still be able to get a question."""
+    assert select_category("PM", []) in CATEGORIES
+    assert select_category("PM", None) in CATEGORIES
+
+
+def test_select_category_raises_on_an_unrecognized_category_list() -> None:
+    """A curated world with a typo'd category name must fail loudly at
+    selection time, not silently fall back and mask the typo the way an
+    empty list correctly does."""
+    with pytest.raises(ValueError):
+        select_category("PM", ["not_a_real_category"])
+
+
+def test_select_shape_for_world_composes_category_and_shape_selection() -> None:
+    shape = select_shape_for_world("PM", ["pricing"])
+    assert shape.category == "pricing"
+    assert shape in SHAPE_BANK
+
+
+def test_select_shape_for_world_is_deterministic() -> None:
+    first = select_shape_for_world("GPM", ["strategy", "growth"])
+    second = select_shape_for_world("GPM", ["strategy", "growth"])
+    assert first == second
 
 
 # ==============================================================================

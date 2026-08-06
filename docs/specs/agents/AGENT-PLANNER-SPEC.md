@@ -1,5 +1,32 @@
 # Agent spec — Interview Planner
 
+> **🔴 REWRITTEN IN PART BY STORY 3.5.3, 2026-08-06. Read this box before anything below it.**
+>
+> Three sections below are **superseded** and left in place for the audit trail, per CLAUDE.md's
+> rule against rewriting history:
+>
+> | Section | What actually holds now |
+> |---|---|
+> | **§2 output schema** | The agent no longer returns 5-7 free-form questions. It returns **slot fills** for a shape drawn from `app/questions/shapes.py`, plus `grounded_in`, plus a **probe ladder** of 5-8 angles, plus `intent`. **The question string is built in Python** by `shape.template.format(**slots)` — the model never writes it. That is what makes a decorative statistic structurally impossible rather than merely banned |
+> | **§3 coverage** | **Rubric coverage moved from questions to the probe ladder.** One question cannot be the `primary_dimension` of five dimensions. All five must appear across the ladder. `minutes` / `total_minutes` no longer drive anything: `decide_next` owns time via `_TIME_BUDGET_MINUTES` |
+> | **§6 the model question** | **Answered: `fast`, measured 2026-08-06.** The `deep` requirement of 2026-08-04 was a function of `QuestionPlan`'s size, not this agent's difficulty. Golden smoke passed on `fast` with no retry |
+>
+> **§5's assertions are extended, not replaced.** `missing_grounding`, the vacuity floor, and the
+> cross-world genericness control all still hold and still matter. Three new ones join them, built
+> in story 3.5.2 **before** this prompt changed: `decorative_statistic`, `is_recitation_shaped`,
+> `matches_no_shape`. All three are asserted on the generated question in
+> `tests/golden/planner/test_golden.py`.
+>
+> **§8's first open question is CLOSED.** *"Should `probe_angles` be planned at all, or generated
+> live?"* — pre-written angles cannot fill 45 minutes and cannot respond to what the candidate
+> actually said. The Planner now plans a **ladder of angles**; the Interviewer generates each probe
+> live against the transcript (story 3.5.4).
+>
+> **Category selection is data, not a model decision.** Each curated world declares
+> `suits_categories`, so nothing can ask a pricing question about Reddit's AI-licensing tension.
+>
+> Full detail and observed output: [PHASE-3.5-SPEC.md](../PHASE-3.5-SPEC.md) § 3.5.3.
+
 **Written 2026-08-02, before the prompt exists**, per the story 1.3 split. The golden fixtures in
 story 2.5 are written against this document and blind to the prompt.
 
