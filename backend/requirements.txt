@@ -42,5 +42,15 @@ python-docx==1.1.2
 # Dev
 pytest==8.3.4
 pytest-asyncio==0.25.0
+# Story 3.5.4's token-budget test imports this at MODULE level, so the whole
+# file fails to collect without it. It arrives today only as a transitive
+# dependency of langchain-openai -- pinned here because a test suite that
+# depends on somebody else's dependency tree is one upstream change away from
+# a red run nobody caused. Not a runtime dependency: nothing in app/ imports
+# it, the probe budget is computed offline in tests only.
+#
+# `get_encoding("o200k_base")` fetches the BPE file on first use and caches it
+# under ~/.cache; a machine that has never run it needs network once.
+tiktoken==0.13.0
 # httpx moved to # Core above — it is now a runtime dependency too (Supabase
 # Storage/REST calls), not just a test one.

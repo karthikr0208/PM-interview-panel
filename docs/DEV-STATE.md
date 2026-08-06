@@ -3252,6 +3252,18 @@ Phase 5.
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
 
+**🟡 2026-08-06 (session 13) · `tiktoken` WAS AN UNDECLARED DEPENDENCY, IMPORTED AT MODULE LEVEL.**
+
+Story 3.5.4's token-budget test does `import tiktoken` at the top of the file, so the whole file
+fails to COLLECT without it — and it was present only as a transitive dependency of
+`langchain-openai`. A test suite resting on somebody else's dependency tree is one upstream change
+away from a red run nobody caused. Pinned at `0.13.0` under `# Dev`, with a note that
+`get_encoding("o200k_base")` fetches its BPE file on first use.
+
+Found by walking CLAUDE.md's **triggered updates** table at the end of the session rather than by
+anything failing. That table earns its place: nothing was broken, and nothing would have been until
+the day it was.
+
 **🟢 2026-08-06 (session 13) · THE DASH-FAMILY HOLE IS CLOSED, AND THERE WAS A THIRD COPY NOBODY
 KNEW ABOUT.**
 
