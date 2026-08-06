@@ -42,11 +42,11 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
-from app.agents.case_architect import generate_case_world as _generate_case_world
 from app.agents.interviewer import answer_clarification as _answer_clarification
 from app.agents.interviewer import compose_question, transition_for
 from app.agents.planner import plan_interview as _plan_interview
 from app.agents.resume_analyst import analyse_resume
+from app.cases import select_case_world as _select_case_world
 from app.graph.state import InterviewState
 from app.llm import Role
 from app.supabase_client import rest_insert, rest_select_one, rest_update
@@ -192,28 +192,31 @@ def confirm_level(state: InterviewState) -> dict:
 def _make_generate_case_world(
     role: Role = "fast",
 ) -> Callable[[InterviewState], Awaitable[dict]]:
-    """Factory, same reasoning as `_make_level_candidate`: tests build a
-    graph on `role="fast"` (or any other role) without touching production's
-    default. Story 2.3's brief supersedes AGENT-CASE-ARCHITECT-SPEC.md §1's
-    `deep` default as of 2026-08-02 -- `build_graph`'s own default matches.
+    """Factory, kept for signature compatibility with every caller (including
+    `build_graph(case_architect_role=...)`). `role` is accepted and IGNORED:
+    PHASE-3.5-SPEC.md "THREE DECISIONS THIS PHASE REVERSES" #1 replaces the
+    generative Case Architect with `select_case_world`
+    (`app/cases/__init__.py`), a deterministic pick among eight curated,
+    real-company fact sheets -- zero LLM tokens per interview, and no `role`
+    to pass one to.
     """
 
     async def generate_case_world(state: InterviewState) -> dict:
-        """Runs the Case Architect and writes `case_world` to state.
+        """Picks a curated `CaseWorld` and writes it to state.
 
         Owns every side effect the agent spec assigns to this node (§1):
         one `agent_events` row on start, one on completion (or error), and
         the `case_worlds` insert (the audit copy -- the working copy lives
-        in graph state). `generate_case_world` (the agent function) stays
-        pure, with none of these -- the golden cases call it directly with
-        no session and no database.
+        in graph state). `select_case_world` itself stays pure and
+        synchronous, with none of these -- the offline suite calls it
+        directly with no session and no database.
 
         Reads `assessed_level` from STATE, never from `candidate_profile` --
         `confirm_level`, immediately upstream, may have overwritten it with
-        the candidate's correction. Trap named in the brief: an agent that
+        the candidate's correction. Trap named in the brief: code that
         infers the level from the profile instead would silently discard
-        every correction, and no golden case would catch it, since golden
-        cases pass a level directly and never exercise the correction path.
+        every correction, and no offline test would catch it, since those
+        tests pass a level directly and never exercise the correction path.
         """
         session_id = state["session_id"]
         started = time.perf_counter()
@@ -229,8 +232,8 @@ def _make_generate_case_world(
         )
 
         try:
-            case_world = await _generate_case_world(
-                state["assessed_level"], state["candidate_profile"], role=role
+            case_world = _select_case_world(
+                state["assessed_level"], state["candidate_profile"]
             )
         except Exception:
             await rest_insert(

@@ -308,7 +308,7 @@ async def test_a_corrected_level_reaches_the_case_architect_and_the_planner(
         def model_dump() -> dict:
             return {"company": {"name": "Stubbed Co"}, "supporting_facts": ["stub"]}
 
-    async def _fake_case_world(level, profile, *, role="fast"):
+    def _fake_case_world(level, profile):
         captured["case_architect"] = level
         return _World()
 
@@ -324,7 +324,13 @@ async def test_a_corrected_level_reaches_the_case_architect_and_the_planner(
         captured["planner"] = level
         return _Plan()
 
-    monkeypatch.setattr("app.graph.build._generate_case_world", _fake_case_world)
+    # Story 3.5.4: `generate_case_world` no longer calls the generative
+    # agent -- it calls `select_case_world`, which is synchronous. Patching
+    # the binding this node actually calls, `app.graph.build._select_case_world`,
+    # is what keeps this test watching the same property (what level does
+    # the NODE hand downstream) rather than a name that no longer exists on
+    # the module.
+    monkeypatch.setattr("app.graph.build._select_case_world", _fake_case_world)
     monkeypatch.setattr("app.graph.build._plan_interview", _fake_plan)
 
     session_id = graph_sessions(SHORT_RESUME)
@@ -363,29 +369,28 @@ async def test_resume_analyst_llm_call_fires_exactly_once_across_the_confirm_cyc
 ) -> None:
     """THE test of story 1.4. See the module docstring.
 
-    🔴 The two downstream agents are STUBBED, and that is load-bearing to
-    this test rather than a convenience. Story 3.2 extended the graph past
-    `confirm_level` into `generate_case_world -> plan_interview`, so a
-    resume now legitimately makes three LLM calls where story 1.4's graph
-    made one. This test broke on that change and was committed broken in
-    `08d8dba`, undetected because this file's live tests were not re-run
-    after story 3.2 -- the same "deselected is not passed" lesson as
+    🔴 The Planner is STUBBED, and that is load-bearing to this test rather
+    than a convenience. Story 3.2 extended the graph past `confirm_level`
+    into `generate_case_world -> plan_interview`, so a resume used to
+    legitimately make three LLM calls where story 1.4's graph made one.
+    This test broke on that change and was committed broken in `08d8dba`,
+    undetected because this file's live tests were not re-run after story
+    3.2 -- the same "deselected is not passed" lesson as
     `test_conduct_loop.py`, one commit later.
 
-    Counting ALL `outcome=ok` records can no longer answer this test's
-    question, and loosening the count to `== 3` would be worse than
-    useless: it would pass just as happily if `level_candidate` re-ran and
-    the Planner did not. Stubbing the two downstream agents restores the
-    original property EXACTLY -- the Resume Analyst is then the only thing
-    in the graph that can log an LLM call, so `== 1` means what it always
-    meant. It also stops this test spending a `deep` Planner call it never
-    needed.
+    The Case Architect is deliberately NOT stubbed here, unlike the test
+    above. Story 3.5.4 replaced its generative call with
+    `select_case_world` (`app.graph.build._select_case_world`), which is
+    synchronous, reads a checked-in JSON fixture, and makes no LLM call --
+    so leaving it real costs nothing and this test still gets to exercise
+    the actual node wiring end to end. Counting ALL `outcome=ok` records
+    can no longer answer this test's question, and loosening the count to
+    `== 2` would be worse than useless: it would pass just as happily if
+    `level_candidate` re-ran. Stubbing the Planner restores the original
+    property EXACTLY -- the Resume Analyst is then the only thing in the
+    graph that can log an LLM call, so `== 1` means what it always meant.
+    It also stops this test spending a `deep` Planner call it never needed.
     """
-
-    class _World:
-        @staticmethod
-        def model_dump() -> dict:
-            return {"company": {"name": "Stubbed Co"}, "supporting_facts": ["stub"]}
 
     class _Q:
         @staticmethod
@@ -395,13 +400,9 @@ async def test_resume_analyst_llm_call_fires_exactly_once_across_the_confirm_cyc
     class _Plan:
         questions = [_Q()]
 
-    async def _fake_case_world(level, profile, *, role="fast"):
-        return _World()
-
     async def _fake_plan(level, case_world, *, role="deep"):
         return _Plan()
 
-    monkeypatch.setattr("app.graph.build._generate_case_world", _fake_case_world)
     monkeypatch.setattr("app.graph.build._plan_interview", _fake_plan)
 
     session_id = graph_sessions(SHORT_RESUME)

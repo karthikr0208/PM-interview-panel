@@ -25,6 +25,13 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
+**🟢 SESSION 13, 2026-08-06: THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world`
+calls `select_case_world`; the generative Case Architect is out of the runtime path, so an interview
+costs **one fewer LLM call** and `suits_categories` is non-empty at runtime for the first time.
+Smoked on `fast` against two real sheets — *"What is Anthropic's biggest threat over the next three
+years?"* **329 offline passed. The live graph re-run is OWED**, deferred to the end of 3.5.4. See
+§ Decisions 2026-08-06 (session 13).
+
 **🟢 PHASE 3'S THREE STORIES ARE ALL DONE as of 2026-08-05. The candidate can now sit the whole
 interview in a browser.** 3.1 (spec + blind fixtures, zero tokens), 3.2 (the agent and the looping
 interrupt, falsified on both sides), 3.3 (the interview UI, zero tokens). **3 of 4 gate conditions
@@ -138,7 +145,7 @@ toggle no script can flip.** See Blockers.
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
-| 3.5 Question quality | 🟡 **3 of 5 stories DONE 2026-08-06.** 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** 🔴 **The curated worlds are NOT wired into the graph yet** — that and the probe loop are 3.5.4 | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **326 offline (was 221), 6 live transcript, 113 vitest**, golden smoke PASS on `fast` |
+| 3.5 Question quality | 🟡 **3 of 5 stories DONE 2026-08-06, plus 3.5.4's first box: THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -3180,6 +3187,48 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟢 2026-08-06 (session 13) · THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH, AND THE GENERATIVE
+CASE ARCHITECT IS OUT OF THE RUNTIME PATH.**
+
+`generate_case_world` in `build.py` now calls `select_case_world`, not the LLM. Until this change
+the eight fact sheets and `suits_categories` were **dead code in production** — everything 3.5.2 and
+3.5.3 built was reachable only from tests, and a real interview still ran against an invented
+company. The spec never assigned the wiring to a story; that omission was mine.
+
+Three consequences worth having written down:
+
+- **An interview costs one fewer LLM call.** World-building is now zero tokens and deterministic.
+- **`suits_categories` is non-empty at runtime for the first time**, so 3.5.3's category scoping
+  actually engages. Before today `select_category` always fell back to the full category list.
+- **The generative Case Architect is kept, not deleted.** Its 7 golden cases and 47 assertion tests
+  still run against it, and PHASE-3.5-SPEC §1 wants them pointed at the hand-written worlds as a
+  positive control on the assertions themselves.
+
+**Smoked against reality, which had never been done.** 3.5.3's PASS used the *fixture* world
+"Ferngrove Media". Two `fast` Planner calls against two real sheets:
+
+```
+PM   Figma      → "How would you launch Figma Make for marketing teams?"        6 ladder entries
+GPM  Anthropic  → "What is Anthropic's biggest threat over the next three years?" 5 ladder entries
+```
+
+No retry on either. That second one is Karthik's own example register, against a real company, out
+of the machine.
+
+**🔴 The live graph re-run is OWED and deliberately deferred.** The named trap says a `build.py`
+change means re-running every live test file that builds a graph — `test_confirm_level.py`,
+`test_conduct_loop.py`, `test_transcript.py`, 18 live tests, roughly 40 `fast` calls. The probe edge
+reopens the same file inside the same story, so paying that twice buys nothing. **It is owed before
+the 3.5 phase gate, not skipped.** The offline node coverage that stands in for it meanwhile is
+three new tests in `test_curated_worlds.py`, **watched failing** against a generative-shaped world
+(non-curated company name, empty `suits_categories`) rather than assumed.
+
+**Two `test_confirm_level.py` monkeypatches had to move**, and one of them is the interesting kind
+of hazard: they patched `app.graph.build._generate_case_world`, a name that no longer exists after
+this change. Left alone they would have patched nothing and kept passing — the stub silently
+stops being a stub. The single-call test now leaves the selector **real**, since deterministic
+Python cannot log an LLM call, so its `== 1` still means exactly what it meant in story 1.4.
 
 **🔴🔴 2026-08-06 (session 12) · KARTHIK'S EXAMPLES LANDED, AND THEY REVERSE THREE DECISIONS. PHASE
 3.5 IS WRITTEN. GENERATED FICTIONAL WORLDS, THE REFUSAL BRANCH, AND MULTI-QUESTION INTERVIEWS ARE

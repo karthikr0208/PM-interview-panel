@@ -23,7 +23,8 @@ import pytest
 
 from app.agents.case_architect import CaseWorld
 from app.cases import ALL_SLUGS, select_case_world
-from app.questions.shapes import CATEGORIES
+from app.graph.build import _make_generate_case_world
+from app.questions.shapes import CATEGORIES, select_shape_for_world
 from tests.golden.case_architect.assertions import (
     banned_round_numbers,
     blank_or_short_fields,
@@ -336,3 +337,144 @@ def test_an_unrecognised_level_falls_back_rather_than_raising() -> None:
     reason an interview cannot start."""
     world = select_case_world("not_a_real_level", {})
     assert isinstance(world, CaseWorld)
+
+
+# ==============================================================================
+# Box 7 (story 3.5.4's own brief): the `generate_case_world` NODE
+# (`app.graph.build._make_generate_case_world`), not just the pure selector
+# above. This is the wiring the rest of this file never touched -- until
+# 3.5.4 the node still awaited the generative Case Architect, so everything
+# above was dead code in production and `suits_categories` was always empty
+# at runtime. Offline: `rest_insert` is monkeypatched, so no database and no
+# network; nothing here calls an LLM.
+# ==============================================================================
+
+_CURATED_COMPANY_NAMES = {
+    "Reddit",
+    "Duolingo",
+    "YouTube",
+    "Airbnb",
+    "Figma",
+    "Cursor",
+    "OpenAI",
+    "Anthropic",
+}
+
+
+@pytest.fixture
+def recorded_inserts(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict]]:
+    """Stubs `app.graph.build.rest_insert` (the binding the node actually
+    calls, per the module's own `from app.supabase_client import
+    rest_insert`) and records every call, so the node's three side effects
+    can be asserted on without a database."""
+    calls: list[tuple[str, dict]] = []
+
+    async def _fake_rest_insert(table: str, payload: dict) -> dict:
+        calls.append((table, payload))
+        return {**payload, "id": "stub-id"}
+
+    monkeypatch.setattr("app.graph.build.rest_insert", _fake_rest_insert)
+    return calls
+
+
+async def test_node_produces_a_curated_world_with_no_generative_call(
+    recorded_inserts: list[tuple[str, dict]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The property that was silently false in production: the node's
+    output carries a curated company AND a non-empty `suits_categories`,
+    and the generative Case Architect is never invoked to get there.
+
+    Patches `app.graph.build._generate_case_world` -- the exact binding
+    name the pre-3.5.4 node called (`from app.agents.case_architect import
+    generate_case_world as _generate_case_world`) -- to explode, with
+    `raising=False` because that name no longer exists on the module after
+    this story's change. `raising=False` still catches a regression: if a
+    future edit reintroduces the import AND the call, it recreates this
+    exact attribute in this exact module, which is what the call site would
+    resolve at call time regardless of how it got bound. Patching
+    `app.agents.case_architect.generate_case_world` directly would NOT
+    catch that regression -- a `from X import Y as Z` binds its own
+    reference at import time, so patching the source module's attribute
+    afterward leaves an already-imported alias untouched. That gap is
+    exactly the kind of vacuous-pass the brief warns about.
+    """
+
+    async def _explode(*args, **kwargs):
+        raise AssertionError(
+            "the generative Case Architect was called -- story 3.5.4's node "
+            "must use the deterministic curated selector instead"
+        )
+
+    monkeypatch.setattr("app.graph.build._generate_case_world", _explode, raising=False)
+
+    node = _make_generate_case_world()
+    state = {
+        "session_id": "11111111-1111-1111-1111-111111111111",
+        "assessed_level": "PM",
+        "candidate_profile": {"years_pm_experience": 3.2, "domains": ["consumer"]},
+    }
+
+    result = await node(state)
+
+    world_dict = result["case_world"]
+    assert world_dict["company"]["name"] in _CURATED_COMPANY_NAMES, world_dict["company"]
+    assert world_dict["suits_categories"], "suits_categories is empty -- category scoping cannot engage"
+
+
+async def test_node_output_feeds_a_shape_whose_category_the_world_declares(
+    recorded_inserts: list[tuple[str, dict]]
+) -> None:
+    """End-to-end proof that category scoping (story 3.5.3) now actually
+    engages: the world this node hands downstream, fed straight into
+    `select_shape_for_world`, resolves to a shape whose category is one the
+    world itself declares in `suits_categories` -- not just any of the four
+    canonical categories."""
+    node = _make_generate_case_world()
+    state = {
+        "session_id": "22222222-2222-2222-2222-222222222222",
+        "assessed_level": "GPM",
+        "candidate_profile": {"years_pm_experience": 9.0, "domains": ["ai"]},
+    }
+
+    result = await node(state)
+    world_dict = result["case_world"]
+
+    shape = select_shape_for_world("GPM", world_dict["suits_categories"])
+    assert shape.category in world_dict["suits_categories"], (
+        f"selected shape category {shape.category!r} is not one of the world's own "
+        f"suits_categories {world_dict['suits_categories']!r}"
+    )
+
+
+async def test_node_writes_all_three_recorded_side_effects(
+    recorded_inserts: list[tuple[str, dict]]
+) -> None:
+    """The `started` agent_events row, the `case_worlds` audit insert, and
+    the `done` agent_events row -- unchanged by the swap from the generative
+    call to the curated selector, per the brief. A regression that dropped
+    one silently would break the orchestration column in the UI, which
+    reads these rows."""
+    node = _make_generate_case_world()
+    state = {
+        "session_id": "33333333-3333-3333-3333-333333333333",
+        "assessed_level": "APM",
+        "candidate_profile": {},
+    }
+
+    await node(state)
+
+    tables = [table for table, _ in recorded_inserts]
+    assert tables.count("case_worlds") == 1, tables
+    assert tables == ["agent_events", "case_worlds", "agent_events"], tables
+
+    started_payload = recorded_inserts[0][1]
+    case_world_payload = recorded_inserts[1][1]
+    done_payload = recorded_inserts[2][1]
+
+    assert started_payload["status"] == "started"
+    assert started_payload["agent"] == "case_architect"
+    assert case_world_payload["session_id"] == state["session_id"]
+    assert case_world_payload["world"]["company"]["name"] in _CURATED_COMPANY_NAMES
+    assert done_payload["status"] == "done"
+    assert done_payload["agent"] == "case_architect"
+    assert "duration_ms" in done_payload

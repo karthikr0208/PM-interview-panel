@@ -325,15 +325,41 @@ programmatically from `probe_ladder[0]`, documented at `_first_dimension`. **`bu
 **🔴 TWO GAPS 3.5.3 SURFACED THAT NO STORY OWNED. THEY ARE THIS STORY'S NOW, AND THE FIRST ONE IS
 THE WHOLE POINT OF THE PHASE.**
 
-- [ ] 🔴 **Wire the curated worlds into the graph.** `generate_case_world` in `build.py` **still
-      calls the generative Case Architect**, so `select_case_world` and all eight fact sheets are
-      dead code in production and `suits_categories` is always empty at runtime. **The eight real
-      companies are not live.** My spec never assigned this to a story; that was my omission
+- [x] 🔴 **Wire the curated worlds into the graph — ✅ DONE 2026-08-06.** `generate_case_world` now
+      calls `select_case_world`; the generative Case Architect is out of the runtime path entirely,
+      so an interview costs **one fewer LLM call** than it did this morning. Three side effects
+      unchanged, error path unchanged, `role` accepted and ignored. Observed output below
 - [ ] 🔴 **`_QUESTIONS_THIS_PHASE = 3` against a one-question plan is an `IndexError` waiting to
       fire.** Nothing catches it today because every graph-level test injects a static
       `question_plan` fixture rather than running the real Planner through the compiled graph.
       **That gap in the tests is itself worth closing** — a live test that drives the real Planner
       through the graph would have caught this
+
+**Observed output — the wiring box only**
+
+```
+offline        329 passed, 101 deselected, 0 failed   (baseline 326/101, +3 node tests)
+falsified      the same 3 tests go RED against a generative-shaped world
+               ('Bright Basket', suits_categories []) — on their own assertions,
+               not on a ValidationError
+
+Planner on `fast` against two REAL curated worlds, which had never happened
+(3.5.3's smoke used the FIXTURE world "Ferngrove Media", not one of the eight):
+
+  PM   world Figma      suits ['strategy','pricing','gtm']  shape gtm
+       "How would you launch Figma Make for marketing teams?"       6 ladder entries
+  GPM  world Anthropic  suits ['strategy','growth','gtm']   shape strategy
+       "What is Anthropic's biggest threat over the next three years?"  5 ladder entries
+
+no retry fired on either call · no decorative statistic · all five rubric
+dimensions across each ladder · `grounded_in` cites real facts from the sheet
+```
+
+**🔴 Owed, not done: the live graph re-run.** `build.py` changed, and the named trap says re-run
+every live test file that builds a graph — `test_confirm_level.py`, `test_conduct_loop.py`,
+`test_transcript.py`, 18 live tests. **Deliberately deferred to the end of 3.5.4**, because the
+probe edge reopens the same file within the same story and running ~40 `fast` calls twice would cost
+a large fraction of a day's budget for one intermediate state. It is owed before the phase gate.
 
 **Acceptance**
 - [ ] `generate_probe(case_world, improvised_facts, main_question, transcript, ladder)` is a **pure**
