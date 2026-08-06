@@ -2141,12 +2141,12 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 **Run these three first (~45s, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 367 passed, 103 deselected
-cd frontend && npm test -- --run                                          # expect 131 passed, 15 files
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 374 passed, 103 deselected
+cd frontend && npm test -- --run                                          # expect 139 passed, 15 files
 curl -s https://pm-interview-panel.onrender.com/openapi.json              # read the ROUTE LIST, not /health
 ```
 
-**🔴 NOTHING FROM SESSIONS 12 OR 13 IS DEPLOYED.** Seven commits sit on local `main`. Production
+**🔴 NOTHING FROM SESSIONS 12 OR 13 IS DEPLOYED.** Ten commits sit on local `main`. Production
 still serves session 11's build, which asks three generated questions about invented companies.
 
 ### 🔴 The first thing, and it needs a FRESH budget, not a leftover one
