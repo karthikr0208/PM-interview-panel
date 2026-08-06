@@ -7,12 +7,13 @@ import type { InterviewTurn } from '../lib/types'
 afterEach(cleanup)
 
 const Q1: InterviewTurn = { kind: 'question', text: 'Walk me through a product you shipped end to end.', current_q_idx: 1 }
+const P1: InterviewTurn = { kind: 'probe', text: 'You said it grew engagement -- by what metric, specifically?', current_q_idx: 1 }
 
 function noop() {}
 
 describe('InterviewSurface', () => {
   it('reveals the full question text whole, in a single element, on first render', () => {
-    const state: InterviewState = { kind: 'asking', question: Q1, clarification: null }
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
     // The whole string, not a prefix -- this is what makes "revealed whole"
     // falsifiable rather than assumed.
@@ -20,7 +21,7 @@ describe('InterviewSurface', () => {
   })
 
   it('offers answer and clarify as two distinct controls, each posting its own type', () => {
-    const state: InterviewState = { kind: 'asking', question: Q1, clarification: null }
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
     const onSubmitAnswer = vi.fn()
     const onAskClarification = vi.fn()
     render(<InterviewSurface state={state} onSubmitAnswer={onSubmitAnswer} onAskClarification={onAskClarification} />)
@@ -39,11 +40,57 @@ describe('InterviewSurface', () => {
     const state: InterviewState = {
       kind: 'asking',
       question: Q1,
+      probe: null,
       clarification: 'It means the surface you personally owned.',
     }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
     expect(screen.getByText(Q1.text as string)).toBeTruthy()
     expect(screen.getByText('It means the surface you personally owned.')).toBeTruthy()
+  })
+
+  // 🔴 THIS PHASE'S CENTRAL ASSERTION. A probe renders BESIDE the main
+  // question, never in place of it -- losing the question on a probe turn
+  // is the clarification bug in a new costume. See the mutation
+  // falsification below, which proves this assertion can fail.
+  it('shows a probe as a distinct follow-up block WITHOUT displacing the main question', () => {
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: P1, clarification: null }
+    render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
+    expect(screen.getByText(Q1.text as string)).toBeTruthy()
+    expect(screen.getByText(/you said it grew engagement/i)).toBeTruthy()
+    expect(screen.getByText(/follow-up/i)).toBeTruthy()
+  })
+
+  it('shows an explicit empty state before the first probe has arrived', () => {
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
+    render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
+    expect(screen.getByText(/no follow-up yet/i)).toBeTruthy()
+  })
+
+  it('shows a loading skeleton on the probe surface while an answer is being sent, not the probe text', () => {
+    const state: InterviewState = { kind: 'sending', question: Q1, probe: null, clarification: null, pending: 'answer' }
+    render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
+    expect(screen.getByText(/preparing a follow-up/i)).toBeTruthy()
+    expect(screen.queryByText(/no follow-up yet/i)).toBeNull()
+  })
+
+  it('keeps showing the CURRENT probe while a clarifying question is in flight, not its loading skeleton', () => {
+    const state: InterviewState = { kind: 'sending', question: Q1, probe: P1, clarification: null, pending: 'clarify' }
+    render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
+    expect(screen.getByText(/you said it grew engagement/i)).toBeTruthy()
+    expect(screen.queryByText(/preparing a follow-up/i)).toBeNull()
+  })
+
+  it('strips a dash out of probe text -- the probe is a NEW model-output surface with no inherited guard', () => {
+    const probe: InterviewTurn = {
+      kind: 'probe',
+      text: 'You said it grew engagement — by which metric, specifically?',
+      current_q_idx: 1,
+    }
+    const state: InterviewState = { kind: 'asking', question: Q1, probe, clarification: null }
+    render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
+    const text = document.body.textContent ?? ''
+    expect(text).not.toMatch(/[—–]/)
+    expect(text).toContain('You said it grew engagement, by which metric, specifically?')
   })
 
   it('renders the closing state and offers no answer control once done', () => {
@@ -54,9 +101,12 @@ describe('InterviewSurface', () => {
   })
 
   it('disables controls and shows a skeletal state while sending, never a spinner', () => {
-    const state: InterviewState = { kind: 'sending', question: Q1, clarification: null, pending: 'answer' }
+    const state: InterviewState = { kind: 'sending', question: Q1, probe: null, clarification: null, pending: 'answer' }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
-    expect(screen.getByRole('status')).toBeTruthy()
+    // Two skeletal "status" regions while pending 'answer': the probe
+    // surface's own loading state (a probe is a real LLM call now, story
+    // 3.5.5) alongside the general "Sending your answer" skeleton.
+    expect(screen.getAllByRole('status').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByLabelText(/your answer/i)).toHaveProperty('disabled', true)
     expect(screen.getByRole('button', { name: /submit answer/i })).toHaveProperty('disabled', true)
     // No circular spinner element -- v1 §3 Rule 5 bans it. This project has
@@ -65,7 +115,7 @@ describe('InterviewSurface', () => {
   })
 
   it('shows different loading copy for a pending clarification than a pending answer', () => {
-    const state: InterviewState = { kind: 'sending', question: Q1, clarification: null, pending: 'clarify' }
+    const state: InterviewState = { kind: 'sending', question: Q1, probe: null, clarification: null, pending: 'clarify' }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
     expect(screen.getByText(/sending your question/i)).toBeTruthy()
   })
@@ -74,6 +124,7 @@ describe('InterviewSurface', () => {
     const state: InterviewState = {
       kind: 'error',
       question: Q1,
+      probe: null,
       clarification: null,
       message: 'This session does not belong to you.',
     }
@@ -94,14 +145,14 @@ describe('InterviewSurface', () => {
   })
 
   it('disables submit on empty input, and says why', () => {
-    const state: InterviewState = { kind: 'asking', question: Q1, clarification: null }
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
     expect(screen.getByRole('button', { name: /submit answer/i })).toHaveProperty('disabled', true)
     expect(screen.getByText(/write an answer before submitting/i)).toBeTruthy()
   })
 
   it('disables submit on whitespace-only input', () => {
-    const state: InterviewState = { kind: 'asking', question: Q1, clarification: null }
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
     fireEvent.change(screen.getByLabelText(/your answer/i), { target: { value: '   ' } })
     expect(screen.getByRole('button', { name: /submit answer/i })).toHaveProperty('disabled', true)
@@ -116,6 +167,7 @@ describe('InterviewSurface', () => {
     const state: InterviewState = {
       kind: 'asking',
       question,
+      probe: null,
       clarification: 'It is the 2016–2019 window specifically.',
     }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)

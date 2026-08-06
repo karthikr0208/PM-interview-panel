@@ -51,11 +51,73 @@ export interface AgentEvent {
  * `backend/app/graph/build.py` field-for-field. `kind` and `text` are
  * nullable because that node reads `messages[-1]` and yields `null` for
  * both when `messages` is empty -- defensive, not decorative.
+ *
+ * `'probe'` added in story 3.5.5, mirroring `ask_probe`'s
+ * `additional_kwargs={"kind": "probe"}` (`app/graph/build.py`) -- a probe is
+ * a follow-up on the SAME main question, never a replacement for it. See
+ * `lib/interview.ts`'s `useInterview` for how that distinction is kept.
  */
-export type InterviewTurnKind = 'question' | 'clarification'
+export type InterviewTurnKind = 'question' | 'clarification' | 'probe'
 
 export interface InterviewTurn {
   kind: InterviewTurnKind | null
   text: string | null
   current_q_idx: number
+}
+
+/**
+ * Mirrors `backend/app/agents/case_architect.py`'s Pydantic models
+ * field-for-field, and the eight curated fixtures at `backend/app/cases/*.json`
+ * (story 3.5.2). Read by the frontend from the `case_worlds` table directly
+ * (`lib/caseWorld.ts`) via Supabase, the same RLS-scoped-select pattern
+ * `lib/agentEvents.ts` already uses for `agent_events` -- `case_worlds` has
+ * had a `select`-only, own-session RLS policy since story 1.1
+ * (`migrations/0002_rls_policies.sql`), so this is a read against
+ * already-shipped infrastructure, not a new backend surface.
+ */
+export interface CaseWorldCompetitor {
+  name: string
+  positioning: string
+  relative_strength: string
+}
+
+export interface CaseWorldCompany {
+  name: string
+  one_line: string
+  stage: 'seed' | 'series_a' | 'series_b' | 'series_c' | 'growth' | 'public'
+  employees: number
+  founded_year: number
+}
+
+export interface CaseWorldMarket {
+  description: string
+  size_usd: string
+  growth_rate_pct: number
+  competitors: CaseWorldCompetitor[]
+}
+
+export interface CaseWorldMetrics {
+  arr_usd: string
+  yoy_growth_pct: number
+  gross_margin_pct: number
+  monthly_churn_pct: number
+  customer_count: number
+}
+
+export interface CaseWorldSituation {
+  prompt: string
+  tension: string
+  options: string[]
+  constraints: string[]
+  leadership_belief: string
+}
+
+export interface CaseWorld {
+  company: CaseWorldCompany
+  market: CaseWorldMarket
+  metrics: CaseWorldMetrics
+  situation: CaseWorldSituation
+  supporting_facts: string[]
+  as_of: string
+  suits_categories: string[]
 }

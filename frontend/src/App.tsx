@@ -3,12 +3,14 @@ import { IconStandard } from './lib/icons'
 import { useCandidateSession } from './lib/session'
 import { useLevelAssessment } from './lib/levelAssessment'
 import { useInterview } from './lib/interview'
+import { useCaseWorld } from './lib/caseWorld'
 import { AppShell } from './components/AppShell'
 import { OrchestrationColumn } from './components/OrchestrationColumn'
 import { EvaluationColumn } from './components/EvaluationColumn'
 import { UploadSurface } from './components/UploadSurface'
 import { ConfirmationScreen } from './components/ConfirmationScreen'
 import { InterviewSurface } from './components/InterviewSurface'
+import { CompanyBrief } from './components/CompanyBrief'
 import type { InterviewTurn } from './lib/types'
 
 // Skeletal, never a circular spinner (v1 §3 Rule 5) -- same treatment as
@@ -62,7 +64,16 @@ function InterviewContainer({
   firstQuestion: InterviewTurn
 }) {
   const { state, submitAnswer, askClarification } = useInterview(sessionId, firstQuestion)
-  return <InterviewSurface state={state} onSubmitAnswer={submitAnswer} onAskClarification={askClarification} />
+  // Own hook, own always-mounted component -- see CompanyBrief.tsx's
+  // docstring for why the brief lives outside `useInterview`'s state
+  // machine rather than as one more field threaded through it.
+  const { state: briefState, retry: retryBrief } = useCaseWorld(sessionId)
+  return (
+    <div className="flex flex-col gap-4">
+      <CompanyBrief state={briefState} onRetry={retryBrief} />
+      <InterviewSurface state={state} onSubmitAnswer={submitAnswer} onAskClarification={askClarification} />
+    </div>
+  )
 }
 
 function App() {

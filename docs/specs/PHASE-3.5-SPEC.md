@@ -194,7 +194,9 @@ one new field, `as_of: str`.
       Senior PM `airbnb, youtube` · GPM `openai, anthropic`
 - [x] `select_case_world(level, profile)` is **deterministic Python, no LLM** — a stable SHA-256 of
       the profile, so a retried request never switches the world mid-interview
-- [ ] **The shape bank**, twelve shapes across four categories, checked in as data not prose:
+- [x] **The shape bank**, checked in as data not prose — `app/questions/shapes.py`'s `SHAPE_BANK`.
+      **13 shapes, not the 12 listed below** (strategy 3 · gtm 3 · pricing 3 · growth 4); the box
+      was left unticked by oversight in session 12 and is verified ticked here 2026-08-06:
 
 | Category | Shape |
 |---|---|
@@ -396,7 +398,13 @@ a large fraction of a day's budget for one intermediate state. It is owed before
       a dict-style read. A first falsification attempt (`getattr(m, "text", "")`) **passed
       vacuously** — `BaseMessage` now exposes `.text` equal to `.content` — which is itself the
       reason to watch a test fail rather than assume it can
-- [ ] 🔴 **Re-run EVERY live test file that builds a graph**, not just the edited one. Named trap
+- [ ] 🔴 **Re-run EVERY live test file that builds a graph**, not just the edited one. Named trap.
+      **PARTIALLY DONE 2026-08-06:** `test_confirm_level.py` **9 passed live** — the curated-world
+      wiring drives the real graph, and the log shows real curated worlds reaching the Planner.
+      `test_conduct_loop.py` and `test_transcript.py` are **NOT verified**: the `fast` daily budget
+      hit `Used 198,536 / Limit 200,000` mid-run. **The four conduct-loop failures in that run are
+      QUOTA, confirmed by grepping for `tokens per day` before concluding anything** — which is the
+      only reason the unverified `max_tokens` fix below was not mistaken for a failed one
 - [x] The TPM computation of the budget section, **done and recorded, at probe 10.** Measured with
       `tiktoken` `o200k_base` against the real curated worlds (largest, `openai.json`, **1,392
       tokens**):
@@ -413,20 +421,38 @@ a large fraction of a day's budget for one intermediate state. It is owed before
 
 ---
 
-### 3.5.5 The frontend: the brief, and a probe that reads as a probe — ⬜
+### 3.5.5 The frontend: the brief, and a probe that reads as a probe — ✅ DONE 2026-08-06
 
 **Zero LLM cost.**
 
 **Acceptance**
-- [ ] The **brief is shown**: company, what it sells, the `as_of` line. The candidate can re-read it
-      without losing their place, the same failure `useInterview` already guards on clarifications
-- [ ] A **probe is visually distinct from the main question** — the main question stays on screen
-      for all 45 minutes; a probe is a follow-up beneath it, not a replacement. Losing the main
-      question is the clarification bug in a new costume
-- [ ] `stripDashes` applied to probe text, which is a **new model-output surface** and inherits
-      nothing
-- [ ] Full loading / empty / error cycle on the probe surface, matching 1.5's foundation
-- [ ] **Falsified by mutation:** make the probe replace the main question, watch a test go red
+- [x] The **brief is shown**: company, what it sells, the `as_of` line, in a new `CompanyBrief`
+      card. 🔴 **There is no HTTP field carrying `case_world` to the browser** — the reply endpoints
+      only ever surface `await_candidate`'s interrupt payload. Solved without touching the backend by
+      reading the `case_worlds` table directly under the own-session RLS policy that has existed
+      since story 1.1, the same pattern `useAgentEvents` already uses
+- [x] A **probe is visually distinct from the main question**, and the main question stays on
+      screen. `question` and `probe` are separate fields in `useInterview`; only a `kind: "question"`
+      response may replace `question`, and nothing sends one after the opening question any more
+- [x] `stripDashes` applied to probe text. 🔴 **The guard is known-holed and was applied anyway,
+      deliberately**: it catches U+2013 and U+2014 only, and a U+2011 was observed reaching probe
+      text live today. Widening it is shared infra and would ripple into the backend suites
+- [x] Full loading / empty / error cycle on the probe surface
+- [x] **Falsified by mutation:** making a probe response overwrite `question` turned three tests
+      red, with the diff showing the question text replaced by the probe text
+
+**Observed output**
+
+```
+vitest   131 passed, 15 files   (baseline 113 passed, 13 files)
+tsc -b   clean
+
+mutation: `next.kind === 'probe'` writes `question` instead of `probe`
+  FAIL  on a probe response, keeps the ORIGINAL question on screen
+  FAIL  a SECOND probe still leaves the main question untouched
+  FAIL  a clarification asked WHILE a probe is on the table
+  3 failed | 24 passed
+```
 
 ---
 

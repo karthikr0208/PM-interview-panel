@@ -9,25 +9,44 @@ candidate | system` and `kind` as `question | followup | answer | clarify |
 meta`, so this was a missing write, not a missing column, and needs no
 migration.
 
+🔴 Story 3.5.4 reshaped the loop this file drives, from 2-3 pre-planned
+questions asked in sequence to ONE question probed live
+(`_QUESTIONS_THIS_PHASE = 1`, `_PROBES_THIS_PHASE = 8`):
+`ask_question -> await_candidate -> route_input ->
+{answer_clarification_node, decide_next} -> {ask_question, ask_probe,
+exit}`. `question_plan`'s single entry now carries a `probe_ladder` (a list
+of `{"angle", "primary_dimension"}` dicts), not the old `probe_angles`, and
+`decide_next` returns `"ask" | "probe" | "exit"` through the new `ask_probe`
+node between `decide_next` and `await_candidate`. The fixtures and resume
+sequences below were rewritten to that shape; the transcript PROPERTIES
+under test did not change and are still the point of this file.
+
 🔴 Deviation from the brief that spawned this story, recorded here because
-the test below (`test_the_final_answer_gets_a_row_even_though_ask_question_
+the test below (`test_the_final_answer_gets_a_row_even_though_ask_probe_
 never_runs_again`) is the evidence for it: the brief proposed writing the
 candidate's ANSWER in `ask_question`. That is wrong. `route_input`'s "answer"
-edge lands on `_decide_next_node` first, not `ask_question` -- and on the
-FINAL question, `decide_next()` returns "exit" straight to END without ever
-calling `ask_question` again (`test_conduct_loop.py`'s own
-`test_the_loop_asks_two_to_three_questions_and_exits` already proves this
-shape). Writing the candidate's last answer in `ask_question` would silently
-drop it. `_decide_next_node` is the correct place: it is the node that runs
-immediately after EVERY "answer" resume, whether the loop continues or
-exits. See `app/graph/build.py`'s module banner comment and
-`_decide_next_node`'s own docstring for the full reasoning.
+edge lands on `_decide_next_node` first, not `ask_question` or `ask_probe`
+-- and on the FINAL answer, `decide_next()` returns "exit" straight to END
+without ever calling `ask_probe` again (`test_conduct_loop.py`'s own
+`test_the_loop_asks_the_one_question_then_probes_and_exits_at_the_probe_count_boundary`
+already proves this shape). Writing the candidate's last answer in
+`ask_question` or `ask_probe` would silently drop it. `_decide_next_node` is
+the correct place: it is the node that runs immediately after EVERY
+"answer" resume, whether the loop is about to probe again or exit. See
+`app/graph/build.py`'s module banner comment and `_decide_next_node`'s own
+docstring for the full reasoning.
 
 Live tests only (this file has no offline half) -- every assertion needs the
 real Postgres-backed transcript_turns table and the real graph. Same
 graph-level fixture shape as `test_conduct_loop.py`'s `loop_sessions`,
 copied rather than imported per that file's own precedent of not sharing
 test-only fixtures across modules.
+
+🔴 Per story 3.5.4: every resume below that lands on "probe" (not "exit")
+now costs a real `fast` `generate_probe` LLM call, unlike the old
+`ask_question`, which was fully deterministic. This file was already
+`pytest.mark.live`-only before this story, so that cost is not new in kind,
+only in where it is spent.
 """
 
 from __future__ import annotations
@@ -64,33 +83,27 @@ CASE_WORLD = {
     ],
 }
 
+# 🔴 ONE question now (THREE DECISIONS #3), carrying a `probe_ladder` --
+# `question_plan` stays "a list of dicts", but the list always has length 1
+# as of story 3.5.3/3.5.4. Ladder shape and angle wording matched to
+# `test_conduct_loop.py`'s `QUESTION_PLAN` fixture rather than invented
+# fresh, per that file's convention.
 QUESTION_PLAN = [
     {
         "idx": 0,
         "question": "Given Palewell Analytics' 4.6% monthly churn, how would you prioritize the mobile dashboard decision?",
         "intent": "surfaces prioritization under a fixed constraint",
         "primary_dimension": "decision_quality",
-        "probe_angles": ["What tradeoff would you make first?"],
+        "probe_ladder": [
+            {"angle": "What tradeoff would you make first?", "primary_dimension": "decision_quality"},
+            {"angle": "What signal would change your mind?", "primary_dimension": "structural_clarity"},
+            {"angle": "What would falsify leadership's belief?", "primary_dimension": "point_of_view"},
+            {"angle": "How does Palewell Analytics actually make money today?", "primary_dimension": "business_model_fluency"},
+            {"angle": "What is the biggest risk to the churn number specifically?", "primary_dimension": "market_accuracy"},
+            {"angle": "How would you sequence this against the fixed headcount constraint?", "primary_dimension": "decision_quality"},
+        ],
         "grounded_in": ["Monthly churn is 4.6%, the highest of any month since launch."],
-        "minutes": 8,
-    },
-    {
-        "idx": 1,
-        "question": "How would you validate demand for a native mobile dashboard at Palewell Analytics before committing engineering time?",
-        "intent": "surfaces validation instincts",
-        "primary_dimension": "structural_clarity",
-        "probe_angles": ["What signal would change your mind?"],
-        "grounded_in": ["340 paying customers as of this quarter."],
-        "minutes": 8,
-    },
-    {
-        "idx": 2,
-        "question": "If Palewell Analytics' leadership is wrong that mobile is table stakes, how would you know?",
-        "intent": "surfaces point of view under disagreement",
-        "primary_dimension": "point_of_view",
-        "probe_angles": ["What would falsify leadership's belief?"],
-        "grounded_in": ["Leadership believes mobile is table stakes for renewal."],
-        "minutes": 8,
+        "minutes": 40,
     },
 ]
 
@@ -242,27 +255,44 @@ async def test_question_one_has_no_preceding_candidate_row(
     assert content == QUESTION_PLAN[0]["question"]
 
 
-async def test_the_final_answer_gets_a_row_even_though_ask_question_never_runs_again(
-    checkpointer: AsyncPostgresSaver, loop_sessions: Callable[[], str]
+async def test_the_final_answer_gets_a_row_even_though_ask_probe_never_runs_again(
+    checkpointer: AsyncPostgresSaver,
+    loop_sessions: Callable[[], str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The specific case that falsifies the brief's original proposal
-    (write the candidate answer inside `ask_question`). After the 3rd
-    question's answer, `decide_next()` returns "exit" straight to END --
-    `ask_question` never runs a 4th time, so if the candidate write lived
+    (write the candidate answer inside `ask_question`, or now `ask_probe`).
+    After the LAST probe's answer, `decide_next()` returns "exit" straight to
+    END -- `ask_probe` never runs again, so if the candidate write lived
     there, this exact answer would never get a row. It must, because
-    `_decide_next_node` (not `ask_question`) owns the write and runs on
-    every "answer" resume including the last one."""
+    `_decide_next_node` (not `ask_question` or `ask_probe`) owns the write and
+    runs on every "answer" resume including the last one.
+
+    🔴 `_PROBES_THIS_PHASE` is patched to 2, and that is a budget decision
+    with a reason, not a shortcut. The property under test is the BOUNDARY --
+    what happens on the resume after the final probe -- and a boundary is a
+    boundary at 2 as much as at 8. Production's 8 costs 8 `fast` calls per
+    run of this test, each carrying a growing transcript, which is most of a
+    whole interview's ~47,000 tokens spent on an assertion that does not
+    depend on the count. Patching the constant (rather than hardcoding a
+    smaller number here) keeps the exit condition living in exactly ONE
+    place, which is PHASE-3-SPEC 3.2's requirement.
+    """
+    probes = 2
+    monkeypatch.setattr("app.graph.build._PROBES_THIS_PHASE", probes)
     session_id = loop_sessions()
     graph = build_graph(checkpointer, interviewer_role="fast")
     config = _config(session_id)
 
     await _start_at_the_loop(graph, config, session_id)
-    await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd ship the web view first."}), config)
-    await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd run a two-week beta."}), config)
+    for probe_number in range(1, probes + 1):
+        await graph.ainvoke(
+            Command(resume={"type": "answer", "text": f"Answer number {probe_number}."}), config
+        )
     final_answer = "I'd track renewal rate as the falsifying signal."
     final = await graph.ainvoke(Command(resume={"type": "answer", "text": final_answer}), config)
 
-    assert "__interrupt__" not in final, "the loop should have exited after 3 questions"
+    assert "__interrupt__" not in final, "the loop should have exited at the probe count boundary"
 
     rows = _transcript_rows(session_id)
     last_row = rows[-1]
@@ -273,19 +303,29 @@ async def test_the_final_answer_gets_a_row_even_though_ask_question_never_runs_a
 
 
 async def test_full_interview_transcript_alternates_with_no_gaps_in_idx(
-    checkpointer: AsyncPostgresSaver, loop_sessions: Callable[[], str]
+    checkpointer: AsyncPostgresSaver,
+    loop_sessions: Callable[[], str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Acceptance box 4: turns alternate interviewer/candidate, and `idx`
-    has no gaps, across a finished 3-question interview (no clarifications
+    has no gaps, across a finished one-question interview (no clarifications
     in this run -- `test_candidate_clarifying_question_writes_a_transcript_row`
-    covers that kind separately)."""
+    covers that kind separately).
+
+    `_PROBES_THIS_PHASE` patched to 2 for the budget reason given in the test
+    above: alternation and idx contiguity are properties of the WRITE ORDER,
+    which does not vary with how many probes are asked."""
+    probes = 2
+    monkeypatch.setattr("app.graph.build._PROBES_THIS_PHASE", probes)
     session_id = loop_sessions()
     graph = build_graph(checkpointer, interviewer_role="fast")
     config = _config(session_id)
 
     await _start_at_the_loop(graph, config, session_id)
-    await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd ship the web view first."}), config)
-    await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd run a two-week beta."}), config)
+    for probe_number in range(1, probes + 1):
+        await graph.ainvoke(
+            Command(resume={"type": "answer", "text": f"Answer number {probe_number}."}), config
+        )
     final = await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd track renewal rate."}), config)
     assert "__interrupt__" not in final
 
@@ -297,7 +337,14 @@ async def test_full_interview_transcript_alternates_with_no_gaps_in_idx(
     assert roles == ["interviewer", "candidate"] * (len(roles) // 2), (
         f"transcript did not alternate interviewer/candidate: {roles}"
     )
-    assert len(rows) == 6, f"expected 3 questions + 3 answers = 6 rows, got {len(rows)}: {rows}"
+    # 1 question + `probes` probes interviewer rows; `probes` probe answers
+    # plus 1 final answer candidate rows. Derived from the patched constant
+    # rather than hardcoded, so this stays honest if the probe count moves.
+    expected = (1 + probes) + (probes + 1)
+    assert len(rows) == expected, (
+        f"expected 1 question + {probes} probes + {probes + 1} answers = {expected} rows, "
+        f"got {len(rows)}: {rows}"
+    )
 
 
 async def test_a_replayed_candidate_write_conflicts_rather_than_duplicates(

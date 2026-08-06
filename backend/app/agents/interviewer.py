@@ -472,12 +472,19 @@ async def generate_probe(
     transcript_turns)` afterward, same split as `planner.py`'s
     `_first_dimension` (the model fills, Python decides).
 
-    `max_tokens=1024`: `Probe` is a two-field, short-string schema, smaller
-    than `ClarificationAnswer`'s three fields, so this starts below that
-    call's 2048 rather than at it. A PROJECTION, not yet a measurement
-    against a real `Requested` header (same caveat as
-    `answer_clarification`'s docstring) -- if Groq returns
-    `json_validate_failed`, raise it rather than shortening the prompt.
+    🔴 `max_tokens=2048`, raised from 1024 on 2026-08-06 BY MEASUREMENT, and
+    the reasoning that produced 1024 was wrong in an instructive way. It
+    argued from OUTPUT size: `Probe` is two short strings, smaller than
+    `ClarificationAnswer`'s three, so it should need less. But `max_tokens`
+    on gpt-oss is not an output budget, it is a reasoning-plus-output budget
+    -- the model emits reasoning tokens against it BEFORE the JSON starts
+    (DEV-STATE § Decisions 2026-08-04) -- and reasoning scales with the
+    INPUT, which for a probe grows with every turn of the transcript.
+
+    Observed: probes 1 and 2 succeeded, then `json_validate_failed` twice in
+    a row at probe 3 with a longer transcript, failing the probe-loop test
+    while the same test passed in isolation. The error names the prompt
+    ("Please adjust your prompt") and the prompt is not the problem.
 
     Raises `ValueError` on an empty `case_world`, `main_question`, or
     `probe_ladder`, matching how `answer_clarification` and `plan_interview`
@@ -490,7 +497,7 @@ async def generate_probe(
     if not probe_ladder:
         raise ValueError("generate_probe requires a non-empty probe_ladder")
 
-    llm = get_llm(role, max_tokens=1024).with_structured_output(Probe)
+    llm = get_llm(role, max_tokens=2048).with_structured_output(Probe)
     messages = _build_probe_messages(
         case_world, improvised_facts, main_question, probe_ladder, transcript_turns
     )

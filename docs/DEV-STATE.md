@@ -145,7 +145,7 @@ toggle no script can flip.** See Blockers.
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
-| 3.5 Question quality | 🟡 **3 of 5 stories DONE 2026-08-06, plus 3.5.4's first box: THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
+| 3.5 Question quality | 🟡 **ALL FIVE STORIES ARE CODE-COMPLETE 2026-08-06. The gap is VERIFICATION, not code: the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -2136,6 +2136,71 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🔴 SESSION 14. PHASE 3.5 IS CODE-COMPLETE AND UNVERIFIED. SPEND THE FIRST FRESH TOKENS ON THE PROBE LOOP.
+
+**Run these three first (~45s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 367 passed, 103 deselected
+cd frontend && npm test -- --run                                          # expect 131 passed, 15 files
+curl -s https://pm-interview-panel.onrender.com/openapi.json              # read the ROUTE LIST, not /health
+```
+
+**🔴 NOTHING FROM SESSIONS 12 OR 13 IS DEPLOYED.** Seven commits sit on local `main`. Production
+still serves session 11's build, which asks three generated questions about invented companies.
+
+### 🔴 The first thing, and it needs a FRESH budget, not a leftover one
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/test_conduct_loop.py -q -m "live"
+```
+
+**Four live tests, roughly 16 `fast` calls.** They are the phase gate's condition #3 and they have
+**never completed a run.** `generate_probe`'s `max_tokens` went 1024 -> 2048 at the end of session 13
+to fix a `json_validate_failed` at probe 3, and **that fix has never been observed working** — the
+re-run died on the daily cap at 198,580/200,000.
+
+**If it fails, grep for `tokens per day` BEFORE believing it.** That exact check is what stopped
+session 13 recording a false failure.
+
+If it passes, the remaining owed live files are `tests/test_transcript.py` (6 tests, cut from 8
+probes to 2 deliberately — see the budget note in the file) and the golden interviewer smoke.
+
+### Then the phase gate, which is Karthik's
+
+Gate #4 is **an interview he sits and believes, judged on the QUESTION, not the flow.** The flow
+already passed on 2026-08-05. A full interview costs ~47,000 `fast` tokens, so **the live suite and
+his interview do not both fit in one day** unless the suite passes first time. Budget accordingly:
+suite first (~55,000), then his interview.
+
+### 🔴 Three open defects, none of them blocking, all of them recorded with evidence
+
+1. **The invented figure is fake-round.** "5 million weekly active users" — the register
+   `contains_fake_round_number` exists to catch. **A prompted ban failing for the fourth time.** The
+   deterministic fix is a Python post-check plus one retry when the invented fact is fake-round,
+   which costs a call only when it trips. **Widen the assertion first**, per the phase's own trap.
+2. **U+2011 reaches candidate-facing text**, observed live in a probe. `no_dash_variants` catches 2
+   of 6 variants and `stripDashes` has the identical hole. The session-12 handoff's fix design still
+   stands: U+2012/13/14/15 are aside/range dashes and want the comma treatment; **U+2010, U+2011 and
+   U+2212 are hyphen-like and want ASCII normalisation.** Widening shared infra may turn other golden
+   suites red, and **that would be a finding, not a regression**.
+3. **`test_transcript.py` and `test_conduct_loop.py` live are unverified** against the new loop.
+
+### What session 13 actually established, so it is not re-litigated
+
+- The eight real companies are live in the graph; the generative Case Architect is out of the
+  runtime path and an interview costs one fewer LLM call.
+- The probe **responds to the answer** — 4 of 4 distinct against materially different answers, the
+  same method that killed `write_bridge`. It is not a constant function.
+- An **improvised fact repeats exactly**, and `improvised_fact` (not `can_answer`) is the only safe
+  append signal.
+- The transcript window is **first answer + last 4 turns**, from measurement: the full transcript is
+  10,274 tokens at probe 10 with verbose answers, over the 8,000 ceiling.
+
+---
+
+## Superseded — session 12's second handoff, kept for the record
+
 ## 🟡 SESSION 12, 2026-08-06. PHASE 3.5 IS 3 OF 5 DONE. START AT 3.5.4, AND WIRE THE WORLDS IN FIRST.
 
 **Run these three first (~40s, free, no LLM):**
@@ -3187,6 +3252,35 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🔴 2026-08-06 (session 13) · `generate_probe` FAILED LIVE WITH `json_validate_failed`, AND THE FIX
+IS APPLIED BUT UNVERIFIED. THE `fast` DAILY BUDGET IS GONE.**
+
+The probe loop's first live run: probes 1 and 2 succeeded, then **`json_validate_failed` twice in a
+row at probe 3**, and the same test passed in isolation. Not a rate limit — a 400,
+`invalid_request_error`, whose message reads *"Failed to validate JSON. Please adjust your prompt"*.
+**The prompt is not the problem**, exactly as § Decisions 2026-08-04 records.
+
+**The cause is a reasoning-budget error dressed as an output-budget decision.** `generate_probe` was
+built with `max_tokens=1024`, reasoned from OUTPUT size: `Probe` is two short strings, smaller than
+`ClarificationAnswer`'s three fields, so it should need less than that call's 2048. But `max_tokens`
+on gpt-oss is a **reasoning-plus-output** budget — the model emits reasoning tokens against it
+before the JSON starts — and **reasoning scales with the INPUT**, which for a probe grows with every
+turn of the transcript. So the one call in the product whose input grows monotonically was given the
+smallest ceiling. Raised to 2048.
+
+**🔴 The fix is UNVERIFIED and must not be read as working.** The re-run failed all four tests in 63
+seconds instead of 168, and the classification rule is the only reason that was not misread as the
+fix failing:
+
+```
+grep -oiE "tokens per day|RateLimitError|Limit [0-9]+|Used [0-9]+"
+   4  tokens per day        4  rate_limit_exceeded       10  RateLimitError
+   4  Limit 200000          1  Used 198536 ... 198580
+```
+
+**`fast` is at 198,580 / 200,000.** Nothing else runs today. The window refills at roughly 138
+tokens/min, so a full interview (~47,000) is about six hours away.
 
 **🟢 2026-08-06 (session 13) · THE PROBE EDGE EXISTS. THE GRAPH ASKS ONE QUESTION AND PROBES IT.**
 

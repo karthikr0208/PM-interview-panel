@@ -16,6 +16,8 @@ const { ApiError } = await import('./api')
 
 const Q1: InterviewTurn = { kind: 'question', text: 'Walk me through a product you shipped.', current_q_idx: 1 }
 const Q2: InterviewTurn = { kind: 'question', text: 'How would you prioritize this backlog?', current_q_idx: 2 }
+const P1: InterviewTurn = { kind: 'probe', text: 'You said "prioritize by impact" -- impact on what metric?', current_q_idx: 1 }
+const P2: InterviewTurn = { kind: 'probe', text: 'What would change your mind about that ranking?', current_q_idx: 1 }
 
 describe('useInterview', () => {
   beforeEach(() => {
@@ -24,7 +26,7 @@ describe('useInterview', () => {
 
   it('starts asking the first question handed to it', () => {
     const { result } = renderHook(() => useInterview('sess-1', Q1))
-    expect(result.current.state).toEqual({ kind: 'asking', question: Q1, clarification: null })
+    expect(result.current.state).toEqual({ kind: 'asking', question: Q1, probe: null, clarification: null })
   })
 
   it('goes through "sending" before resolving, giving the surface a real loading state', async () => {
@@ -36,7 +38,13 @@ describe('useInterview', () => {
     act(() => {
       submitPromise = result.current.submitAnswer('My answer.')
     })
-    expect(result.current.state).toEqual({ kind: 'sending', question: Q1, clarification: null, pending: 'answer' })
+    expect(result.current.state).toEqual({
+      kind: 'sending',
+      question: Q1,
+      probe: null,
+      clarification: null,
+      pending: 'answer',
+    })
 
     await act(async () => {
       resolveReply({ session_id: 'sess-1', done: false, next: Q2 })
@@ -78,6 +86,7 @@ describe('useInterview', () => {
     expect(result.current.state).toEqual({
       kind: 'asking',
       question: Q1,
+      probe: null,
       clarification: 'It means the surface you personally owned.',
     })
   })
@@ -93,14 +102,78 @@ describe('useInterview', () => {
     await act(async () => {
       await result.current.askClarification('question?')
     })
-    expect(result.current.state).toEqual({ kind: 'asking', question: Q1, clarification: 'Clarified.' })
+    expect(result.current.state).toEqual({
+      kind: 'asking',
+      question: Q1,
+      probe: null,
+      clarification: 'Clarified.',
+    })
 
     sendInterviewReply.mockResolvedValueOnce({ session_id: 'sess-1', done: false, next: Q2 })
     await act(async () => {
       await result.current.submitAnswer('answer')
     })
 
-    expect(result.current.state).toEqual({ kind: 'asking', question: Q2, clarification: null })
+    expect(result.current.state).toEqual({ kind: 'asking', question: Q2, probe: null, clarification: null })
+  })
+
+  // 🔴 THIS PHASE'S CENTRAL ASSERTION. A probe is a follow-up on the SAME
+  // main question -- `_QUESTIONS_THIS_PHASE = 1` means every post-opening
+  // turn is a probe, not a new question. If this ever regresses to
+  // replacing `question`, the candidate loses the question they are 45
+  // minutes into answering -- the clarification bug in a new costume.
+  it('on a probe response, keeps the ORIGINAL question on screen, sets the probe, and clears any clarification', async () => {
+    sendInterviewReply.mockResolvedValue({ session_id: 'sess-1', done: false, next: P1 })
+    const { result } = renderHook(() => useInterview('sess-1', Q1))
+
+    await act(async () => {
+      await result.current.submitAnswer('My answer.')
+    })
+
+    expect(result.current.state).toEqual({ kind: 'asking', question: Q1, probe: P1, clarification: null })
+  })
+
+  it('a SECOND probe still leaves the main question untouched, and replaces the first probe', async () => {
+    sendInterviewReply.mockResolvedValueOnce({ session_id: 'sess-1', done: false, next: P1 })
+    const { result } = renderHook(() => useInterview('sess-1', Q1))
+
+    await act(async () => {
+      await result.current.submitAnswer('First answer.')
+    })
+    expect(result.current.state).toEqual({ kind: 'asking', question: Q1, probe: P1, clarification: null })
+
+    sendInterviewReply.mockResolvedValueOnce({ session_id: 'sess-1', done: false, next: P2 })
+    await act(async () => {
+      await result.current.submitAnswer('Second answer.')
+    })
+
+    expect(result.current.state).toEqual({ kind: 'asking', question: Q1, probe: P2, clarification: null })
+  })
+
+  it('a clarification asked WHILE a probe is on the table leaves that probe in place', async () => {
+    sendInterviewReply.mockResolvedValueOnce({ session_id: 'sess-1', done: false, next: P1 })
+    const { result } = renderHook(() => useInterview('sess-1', Q1))
+
+    await act(async () => {
+      await result.current.submitAnswer('An answer.')
+    })
+    expect(result.current.state).toEqual({ kind: 'asking', question: Q1, probe: P1, clarification: null })
+
+    sendInterviewReply.mockResolvedValueOnce({
+      session_id: 'sess-1',
+      done: false,
+      next: { kind: 'clarification', text: 'By impact I mean weekly active users.', current_q_idx: 1 },
+    })
+    await act(async () => {
+      await result.current.askClarification('Impact on what metric?')
+    })
+
+    expect(result.current.state).toEqual({
+      kind: 'asking',
+      question: Q1,
+      probe: P1,
+      clarification: 'By impact I mean weekly active users.',
+    })
   })
 
   it('moves to "done" once the graph reports done: true', async () => {
@@ -125,6 +198,7 @@ describe('useInterview', () => {
     expect(result.current.state).toEqual({
       kind: 'error',
       question: Q1,
+      probe: null,
       clarification: null,
       message: 'This session does not belong to you.',
     })
@@ -141,6 +215,7 @@ describe('useInterview', () => {
     expect(result.current.state).toEqual({
       kind: 'error',
       question: Q1,
+      probe: null,
       clarification: null,
       message: 'Could not send your reply. Please try again.',
     })

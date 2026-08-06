@@ -3,10 +3,22 @@ import { ApiError, sendInterviewReply } from './api'
 import type { InterviewTurn } from './types'
 
 export type InterviewState =
-  | { kind: 'asking'; question: InterviewTurn; clarification: string | null }
-  | { kind: 'sending'; question: InterviewTurn; clarification: string | null; pending: 'answer' | 'clarify' }
+  | { kind: 'asking'; question: InterviewTurn; probe: InterviewTurn | null; clarification: string | null }
+  | {
+      kind: 'sending'
+      question: InterviewTurn
+      probe: InterviewTurn | null
+      clarification: string | null
+      pending: 'answer' | 'clarify'
+    }
   | { kind: 'done' }
-  | { kind: 'error'; question: InterviewTurn; clarification: string | null; message: string }
+  | {
+      kind: 'error'
+      question: InterviewTurn
+      probe: InterviewTurn | null
+      clarification: string | null
+      message: string
+    }
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback
@@ -21,15 +33,29 @@ function errorMessage(err: unknown, fallback: string): string {
  * 🔴 TRAP 2: `next.kind === 'clarification'` does NOT replace the question
  * and does NOT advance `current_q_idx` -- only `ask_question` does that
  * (`answer_clarification_node`'s docstring in `app/graph/build.py`). The
- * candidate still owes the original question, so `question` is carried
- * forward unchanged and only `clarification` is set. A `question` response
- * is the opposite: it replaces `question` and clears `clarification`, which
+ * candidate still owes the original question, so `question` (and, since
+ * 3.5.5, `probe`) is carried forward unchanged and only `clarification` is
+ * set.
+ *
+ * 🔴 PHASE 3.5.5: `next.kind === 'probe'` (`ask_probe`, `app/graph/build.py`)
+ * is the SAME trap wearing a new costume. `_QUESTIONS_THIS_PHASE = 1` means
+ * every turn after the opening question is a probe, not a new question --
+ * `question` must NEVER be overwritten by one, or the candidate loses the
+ * main question they are 45 minutes into answering, which is exactly the
+ * clarification bug this story exists to not repeat. Only `probe` advances,
+ * and it clears `clarification`, which belonged to whatever came before it.
+ *
+ * A `next.kind === 'question'` response (not reachable within this phase,
+ * since there is only ever one question -- kept for a future phase that
+ * reopens `_QUESTIONS_THIS_PHASE`) is the one case that legitimately
+ * replaces `question`, and resets both `probe` and `clarification`, which
  * belonged to the question just left behind.
  */
 export function useInterview(sessionId: string | null, firstQuestion: InterviewTurn) {
   const [state, setState] = useState<InterviewState>({
     kind: 'asking',
     question: firstQuestion,
+    probe: null,
     clarification: null,
   })
 
@@ -42,9 +68,9 @@ export function useInterview(sessionId: string | null, firstQuestion: InterviewT
       // 'asking' | 'error', the only two variants carrying a question.
       if (!sessionId || state.kind === 'sending' || state.kind === 'done') return
 
-      const { question, clarification } = state
+      const { question, probe, clarification } = state
 
-      setState({ kind: 'sending', question, clarification, pending: type })
+      setState({ kind: 'sending', question, probe, clarification, pending: type })
       try {
         const result = await sendInterviewReply(sessionId, type, text)
         if (result.done) {
@@ -53,17 +79,23 @@ export function useInterview(sessionId: string | null, firstQuestion: InterviewT
         }
         const { next } = result
         if (next.kind === 'clarification') {
-          // Original question stands; the clarification is an aside to it.
-          setState({ kind: 'asking', question, clarification: next.text })
+          // Original question AND whatever probe is currently on the table
+          // both stand; the clarification is an aside to whichever of them
+          // the candidate owes an answer to.
+          setState({ kind: 'asking', question, probe, clarification: next.text })
+        } else if (next.kind === 'probe') {
+          // A follow-up on the SAME main question. `question` is untouched.
+          setState({ kind: 'asking', question, probe: next, clarification: null })
         } else {
-          // A new question replaces the old one, and any clarification tied
-          // to the PREVIOUS question no longer applies.
-          setState({ kind: 'asking', question: next, clarification: null })
+          // A brand new question replaces the old one AND clears any probe
+          // tied to it -- both belonged to the question just left behind.
+          setState({ kind: 'asking', question: next, probe: null, clarification: null })
         }
       } catch (err) {
         setState({
           kind: 'error',
           question,
+          probe,
           clarification,
           message: errorMessage(err, 'Could not send your reply. Please try again.'),
         })
