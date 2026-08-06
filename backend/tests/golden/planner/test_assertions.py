@@ -582,6 +582,25 @@ def test_no_dash_variants_rejects_the_positive_control() -> None:
     assert no_dash_variants("What would you do–next?") is False
 
 
+def test_no_dash_variants_rejects_the_other_two_aside_range_dashes() -> None:
+    """Widened 2026-08-06: `_DASH_VARIANTS` grew from {em, en} to all four
+    aside/range dashes. Figure dash and horizontal bar are the two the
+    original two-character set was blind to."""
+    assert no_dash_variants("What would you do‒and why?") is False
+    assert no_dash_variants("What would you do―next?") is False
+
+
+def test_no_dash_variants_accepts_hyphen_like_characters() -> None:
+    """Deliberately NOT widened to the three hyphen-like characters (hyphen,
+    non-breaking hyphen, minus sign): those normalise to an ASCII hyphen at
+    the frontend render boundary (`stripDashes`), so flagging them here
+    would fail a golden case over text that reaches the candidate
+    correctly. See this module's `_DASH_VARIANTS` comment."""
+    assert no_dash_variants("state‐of‐the‐art") is True
+    assert no_dash_variants("well‑known") is True
+    assert no_dash_variants("the delta was −5 points") is True
+
+
 # --- Row: no fake-round numbers, no banned-register names ----------------------
 
 

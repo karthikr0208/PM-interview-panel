@@ -2173,18 +2173,17 @@ already passed on 2026-08-05. A full interview costs ~47,000 `fast` tokens, so *
 his interview do not both fit in one day** unless the suite passes first time. Budget accordingly:
 suite first (~55,000), then his interview.
 
-### 🔴 Three open defects, none of them blocking, all of them recorded with evidence
+### 🟢 Two of the three open defects are CLOSED. Do not reopen them.
 
-1. **The invented figure is fake-round.** "5 million weekly active users" — the register
-   `contains_fake_round_number` exists to catch. **A prompted ban failing for the fourth time.** The
-   deterministic fix is a Python post-check plus one retry when the invented fact is fake-round,
-   which costs a call only when it trips. **Widen the assertion first**, per the phase's own trap.
-2. **U+2011 reaches candidate-facing text**, observed live in a probe. `no_dash_variants` catches 2
-   of 6 variants and `stripDashes` has the identical hole. The session-12 handoff's fix design still
-   stands: U+2012/13/14/15 are aside/range dashes and want the comma treatment; **U+2010, U+2011 and
-   U+2212 are hyphen-like and want ASCII normalisation.** Widening shared infra may turn other golden
-   suites red, and **that would be a finding, not a regression**.
-3. **`test_transcript.py` and `test_conduct_loop.py` live are unverified** against the new loop.
+1. **The fake-round invented figure is ACCEPTED, by Karthik, 2026-08-06.** *"we are not conducting an
+   actual interview, its just practice simulation."* No code change and nothing red —
+   `contains_fake_round_number` only ever matched round *percentages*, so it never covered
+   "5 million" anyway.
+2. **The dash-family hole is CLOSED**, all seven characters, in two classes. A **third** copy of the
+   constant was found in `resume_analyst/assertions.py` and was live on `level_rationale`. All three
+   are pinned equal by a drift guard.
+3. **Still open: `test_transcript.py` and `test_conduct_loop.py` live are unverified** against the
+   new loop. That is the one remaining item, and it is a budget problem, not a code problem.
 
 ### What session 13 actually established, so it is not re-litigated
 
@@ -3252,6 +3251,55 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟢 2026-08-06 (session 13) · THE DASH-FAMILY HOLE IS CLOSED, AND THERE WAS A THIRD COPY NOBODY
+KNEW ABOUT.**
+
+Carried open since session 12 and observed live today: `stripDashes` and `no_dash_variants` each
+caught **2 of the 7** dash-family characters, and a U+2011 reached probe text.
+
+**The fix is two classes, not one wider list**, which is why "add the other five to the comma rule"
+would have been wrong:
+
+| Class | Characters | Treatment |
+|---|---|---|
+| Aside / range | U+2012, U+2013, U+2014, U+2015 | The existing one: digit ranges become "to", anything else becomes a comma |
+| Hyphen-like | U+2010, U+2011, U+2212 | **Normalise to ASCII `-`** |
+
+Turning the non-breaking hyphen in "state-of-the-art" into a comma would be worse than leaving it,
+and there is now a test for exactly that string which the naive fix cannot pass.
+
+**The assertion and the stripper deliberately cover different sets.** `no_dash_variants` covers the
+four aside/range dashes only: the hyphen-likes normalise correctly at render, so flagging them would
+fail a golden case over text that reaches the candidate perfectly well. `test_user_facing_copy.py`
+covers **all seven**, because it scans the project's own backend source strings (`HTTPException`
+messages, `_SUMMARY` constants, `_TRANSITIONS`) — those reach the candidate with **no `stripDashes`
+downstream**, so a developer-typed non-breaking hyphen there ships exactly as typed. That
+distinction was a subagent's correction to my brief and it is right.
+
+**🔴 There were THREE copies of the constant, not two.** `resume_analyst/assertions.py` had its own
+2-of-7 version and was left behind by the widening — found only because a subagent flagged it as out
+of scope rather than staying silent. Its surface is `level_rationale`, **which the candidate reads
+on the confirmation screen**, so the weaker rule was live on a real surface. All three are now equal
+and **pinned equal by a drift guard**, falsified by removing one character from one copy and
+watching it fail with an exact diff.
+
+```
+backend   374 passed, 103 deselected   (was 367)
+frontend  139 passed, 15 files         (was 131)
+```
+
+**🟢 2026-08-06 (session 13) · KARTHIK ACCEPTS THE INVENTED FIGURE AS-IS. DEFECT CLOSED, NOT FIXED.**
+
+> "i'm ok with invented number, we are not conducting an actual interview, its just practice
+> simulation."
+
+The improvised fact came back fake-round ("5 million weekly active users"). **No code change, and no
+assertion contradicts the decision:** `contains_fake_round_number` matches banned round
+*percentages* only, so "5 million" was never in its range. Nothing is red and nothing is pending.
+**Do not reopen this as a defect** — the round-number ban exists to stop a *generated case world*
+reading as fiction, and an improvised clarification answer in a practice simulation is not that
+surface.
 
 **🔴 2026-08-06 (session 13) · `generate_probe` FAILED LIVE WITH `json_validate_failed`, AND THE FIX
 IS APPLIED BUT UNVERIFIED. THE `fast` DAILY BUDGET IS GONE.**

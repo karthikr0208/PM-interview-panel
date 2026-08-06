@@ -22,8 +22,37 @@ import pathlib
 
 APP_ROOT = pathlib.Path(__file__).resolve().parent.parent / "app"
 
-EM_DASH = "—"
-EN_DASH = "–"
+EM_DASH = "\u2014"  # em dash
+EN_DASH = "\u2013"  # en dash
+
+# The other five dash-family characters. Widened 2026-08-06 after a
+# non-breaking hyphen (U+2011) reached a live, candidate-facing probe and
+# crashed a console print with UnicodeEncodeError -- this file's job is to
+# catch exactly that class of character before it ships, and two of seven
+# was not enough. Unlike `stripDashes` (`frontend/src/lib/copy.ts`) and the
+# golden-suite assertions (`tests/golden/planner/assertions.py`,
+# `tests/golden/interviewer/assertions.py`), this file does NOT split
+# hyphen-like from aside/range dashes: the strings it scans (HTTPException
+# messages, `_SUMMARY` constants, `_TRANSITIONS` lines) are rendered
+# verbatim by the frontend with no `stripDashes` call in between (see
+# `OrchestrationColumn.tsx`'s `status.summary` render), so there is no
+# downstream fix to lean on. Any of the seven reaching a candidate through
+# this surface is a real defect, not a formatting choice.
+HYPHEN = "\u2010"  # hyphen
+NON_BREAKING_HYPHEN = "\u2011"  # non-breaking hyphen
+FIGURE_DASH = "\u2012"  # figure dash
+HORIZONTAL_BAR = "\u2015"  # horizontal bar
+MINUS_SIGN = "\u2212"  # minus sign
+
+DASH_VARIANTS = (
+    HYPHEN,
+    NON_BREAKING_HYPHEN,
+    FIGURE_DASH,
+    EN_DASH,
+    EM_DASH,
+    HORIZONTAL_BAR,
+    MINUS_SIGN,
+)
 
 # Raised at import/wiring time and read only by a developer. Phase 1 leaves the
 # real graph unwired on purpose; story 1.4 replaces this.
@@ -144,10 +173,10 @@ def test_no_dashes_in_interview_transitions() -> None:
     offenders = [
         f"{f}:{line} {name} -> {text[:80]}"
         for f, line, name, text in _transition_lines()
-        if EM_DASH in text or EN_DASH in text
+        if any(d in text for d in DASH_VARIANTS)
     ]
     assert not offenders, (
-        "em-dash or en-dash in an interview transition line, which is read "
+        "dash-family character in an interview transition line, which is read "
         "immediately before the question (CLAUDE.md § Design):\n" + "\n".join(offenders)
     )
 
@@ -167,10 +196,10 @@ def test_no_dashes_in_agent_event_summaries() -> None:
     offenders = [
         f"{f}:{line} {name} -> {text[:80]}"
         for f, line, name, text in _agent_event_summaries()
-        if EM_DASH in text or EN_DASH in text
+        if any(d in text for d in DASH_VARIANTS)
     ]
     assert not offenders, (
-        "em-dash or en-dash in an agent_events summary, which the orchestration "
+        "dash-family character in an agent_events summary, which the orchestration "
         "column renders verbatim to the candidate (CLAUDE.md § Design):\n" + "\n".join(offenders)
     )
 
@@ -205,3 +234,60 @@ def test_no_en_dashes_in_user_facing_copy() -> None:
         if EN_DASH in text
     ]
     assert not offenders, "en-dash in candidate-facing copy:\n" + "\n".join(offenders)
+
+
+def test_no_other_dash_variants_in_user_facing_copy() -> None:
+    """The five dash-family characters `test_no_em_dashes_in_user_facing_copy`
+    and `test_no_en_dashes_in_user_facing_copy` do not cover: hyphen,
+    non-breaking hyphen, figure dash, horizontal bar, minus sign. Split into
+    its own test, mirroring the em/en split above, so a failure here names
+    the newly-covered characters instead of reusing the older two tests'
+    messaging. Added 2026-08-06 -- see module docstring and `DASH_VARIANTS`
+    for why this file covers the full family and not just the four
+    aside/range dashes the golden suites check.
+    """
+    other_variants = (HYPHEN, NON_BREAKING_HYPHEN, FIGURE_DASH, HORIZONTAL_BAR, MINUS_SIGN)
+    offenders = [
+        f"{f}:{line} {call}() -> {text[:80]}"
+        for f, line, call, text in _user_facing_strings()
+        if any(d in text for d in other_variants)
+    ]
+    assert not offenders, (
+        "hyphen-like or other dash-family character in candidate-facing "
+        "copy (CLAUDE.md § Design):\n" + "\n".join(offenders)
+    )
+
+
+def test_all_three_suites_dash_variants_agree() -> None:
+    """`tests/golden/planner/`, `tests/golden/interviewer/` and
+    `tests/golden/resume_analyst/assertions.py` each define their own
+    `_DASH_VARIANTS` constant on purpose -- their docstrings say the golden
+    suites must stay independently importable even if a sibling's internals
+    change shape.
+
+    🔴 The resume_analyst copy is why this test names three modules and not
+    two. It was the copy LEFT BEHIND when the other two were widened on
+    2026-08-06, found only because a subagent flagged it out of scope. Its
+    surface is `level_rationale`, which the candidate reads on the
+    confirmation screen, so the weaker rule was live on a real surface.
+    But a duplicated constant drifting apart is the actual long-term risk
+    (this project has been bitten by exactly that class of rot before, per
+    CLAUDE.md's "triggered updates" table) -- if one suite's set is widened
+    to a newly-discovered dash-family character and the other is not, one
+    golden suite silently starts enforcing a weaker rule than its sibling.
+    This test is the guard: not a redundant duplication of the fix, an
+    explicit check that the duplication has not rotted.
+    """
+    from tests.golden.interviewer.assertions import _DASH_VARIANTS as interviewer_variants
+    from tests.golden.planner.assertions import _DASH_VARIANTS as planner_variants
+    from tests.golden.resume_analyst.assertions import _DASH_VARIANTS as resume_variants
+
+    sets = {
+        "planner": set(planner_variants),
+        "interviewer": set(interviewer_variants),
+        "resume_analyst": set(resume_variants),
+    }
+    assert len(set(map(frozenset, sets.values()))) == 1, (
+        "the three golden suites' _DASH_VARIANTS have drifted apart: "
+        + ", ".join(f"{name}={sorted(v)!r}" for name, v in sets.items())
+    )

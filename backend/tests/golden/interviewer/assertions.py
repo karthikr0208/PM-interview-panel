@@ -199,13 +199,26 @@ def contains_any_figure(text: str) -> list[str]:
 
 # --- candidate-facing copy hygiene, same shapes as planner's ---------------
 
-_DASH_VARIANTS = ("—", "–")  # em dash, en dash
+# Aside/range dashes only -- figure dash, en dash, em dash, horizontal bar.
+# Deliberately does NOT include the three hyphen-like characters (hyphen
+# U+2010, non-breaking hyphen U+2011, minus sign U+2212): those normalise to
+# an ASCII hyphen at the frontend render boundary (`stripDashes` in
+# `frontend/src/lib/copy.ts`) and reach the candidate correctly, so flagging
+# them here would fail a golden case over text that renders fine. See
+# CLAUDE.md's dash-family fix design, 2026-08-06.
+_DASH_VARIANTS = (
+    "\u2012",  # figure dash
+    "\u2013",  # en dash
+    "\u2014",  # em dash
+    "\u2015",  # horizontal bar
+)
 
 
 def no_dash_variants(text: str) -> bool:
-    """True iff `text` contains neither an em dash nor an en dash. Applies
-    to both `bridge` and `answer` -- spec §4: "This surface is new ...
-    prompting has already failed twice to enforce this mechanical rule."""
+    """True iff `text` contains none of the four aside/range dash-family
+    characters. Applies to both `bridge` and `answer` -- spec §4: "This
+    surface is new ... prompting has already failed twice to enforce this
+    mechanical rule."""
     return not any(d in (text or "") for d in _DASH_VARIANTS)
 
 

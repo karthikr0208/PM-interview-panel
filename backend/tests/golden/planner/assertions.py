@@ -138,13 +138,26 @@ def total_minutes_mismatch(total_minutes: int, questions: list[dict]) -> bool:
 
 # --- candidate-facing copy hygiene -------------------------------------------
 
-_DASH_VARIANTS = ("—", "–")  # em dash, en dash
+# Aside/range dashes only -- figure dash, en dash, em dash, horizontal bar.
+# Deliberately does NOT include the three hyphen-like characters (hyphen
+# U+2010, non-breaking hyphen U+2011, minus sign U+2212): those normalise to
+# an ASCII hyphen at the frontend render boundary (`stripDashes` in
+# `frontend/src/lib/copy.ts`) and reach the candidate correctly, so flagging
+# them here would fail a golden case over text that renders fine. See
+# CLAUDE.md's dash-family fix design, 2026-08-06.
+_DASH_VARIANTS = (
+    "\u2012",  # figure dash
+    "\u2013",  # en dash
+    "\u2014",  # em dash
+    "\u2015",  # horizontal bar
+)
 
 
 def no_dash_variants(text: str) -> bool:
-    """True iff `text` contains neither an em dash nor an en dash. Questions
-    are asked verbatim (PRD §8), so this is candidate-facing copy under the
-    same CLAUDE.md em-dash ban as everywhere else in the product."""
+    """True iff `text` contains none of the four aside/range dash-family
+    characters. Questions are asked verbatim (PRD §8), so this is
+    candidate-facing copy under the same CLAUDE.md em-dash ban as everywhere
+    else in the product."""
     return not any(d in text for d in _DASH_VARIANTS)
 
 

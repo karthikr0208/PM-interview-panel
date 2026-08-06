@@ -135,9 +135,32 @@ def empty_quote_lists(
     return empty
 
 
+# Aside/range dashes only -- figure dash, en dash, em dash, horizontal bar.
+# Identical to planner's and interviewer's `_DASH_VARIANTS`, and pinned equal
+# to both by `test_all_three_suites_dash_variants_agree`: three independent
+# copies of one constant is exactly the shape that drifts, and this module
+# was the copy left behind when the other two were widened on 2026-08-06.
+#
+# Deliberately does NOT include the three hyphen-like characters (hyphen
+# U+2010, non-breaking hyphen U+2011, minus sign U+2212): those normalise to
+# an ASCII hyphen at the frontend render boundary (`stripDashes` in
+# `frontend/src/lib/copy.ts`) and reach the candidate correctly, so flagging
+# them here would fail a golden case over text that renders fine.
+_DASH_VARIANTS = (
+    "‒",  # figure dash
+    "–",  # en dash
+    "—",  # em dash
+    "―",  # horizontal bar
+)
+
+
 def no_dash_variants(text: str) -> bool:
-    """True iff `text` contains neither an em-dash nor an en-dash."""
-    return EM_DASH not in text and EN_DASH not in text
+    """True iff `text` contains none of the four aside/range dash-family
+    characters. `level_rationale` is shown to the candidate on the
+    confirmation screen, so this is candidate-facing copy under the same
+    CLAUDE.md em-dash ban as the Planner's questions and the Interviewer's
+    answers."""
+    return not any(d in (text or "") for d in _DASH_VARIANTS)
 
 
 def contains_forbidden_token(text: str, tokens: list[str]) -> str | None:

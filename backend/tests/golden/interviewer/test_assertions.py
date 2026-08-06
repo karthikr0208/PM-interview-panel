@@ -341,7 +341,8 @@ def test_contains_any_figure_exempts_the_ordinal_allowlist() -> None:
 
 
 # ==============================================================================
-# Dash variants -- em dash and en dash, both directions.
+# Dash variants -- all four aside/range dashes, both directions. Widened
+# 2026-08-06 from {em, en} to {figure dash, en, em, horizontal bar}.
 # ==============================================================================
 
 
@@ -357,6 +358,27 @@ def test_no_dash_variants_rejects_an_em_dash() -> None:
 def test_no_dash_variants_rejects_an_en_dash() -> None:
     """Brief control: text containing an en-dash."""
     assert no_dash_variants("The range is roughly 40,000–42,000 subscribers.") is False
+
+
+def test_no_dash_variants_rejects_a_figure_dash() -> None:
+    """Widened 2026-08-06: the two-character set was blind to this one."""
+    assert no_dash_variants("Ferngrove has 41,000 subscribers‒well above the market.") is False
+
+
+def test_no_dash_variants_rejects_a_horizontal_bar() -> None:
+    """Widened 2026-08-06: the two-character set was blind to this one."""
+    assert no_dash_variants("The range is roughly 40,000―42,000 subscribers.") is False
+
+
+def test_no_dash_variants_accepts_hyphen_like_characters() -> None:
+    """Deliberately NOT widened to the three hyphen-like characters (hyphen,
+    non-breaking hyphen, minus sign): those normalise to an ASCII hyphen at
+    the frontend render boundary (`stripDashes`), so flagging them here
+    would fail a golden case over text that reaches the candidate
+    correctly."""
+    assert no_dash_variants("state‐of‐the‐art") is True
+    assert no_dash_variants("well‑known") is True
+    assert no_dash_variants("the delta was −5 points") is True
 
 
 # ==============================================================================
