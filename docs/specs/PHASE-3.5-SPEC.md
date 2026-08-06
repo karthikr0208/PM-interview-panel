@@ -369,8 +369,10 @@ a large fraction of a day's budget for one intermediate state. It is owed before
       distinct, each quoting the candidate.** The flat "I'm not sure" answer is the decisive case —
       with nothing to quote the probe asks the candidate to commit, rather than emitting a canned
       line. Output in DEV-STATE § Decisions 2026-08-06 (session 13)
-- [ ] `improvised_facts` added to `InterviewState` as an **append-only** list with a reducer, the
-      same shape as `answer_evaluations`' `operator.add` — see ARCHITECTURE §4 "The trap"
+- [x] `improvised_facts` added to `InterviewState` as an **append-only** list with a reducer, the
+      same shape as `answer_evaluations`' `operator.add` — see ARCHITECTURE §4 "The trap".
+      **Falsified:** with the reducer removed the accumulation test fails by *silent replacement*,
+      no exception, exactly as the trap describes
 - [x] An answer with `can_answer=False` **invents a plausible fact, records it, and states it as
       given.** The refusal language is out of the clarification prompt. 🔴 **The invented figure came
       back FAKE-ROUND ("5 million weekly active users") — recorded as an open defect, not fixed**
@@ -379,11 +381,21 @@ a large fraction of a day's budget for one intermediate state. It is owed before
       `can_answer` came back **True**, so **`improvised_fact` being non-empty is the only safe signal
       to append.** Keying the node off `can_answer` would double-record
 - [x] `ungrounded_figures` retargeted at `case_world ∪ improvised_facts` rather than deleted
-- [ ] `decide_next`: the `followup_count == 0` assert removed, `_QUESTIONS_THIS_PHASE = 1`, exit on
-      probe count or `_TIME_BUDGET_MINUTES`. **Exit condition stays in exactly one place**
-- [ ] The probe edge is a real edge in `build.py`, and `await_candidate` **still contains only
-      `interrupt()` and its return** — assert the single-call guarantee across a probe loop, not just
-      a question loop. `falsify_looping_interrupt.py` covers questions and **does not cover probes**
+- [x] `decide_next`: the `followup_count == 0` assert removed, `_QUESTIONS_THIS_PHASE = 1`,
+      `_PROBES_THIS_PHASE = 8`, exit on probe count or `_TIME_BUDGET_MINUTES`. Exit condition still
+      in one place
+- [x] The probe edge is a real edge in `build.py` (`decide_next -probe-> ask_probe ->
+      await_candidate`), and `await_candidate` **still contains only `interrupt()` and its return** —
+      verified by introspection, zero `rest_insert`, one line above the `interrupt()`.
+      🔴 **The single-call assertion across a probe is WRITTEN but NOT YET RUN** — it is a live test
+      and lands with the owed live re-run below. Until then this box is code, not evidence
+- [x] 🔴 **The converter is the seam this story could most easily have got wrong, and it is pinned.**
+      Graph state holds LangChain message OBJECTS (`.content`); `generate_probe` wants dicts keyed
+      `"text"`; the DB rows key the same idea `"content"`. A converter yielding empty strings would
+      leave every probe responding to nothing **and still read as plausible prose**. Falsified with
+      a dict-style read. A first falsification attempt (`getattr(m, "text", "")`) **passed
+      vacuously** — `BaseMessage` now exposes `.text` equal to `.content` — which is itself the
+      reason to watch a test fail rather than assume it can
 - [ ] 🔴 **Re-run EVERY live test file that builds a graph**, not just the edited one. Named trap
 - [x] The TPM computation of the budget section, **done and recorded, at probe 10.** Measured with
       `tiktoken` `o200k_base` against the real curated worlds (largest, `openai.json`, **1,392

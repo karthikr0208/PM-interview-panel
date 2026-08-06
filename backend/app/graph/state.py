@@ -47,6 +47,19 @@ class InterviewState(TypedDict):
     # durable transcript rather than a second data source to keep in sync.
     last_input: dict
 
+    # ── Interviewer -- invented facts, PHASE-3.5-SPEC.md "THREE DECISIONS" #2 ─
+    # Every fact `answer_clarification` INVENTS (case_world is silent, so
+    # can_answer=False) lands here, verbatim, so a LATER clarification or
+    # probe can repeat it exactly instead of re-inventing a different value.
+    # `operator.add`, same reasoning as `answer_evaluations` below: without
+    # this reducer the field would silently hold only the most recent
+    # invented fact, no exception -- the whole invent-and-record design
+    # (the damage was never the invention, it was a value changing between
+    # minute 8 and minute 30) fails silently at minute 30. See ARCHITECTURE
+    # §4 "The trap". `case_world` itself stays untouched and immutable --
+    # this is a separate, append-only channel, never merged back into it.
+    improvised_facts: Annotated[list[str], operator.add]
+
     # ── Evaluator / Coach ────────────────────────────────────
     # operator.add concatenates each evaluate_answer's one-element return list.
     # Without this reducer, answer_evaluations would silently hold only the

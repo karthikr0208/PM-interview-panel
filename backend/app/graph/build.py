@@ -43,7 +43,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
 from app.agents.interviewer import answer_clarification as _answer_clarification
-from app.agents.interviewer import compose_question, transition_for
+from app.agents.interviewer import compose_question, generate_probe, resolve_primary_dimension, transition_for
 from app.agents.planner import plan_interview as _plan_interview
 from app.agents.resume_analyst import analyse_resume
 from app.cases import select_case_world as _select_case_world
@@ -77,6 +77,10 @@ _ASK_DONE_SUMMARY = "Asked the next interview question."
 _CLARIFY_STARTED_SUMMARY = "Answering your clarifying question."
 _CLARIFY_DONE_SUMMARY = "Answered your clarifying question."
 _CLARIFY_ERROR_SUMMARY = "Ran into a problem answering your clarifying question."
+
+_PROBE_STARTED_SUMMARY = "Following up on your answer."
+_PROBE_DONE_SUMMARY = "Followed up on your answer."
+_PROBE_ERROR_SUMMARY = "Ran into a problem following up on your answer."
 
 
 def _make_level_candidate(
@@ -341,13 +345,22 @@ def _make_plan_interview(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Story 3.2: the conduct loop. Five graph waypoints, per PHASE-3-SPEC.md:
+# Story 3.2: the conduct loop. Six graph waypoints as of story 3.5.4, per
+# PHASE-3.5-SPEC.md "THREE DECISIONS" #3:
 #
 #   plan_interview -> ask_question -> await_candidate -> route_input
 #       clarify -> answer_clarification_node -> await_candidate
 #       answer  -> decide_next
-#           ask  -> ask_question
-#           exit -> END
+#           ask   -> ask_question   (only ever fires once -- one question)
+#           probe -> ask_probe -> await_candidate
+#           exit  -> END
+#
+# 🔴 Story 3.5.4 reopens this loop: `question_plan` now holds exactly ONE
+# question (`_QUESTIONS_THIS_PHASE = 1`), and the rubric coverage that used
+# to come from asking 3 different questions now comes from PROBING the one
+# question 6-8 times against what the candidate actually said. `ask_probe`
+# is a second LLM-calling node alongside `answer_clarification_node` --
+# `answer_clarification` is no longer the ONLY LLM call in the loop.
 #
 # `transcript_turns.idx` is `len(state["messages"])` at the moment a node
 # writes its OWN utterance -- i.e. the index the message it is about to
@@ -371,16 +384,14 @@ def _make_plan_interview(
 # that just arrived, not the next one:
 #   - clarify path: `answer_clarification_node` (also still writes its own
 #     "meta" answer at the unchanged `idx = len(messages)`)
-#   - answer path: `_decide_next_node`, NOT `ask_question`. `route_input`'s
-#     "answer" edge always lands on `_decide_next_node` first, whether the
-#     loop is about to ask another question or exit -- and on the FINAL
-#     question, `decide_next()` returns "exit" straight to END without ever
-#     calling `ask_question` again (`test_conduct_loop.py`'s own
-#     `test_the_loop_asks_two_to_three_questions_and_exits` proves this: no
-#     further node runs after the 3rd answer). Writing the candidate's last
-#     answer in `ask_question` would silently drop it. `await_candidate`
-#     itself stays untouched -- it may still contain nothing but
-#     `interrupt()` and its return.
+#   - answer path: `_decide_next_node`, NOT `ask_question` or `ask_probe`.
+#     `route_input`'s "answer" edge always lands on `_decide_next_node`
+#     first, whether the loop is about to probe again or exit -- and once
+#     `decide_next()` returns "exit", END is reached straight from
+#     `_decide_next_node` without ever calling `ask_probe` again. Writing
+#     the candidate's last answer in `ask_question` or `ask_probe` would
+#     silently drop it. `await_candidate` itself stays untouched -- it may
+#     still contain nothing but `interrupt()` and its return.
 # ═══════════════════════════════════════════════════════════════════════
 
 
@@ -413,9 +424,10 @@ def _make_ask_question(
         copies it byte for byte from `question_plan` (spec §2a's central
         rule).
 
-        Consequence worth carrying: `answer_clarification_node` is now the
-        ONLY LLM call in the entire conduct loop, which is what the
-        call-count assertions in `tests/test_conduct_loop.py` rest on.
+        This node itself still costs zero LLM calls, always -- as of story
+        3.5.4 it just is not the ONLY node in the loop that ever ran an LLM
+        call any more: `ask_probe` (below) is the interview's real per-turn
+        call, `answer_clarification_node` its clarification-turn one.
 
         Owns every side effect this node is responsible for: one
         `agent_events` row on start, one on completion (or error), and one
@@ -544,12 +556,14 @@ def _make_answer_clarification_node(
     """Factory, same reasoning as the others above."""
 
     async def answer_clarification_node(state: InterviewState) -> dict:
-        """Answers ONE clarifying question from `case_world` alone, writes
-        its own `transcript_turns` row and `agent_events` rows, appends its
-        answer to `messages`, then routes back to `await_candidate` -- the
-        candidate still owes an answer to the planned question, and
-        `current_q_idx` has NOT advanced past it (only `ask_question`
-        advances it).
+        """Answers ONE clarifying question from `case_world` PLUS
+        `improvised_facts` (PHASE-3.5-SPEC.md "THREE DECISIONS" #2 -- the
+        refusal branch is gone; a silent case world now gets an INVENTED,
+        stated-as-given answer instead), writes its own `transcript_turns`
+        row and `agent_events` rows, appends its answer to `messages`, then
+        routes back to `await_candidate` -- the candidate still owes an
+        answer to the planned question, and `current_q_idx` has NOT
+        advanced past it (only `ask_question` advances it).
 
         Reads the still-pending planned question from
         `question_plan[current_q_idx - 1]` -- `current_q_idx` already
@@ -564,6 +578,17 @@ def _make_answer_clarification_node(
         HumanMessage before this node runs; this node's OWN row (the
         Interviewer's answer, below) keeps its unchanged `idx =
         len(messages)`, one higher.
+
+        🔴 Story 3.5.4: appends to `improvised_facts` ONLY when
+        `result.improvised_fact` is non-empty -- NEVER when `can_answer` is
+        False. Measured live 2026-08-06: asking about the SAME fact a
+        second time returns `can_answer=True` with an EMPTY
+        `improvised_fact`, because the fact is now established (it is
+        already in the `improvised_facts` list the model was given). Keying
+        this off `can_answer` would re-append the same fact on every
+        repeat, and `improvised_facts` is append-only with no dedupe --
+        `state["improvised_facts"]` would grow one entry per repeat asking
+        of a fact already recorded.
         """
         session_id = state["session_id"]
         clarifying_question = (state.get("last_input") or {}).get("text", "")
@@ -595,7 +620,11 @@ def _make_answer_clarification_node(
 
         try:
             result = await _answer_clarification(
-                state["case_world"], planned_question, clarifying_question, role=role
+                state["case_world"],
+                planned_question,
+                clarifying_question,
+                role=role,
+                improvised_facts=state.get("improvised_facts") or [],
             )
         except Exception:
             await rest_insert(
@@ -637,21 +666,176 @@ def _make_answer_clarification_node(
             },
         )
 
-        return {
+        update: dict = {
             "messages": [AIMessage(content=result.answer, additional_kwargs={"kind": "clarification"})],
         }
+        if result.improvised_fact:
+            update["improvised_facts"] = [result.improvised_fact]
+        return update
 
     return answer_clarification_node
 
 
-# The ONE place the exit condition lives (PHASE-3-SPEC.md 3.2's 🔴
-# requirement). Phase 3 asks 2-3 questions, never the plan's full 5-7 --
-# CLAUDE.md's portfolio calibration, restated at the top of PHASE-3-SPEC.md.
-_QUESTIONS_THIS_PHASE = 3
+def _messages_to_turns(messages: list) -> list[dict]:
+    """Converts graph state's `messages` (LangChain `AIMessage` /
+    `HumanMessage` objects) into the turn shape `generate_probe` expects:
+    `[{"role": "interviewer"|"candidate", "text": str}]`.
 
-# Safety valve, not the primary exit path: at 2-3 questions this almost
-# never fires, but a candidate who spends a long time on clarifications
-# should not turn a 45-minute interview into an unbounded one.
+    🔴 Two mismatches live here, both silent if got wrong: `messages` holds
+    LangChain message OBJECTS, not dicts, and their attribute is `.content`
+    -- the DB rows this project also calls "turns" use `"content"` as a
+    dict KEY, not `"text"`. `generate_probe` wants `"text"`. A converter
+    that silently produced empty strings (e.g. reading the wrong attribute)
+    would leave every probe responding to nothing, and -- because a probe
+    reads as plausible prose either way -- nothing downstream would notice.
+    Unit-tested directly in `tests/test_conduct_loop.py` for exactly that
+    reason: non-empty text, and the role mapping, both pinned.
+
+    `HumanMessage` is always the candidate (nothing else ever produces one
+    in this graph); everything else (`AIMessage`, question or probe or
+    clarification) is the interviewer. Order is preserved; nothing is
+    filtered or windowed here -- `generate_probe`'s own
+    `_windowed_transcript` does that, so this stays a pure, total format
+    conversion.
+    """
+    return [
+        {"role": "candidate" if isinstance(m, HumanMessage) else "interviewer", "text": m.content}
+        for m in messages
+    ]
+
+
+def _make_ask_probe(
+    role: Role = "fast",
+) -> Callable[[InterviewState], Awaitable[dict]]:
+    """Factory, same reasoning as the three above."""
+
+    async def ask_probe(state: InterviewState) -> dict:
+        """The interview's real per-turn LLM call (story 3.5.4): pushes on
+        whatever the candidate just said about the ONE planned question,
+        via `generate_probe`. Mirrors `ask_question`'s three side effects
+        (an `agent_events` "started" row, a `transcript_turns` row, an
+        `agent_events` "done" row) and its error handling matches
+        `answer_clarification_node`'s -- this IS a real LLM call and CAN
+        fail, unlike `ask_question`, which stopped being able to on
+        2026-08-05.
+
+        `question_plan` holds exactly one question now
+        (`_QUESTIONS_THIS_PHASE = 1`), so `question_plan[0]` is read
+        directly rather than indexed by `current_q_idx` -- there is no
+        second question this could ever mean.
+
+        `primary_dimension` is NOT asked of the model -- resolved in Python
+        by `resolve_primary_dimension` from `result.angle_used` against the
+        planned `probe_ladder`, same split as `ask_question`'s own
+        dimension-coverage write and `planner.py`'s `_first_dimension`.
+        Coverage is read from the FULL `messages` list (via
+        `_messages_to_turns`), not the windowed transcript `generate_probe`
+        itself uses internally for its token budget -- `resolve_primary_dimension`
+        needs the true count of probes already asked, not the last few.
+
+        Increments `followup_count` -- as of this story, `decide_next`'s
+        PRIMARY driver, not a field with no edge to act on.
+        """
+        session_id = state["session_id"]
+        planned = state["question_plan"][0]
+        main_question = planned["question"]
+        probe_ladder = planned["probe_ladder"]
+        turns = _messages_to_turns(state.get("messages") or [])
+        improvised_facts = state.get("improvised_facts") or []
+
+        started = time.perf_counter()
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "interviewer",
+                "status": "started",
+                "summary": _PROBE_STARTED_SUMMARY,
+            },
+        )
+
+        try:
+            result = await generate_probe(
+                state["case_world"],
+                improvised_facts,
+                main_question,
+                probe_ladder,
+                turns,
+                role=role,
+            )
+        except Exception:
+            await rest_insert(
+                "agent_events",
+                {
+                    "session_id": session_id,
+                    "agent": "interviewer",
+                    "status": "error",
+                    "summary": _PROBE_ERROR_SUMMARY,
+                },
+            )
+            raise
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        idx = len(state.get("messages") or [])
+        await rest_insert(
+            "transcript_turns",
+            {
+                "session_id": session_id,
+                "idx": idx,
+                "role": "interviewer",
+                # The DDL's enum name for this turn kind is "followup", not
+                # "probe" (0001_initial_schema.sql:51) -- "probe" is the
+                # frontend-facing label carried on the AIMessage below, kept
+                # as its own separate word deliberately (see that field's
+                # comment).
+                "kind": "followup",
+                "content": result.probe,
+            },
+        )
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "interviewer",
+                "status": "done",
+                "summary": _PROBE_DONE_SUMMARY,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        dimension = resolve_primary_dimension(result.angle_used, probe_ladder, turns)
+        dimension_coverage = dict(state.get("dimension_coverage") or {})
+        dimension_coverage[dimension] = dimension_coverage.get(dimension, 0) + 1
+
+        return {
+            # "kind": "probe", not "followup" -- `await_candidate` surfaces
+            # this straight through `additional_kwargs` to the HTTP layer
+            # (app/main.py's `next["kind"]`) so the frontend can tell a
+            # probe apart from the opening question (story 3.5.5's job).
+            "messages": [AIMessage(content=result.probe, additional_kwargs={"kind": "probe"})],
+            "followup_count": state.get("followup_count", 0) + 1,
+            "dimension_coverage": dimension_coverage,
+        }
+
+    return ask_probe
+
+
+# The ONE place the exit condition lives (PHASE-3-SPEC.md 3.2's 🔴
+# requirement, carried forward by PHASE-3.5-SPEC.md 3.5.4). `_QUESTIONS_THIS_PHASE`
+# is now 1 (THREE DECISIONS #3: one question, probed live, not 3 pre-planned
+# questions) and `_PROBES_THIS_PHASE` is the new primary boundary.
+_QUESTIONS_THIS_PHASE = 1
+
+# Spec's budget section: 6-10 probes wanted, 8 chosen -- at ~47,000 `fast`
+# tokens per interview (measured against the real curated worlds, see
+# `generate_probe`'s docstring in app/agents/interviewer.py), 8 keeps roughly
+# four interviews inside a 200,000/day budget.
+_PROBES_THIS_PHASE = 8
+
+# Safety valve, not the primary exit path: at 8 probes this almost never
+# fires, but a candidate who spends a long time on clarifications should not
+# turn a 45-minute interview into an unbounded one.
 _TIME_BUDGET_MINUTES = 40
 
 
@@ -694,40 +878,41 @@ async def _decide_next_node(state: InterviewState) -> dict:
     return {}
 
 
-def decide_next(state: InterviewState) -> Literal["ask", "exit"]:
+def decide_next(state: InterviewState) -> Literal["ask", "probe", "exit"]:
     """Deterministic Python, NO LLM call, no I/O -- pure enough to test
-    directly against a bare dict, offline. Reads `followup_count`, elapsed
-    time (from `started_at`) and `dimension_coverage` from state, per
-    PHASE-3-SPEC.md 3.2's acceptance box.
+    directly against a bare dict, offline. Reads `current_q_idx`,
+    `followup_count`, and elapsed time (from `started_at`) from state.
 
-    `followup_count` MUST be 0 for the whole of Phase 3: no probe edge
-    exists in this graph (AGENT-INTERVIEWER-SPEC.md §2c -- probing needs
-    answer quality, a score Phase 4 produces, and building it now would be
-    unfalsifiable). Asserted rather than merely read: a nonzero value here
-    means something wrote to a field this graph has no edge to act on,
-    which is a real bug worth surfacing loudly, not absorbing silently.
+    PHASE-3.5-SPEC.md "THREE DECISIONS" #3: the interview is now ONE
+    question, probed live, not 2-3 pre-planned questions asked in
+    sequence -- so this function no longer decides "ask the next question
+    or exit", it decides "probe again or exit", with "ask" surviving only
+    as the one-time edge that asks the interview's single question at all.
+    Phase 3's version of this function ASSERTED `followup_count == 0`,
+    because no probe edge existed to ever write it. That assertion is
+    gone -- `followup_count` is this function's PRIMARY driver now, not a
+    field that should never move.
 
-    `dimension_coverage` is read but does not gate the decision in this
-    phase. Phase 3 fills it from the ASKED question's `primary_dimension`
-    (the Planner's own field, `ask_question`'s write) rather than from a
-    score, because no score exists yet (PHASE-3-SPEC.md's opening section).
-    Deciding "have we covered enough" needs that same score to know whether
-    a question was answered adequately, so coverage stays informational
-    here; Phase 4 is expected to replace the SOURCE without changing this
-    function's shape.
+    `current_q_idx < _QUESTIONS_THIS_PHASE` (i.e. the one question has not
+    been asked yet) -> "ask". In practice this fires exactly once per
+    interview, on the very first call after `plan_interview` -- `ask_probe`
+    never advances `current_q_idx`, so every later call to this function
+    runs with `current_q_idx == 1` for the rest of the interview.
 
-    The exit condition lives in exactly ONE place: `_QUESTIONS_THIS_PHASE`.
+    `dimension_coverage` is no longer read here -- coverage now lives
+    across the probe ladder (spec §3's rewrite) and is resolved by
+    `ask_probe` calling `resolve_primary_dimension`, not gated on by this
+    function, same as Phase 3's version never gated on it either.
+
+    The exit condition lives in exactly TWO checks, both in THIS function,
+    same shape as Phase 3 had: `_TIME_BUDGET_MINUTES` (the safety valve)
+    and `_PROBES_THIS_PHASE` (the primary boundary, replacing
+    `_QUESTIONS_THIS_PHASE`). Nothing else in the graph counts probes or
+    checks elapsed time -- `ask_probe` increments `followup_count` and
+    stops there.
     """
-    followup_count = state.get("followup_count", 0)
-    assert followup_count == 0, (
-        "decide_next assumes no probe edge exists in Phase 3 (spec §2c), but "
-        f"followup_count={followup_count} -- something wrote to a field this "
-        "graph has no edge to act on"
-    )
-    _ = state.get("dimension_coverage", {})  # read; not yet gated on, see docstring
-
-    if state.get("current_q_idx", 0) >= _QUESTIONS_THIS_PHASE:
-        return "exit"
+    if state.get("current_q_idx", 0) < _QUESTIONS_THIS_PHASE:
+        return "ask"
 
     started_at = state.get("started_at")
     if started_at:
@@ -735,7 +920,10 @@ def decide_next(state: InterviewState) -> Literal["ask", "exit"]:
         if elapsed >= timedelta(minutes=_TIME_BUDGET_MINUTES):
             return "exit"
 
-    return "ask"
+    if state.get("followup_count", 0) >= _PROBES_THIS_PHASE:
+        return "exit"
+
+    return "probe"
 
 
 def build_graph(
@@ -748,7 +936,8 @@ def build_graph(
 ) -> Any:
     """Compiles level_candidate -> confirm_level -> generate_case_world ->
     plan_interview -> ask_question -> await_candidate -> ... -> END (the
-    conduct loop, story 3.2) with the given checkpointer attached.
+    conduct loop, story 3.2, extended with the probe edge by story 3.5.4)
+    with the given checkpointer attached.
 
     `checkpointer` must be an `AsyncPostgresSaver` (session pooler, port
     5432) in every environment including local dev. Never `MemorySaver` —
@@ -783,6 +972,7 @@ def build_graph(
     graph.add_node("generate_case_world", _make_generate_case_world(case_architect_role))
     graph.add_node("plan_interview", _make_plan_interview(planner_role))
     graph.add_node("ask_question", _make_ask_question(interviewer_role))
+    graph.add_node("ask_probe", _make_ask_probe(interviewer_role))
     graph.add_node("await_candidate", await_candidate)
     graph.add_node("answer_clarification_node", _make_answer_clarification_node(interviewer_role))
     graph.add_node("decide_next", _decide_next_node)
@@ -792,11 +982,14 @@ def build_graph(
     graph.add_edge("generate_case_world", "plan_interview")
     graph.add_edge("plan_interview", "ask_question")
     graph.add_edge("ask_question", "await_candidate")
+    graph.add_edge("ask_probe", "await_candidate")
     graph.add_conditional_edges(
         "await_candidate",
         route_input,
         {"clarify": "answer_clarification_node", "answer": "decide_next"},
     )
     graph.add_edge("answer_clarification_node", "await_candidate")
-    graph.add_conditional_edges("decide_next", decide_next, {"ask": "ask_question", "exit": END})
+    graph.add_conditional_edges(
+        "decide_next", decide_next, {"ask": "ask_question", "probe": "ask_probe", "exit": END}
+    )
     return graph.compile(checkpointer=checkpointer)

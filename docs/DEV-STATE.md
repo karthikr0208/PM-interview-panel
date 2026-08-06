@@ -3188,6 +3188,34 @@ Phase 5.
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
 
+**🟢 2026-08-06 (session 13) · THE PROBE EDGE EXISTS. THE GRAPH ASKS ONE QUESTION AND PROBES IT.**
+
+`decide_next -probe-> ask_probe -> await_candidate` is a real edge. `_QUESTIONS_THIS_PHASE` is 1,
+`_PROBES_THIS_PHASE` is 8, the `followup_count == 0` assert is gone, and `followup_count` is the
+loop's primary driver. **367 offline passed.** `await_candidate` still contains only `interrupt()`
+and its return — verified by introspection, not by reading: zero `rest_insert`, one line above the
+interrupt.
+
+**The seam this story could most easily have got wrong is the message converter, and it is pinned.**
+Graph state holds LangChain message OBJECTS (`.content`), `generate_probe` wants dicts keyed
+`"text"`, and the DB rows key the same idea `"content"`. Three names for one thing. A converter
+yielding empty strings would leave every probe responding to nothing **and the probe would still
+read as plausible prose**, so nothing downstream would notice — the same shape as the 2026-08-04
+upload bug, where a test certified the defect.
+
+**And the first falsification of that converter passed vacuously**, which is worth more than the
+test: `getattr(m, "text", "")` did *not* break it, because `langchain_core`'s `BaseMessage` now
+exposes a `.text` accessor equal to `.content`. A dict-style read broke it properly. **This is
+exactly why a test is watched failing rather than assumed capable of failing.**
+
+**`improvised_facts` appends on `improvised_fact` being non-empty, never on `can_answer`** — the
+live measurement above is what made that the rule. The reducer was falsified too: removed, the
+accumulation test fails by silent replacement with no exception, exactly as ARCHITECTURE §4's trap
+describes.
+
+**🔴 `tests/test_transcript.py` is known-stale against this design** and its repair is part of the
+owed live re-run: it drives a three-question fixture through a loop that now asks one.
+
 **🟢 2026-08-06 (session 13) · THE PROBE RESPONDS TO THE ANSWER, THE IMPROVISED FACT REPEATS, AND
 TWO DEFECTS SURFACED THAT ONLY A LIVE RUN COULD SEE.**
 
