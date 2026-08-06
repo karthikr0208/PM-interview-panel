@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 from tests.golden.interviewer.assertions import (
-    contains_any_figure,
     grounded_in_is_empty,
     missing_grounding,
     refusal_names_silence,
@@ -116,24 +115,30 @@ def _check_pm_b2b_world(result: Any, case_world: dict) -> None:
 
 
 def _check_senior_pm_platform_world(result: Any, case_world: dict) -> None:
-    """Spec §5 fixture 3: a fact the world does not contain -> can_answer
-    False, no invented figure, still grounded (in the nearest thing the
-    world does say)."""
+    """Spec §5 fixture 3, REVERSED by story 3.5.4 (PHASE-3.5-SPEC.md "THREE
+    DECISIONS" #2 -- the refusal branch is deleted): a fact the world does
+    not contain -> can_answer False, but now INVENT-AND-RECORD, not refusal.
+    Asserts a non-empty `improvised_fact`, an `answer` that states the
+    invented assumption as given rather than naming the world's silence, and
+    `grounded_in` still non-empty (the invention still sits next to
+    something real)."""
     assert result.can_answer is False, (
         f"senior_pm_platform_world: expected can_answer=False -- eNPS is "
         f"nowhere in this world -- got True with answer={result.answer!r}"
     )
+    assert (result.improvised_fact or "").strip(), (
+        f"senior_pm_platform_world: can_answer=False but improvised_fact is "
+        f"blank -- the invented eNPS figure was never recorded, so a later "
+        f"call has nothing to repeat consistently"
+    )
     assert not grounded_in_is_empty(result.grounded_in), (
-        "senior_pm_platform_world: refusal has empty grounded_in -- the "
-        "escape hatch spec §5 warns about"
+        "senior_pm_platform_world: grounded_in is empty -- an invented "
+        "answer must still sit next to something the world DOES say"
     )
-    assert contains_any_figure(result.answer) == [], (
-        f"senior_pm_platform_world: refusal volunteers a figure: "
-        f"{contains_any_figure(result.answer)!r} in {result.answer!r}"
-    )
-    assert refusal_names_silence(result.answer), (
-        f"senior_pm_platform_world: refusal does not name the world's "
-        f"silence, merely declines: {result.answer!r}"
+    assert not refusal_names_silence(result.answer), (
+        f"senior_pm_platform_world: answer still reads as a refusal (names "
+        f"the world's silence) instead of stating the invented assumption "
+        f"as given -- the refusal branch was supposed to be gone: {result.answer!r}"
     )
 
 
@@ -156,20 +161,29 @@ def _check_gpm_portfolio_world(result: Any, case_world: dict) -> None:
 
 
 def _check_sparse_world(result: Any, case_world: dict) -> None:
-    """Spec §5 fixture 5: a fact a thin world is silent on -> degrades to
-    can_answer=False, not to invention. This world has no year-ago churn
-    figure at all."""
+    """Spec §5 fixture 5, REVERSED by story 3.5.4, same reasoning as fixture
+    3: a fact a thin world is silent on (no year-ago churn figure exists at
+    all) -> can_answer=False, but now degrades to a RECORDED invention, not
+    a refusal. This is also the thinnest world in the suite, so it is the
+    hardest case for "ground the invention in the nearest real thing" --
+    if it passes here, the invention design holds even with very little to
+    lean on."""
     assert result.can_answer is False, (
         f"sparse_world: expected can_answer=False -- no year-ago churn "
         f"figure exists in this world -- got True with answer={result.answer!r}"
     )
-    assert contains_any_figure(result.answer) == [], (
-        f"sparse_world: refusal volunteers a figure: "
-        f"{contains_any_figure(result.answer)!r} in {result.answer!r}"
+    assert (result.improvised_fact or "").strip(), (
+        f"sparse_world: can_answer=False but improvised_fact is blank -- "
+        f"the invented churn figure was never recorded"
     )
-    assert refusal_names_silence(result.answer), (
-        f"sparse_world: refusal does not name the world's silence, merely "
-        f"declines: {result.answer!r}"
+    assert not grounded_in_is_empty(result.grounded_in), (
+        "sparse_world: grounded_in is empty -- an invented answer must "
+        "still sit next to something the world DOES say"
+    )
+    assert not refusal_names_silence(result.answer), (
+        f"sparse_world: answer still reads as a refusal (names the world's "
+        f"silence) instead of stating the invented assumption as given: "
+        f"{result.answer!r}"
     )
 
 
@@ -186,7 +200,7 @@ CASES: tuple[GoldenCase, ...] = (
     ),
     GoldenCase(
         fixture="senior_pm_platform_world",
-        description="A fact the world does not contain -> can_answer=False, no invented figure",
+        description="A fact the world does not contain -> can_answer=False, invents and records it",
         check=_check_senior_pm_platform_world,
     ),
     GoldenCase(
@@ -196,7 +210,7 @@ CASES: tuple[GoldenCase, ...] = (
     ),
     GoldenCase(
         fixture="sparse_world",
-        description="A fact a thin world is silent on -> degrades to can_answer=False, not invention",
+        description="A fact a thin world is silent on -> degrades to a recorded invention, not a refusal",
         check=_check_sparse_world,
     ),
 )

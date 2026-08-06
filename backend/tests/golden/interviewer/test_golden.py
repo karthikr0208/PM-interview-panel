@@ -42,6 +42,17 @@ this product runs while a candidate is watching a cursor. §8 flags that
 `fast` holding the three-field `ClarificationAnswer` schema is UNMEASURED
 (the Planner needed `deep` for its much larger `QuestionPlan` and that was
 a surprise) -- story 3.2's job, not this one's.
+
+🔴 STORY 3.5.4, PHASE-3.5-SPEC.md "THREE DECISIONS" #2: the refusal branch
+is DELETED. Fixtures 3 and 5 (`senior_pm_platform_world`, `sparse_world`)
+no longer assert a refusal -- `cases.py`'s checks for them now assert
+INVENT-AND-RECORD instead: `can_answer=False`, a non-empty
+`improvised_fact`, and prose that states the assumption rather than naming
+the world's silence. The universal "can_answer=False -> no figure at all"
+assertion is deleted with it (an invented answer is EXPECTED to volunteer a
+figure); what replaces it as "the suite's assertion with teeth" is the new
+consistency control at the bottom of this file -- the same invented fact,
+asked for twice, must come back the same value both times.
 """
 from __future__ import annotations
 
@@ -52,7 +63,6 @@ import os
 import pytest
 
 from tests.golden.interviewer.assertions import (
-    contains_any_figure,
     contains_banned_register_name,
     contains_fake_round_number,
     grounded_in_is_empty,
@@ -158,20 +168,30 @@ async def test_golden_case(case, answer_clarification, caplog) -> None:
     )
 
     # --- The figure check: every numeric token in `answer` must appear in
-    # case_world (spec §5's "assertion with teeth") ---
-    bad_figures = ungrounded_figures(result.answer, case.case_world)
+    # case_world OR in the fact THIS call itself just improvised (spec
+    # "THREE DECISIONS" #2: `ungrounded_figures` is retargeted at
+    # `case_world ∪ improvised_facts`, not deleted). A single golden call has
+    # no PRIOR improvised_facts to pass, but `result.improvised_fact` is the
+    # one this call produced, so this doubles as a self-consistency check:
+    # the number in `answer` must be the SAME number recorded in the
+    # structured field, not a different one that only lives in the prose. ---
+    improvised_this_call = [result.improvised_fact] if result.improvised_fact else []
+    bad_figures = ungrounded_figures(result.answer, case.case_world, improvised_this_call)
     assert not bad_figures, (
-        f"{case.id}: answer cites figure(s) not in case_world: {bad_figures} "
-        f"in {result.answer!r}"
+        f"{case.id}: answer cites figure(s) not in case_world and not in its own "
+        f"improvised_fact: {bad_figures} in {result.answer!r} "
+        f"(improvised_fact={result.improvised_fact!r})"
     )
 
-    # --- can_answer=False must mean no figure at all, not just none that
-    # fails grounding (spec §5) ---
+    # --- can_answer=False now means INVENT-AND-RECORD, not refusal (spec
+    # "THREE DECISIONS" #2 -- the old "no figure at all" assertion is
+    # DELETED because an invented answer is expected to volunteer a figure).
+    # What survives: the invention must actually be RECORDED, so a later
+    # call has something to repeat consistently. ---
     if result.can_answer is False:
-        figures = contains_any_figure(result.answer)
-        assert not figures, (
-            f"{case.id}: can_answer=False but answer volunteers figure(s) "
-            f"{figures}: {result.answer!r}"
+        assert (result.improvised_fact or "").strip(), (
+            f"{case.id}: can_answer=False but improvised_fact is blank -- "
+            f"the invention was never recorded"
         )
 
     # --- Candidate-facing copy hygiene: no dash variants, no fake-round
@@ -235,4 +255,59 @@ async def test_cross_world_control_apm_answer_fails_against_gpm_world(
         "cross-world control: an answer generated for apm_consumer_world "
         "grounded successfully against gpm_portfolio_world -- it should be "
         "world-specific enough to fail"
+    )
+
+
+# ==============================================================================
+# 🔴 CONSISTENCY CONTROL, live: PHASE-3.5-SPEC.md 3.5.4's replacement for the
+# deleted refusal assertion, and the suite's assertion with teeth for
+# invent-and-record. The damage in improvisation was never the invention, it
+# was SELF-CONTRADICTION -- a different number for the same fact between
+# minute 8 and minute 30 of a real interview. This is the mechanical proxy
+# for that: ask the SAME clarifying question twice against a world that does
+# not state it, the second time passing the first call's `improvised_fact`
+# back exactly as the graph node will on turn 2 (`improvised_facts=[...]`),
+# and assert the second answer's figures are explainable by that SAME
+# recorded fact rather than a freshly re-invented one.
+# ==============================================================================
+
+
+async def test_consistency_an_improvised_fact_is_repeated_not_reinvented(
+    answer_clarification, caplog
+) -> None:
+    case = next(c for c in CASES if c.id == "senior_pm_platform_world")
+
+    with caplog.at_level(logging.INFO, logger="app.llm"):
+        first = await answer_clarification(
+            case.case_world, case.planned_question, case.clarifying_question, role=GOLDEN_ROLE
+        )
+
+    # Control: this fixture must still be genuinely ungrounded on the first
+    # ask, or the test below would trivially pass by never inventing at all.
+    assert first.can_answer is False, (
+        f"consistency control: expected can_answer=False on the first ask "
+        f"-- eNPS is nowhere in this world -- got True with "
+        f"answer={first.answer!r}"
+    )
+    assert (first.improvised_fact or "").strip(), (
+        "consistency control: first call recorded no improvised_fact to replay"
+    )
+
+    await asyncio.sleep(_PACE_SECONDS)  # two calls in one test; the autouse fixture only paces AFTER the test
+
+    with caplog.at_level(logging.INFO, logger="app.llm"):
+        second = await answer_clarification(
+            case.case_world,
+            case.planned_question,
+            case.clarifying_question,
+            role=GOLDEN_ROLE,
+            improvised_facts=[first.improvised_fact],
+        )
+
+    bad_figures = ungrounded_figures(second.answer, case.case_world, [first.improvised_fact])
+    assert not bad_figures, (
+        f"consistency control: second call cites figure(s) not explainable "
+        f"by case_world or the already-improvised fact -- it RE-INVENTED "
+        f"rather than repeated: {bad_figures} in {second.answer!r} "
+        f"(first improvised_fact={first.improvised_fact!r})"
     )

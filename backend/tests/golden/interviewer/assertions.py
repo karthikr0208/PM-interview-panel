@@ -122,18 +122,44 @@ def _normalize_figure(raw: str) -> str:
 
 
 def world_figures(case_world: dict) -> set[str]:
-    """Every numeric token in `case_world`, normalised. The known-good set
-    `ungrounded_figures` checks against."""
+    """Every numeric token in `case_world`, normalised. Half of the
+    known-good set `ungrounded_figures` checks against -- see
+    `known_figures` for the other half."""
     return {_normalize_figure(f) for f in figures_in_text(world_haystack(case_world))}
 
 
-def ungrounded_figures(answer: str, case_world: dict) -> list[str]:
-    """Returns every numeric token in `answer` that is not a figure the
-    world actually states. AGENT-INTERVIEWER-SPEC.md §5's "assertion with
-    teeth": `grounded_in` alone does not catch an invented figure sitting in
-    the sentence beside an honestly grounded one.
+def known_figures(case_world: dict, improvised_facts: list[str] | None = None) -> set[str]:
+    """`world_figures(case_world)` UNION every numeric token in
+    `improvised_facts`, normalised the same way.
 
-    🔴 SET MEMBERSHIP against `world_figures`, deliberately NOT a substring
+    🔴 PHASE-3.5-SPEC.md "THREE DECISIONS" #2: the refusal branch is gone,
+    replaced by invent-and-record. `ungrounded_figures` is RETARGETED at
+    `case_world ∪ improvised_facts` rather than deleted -- an interview that
+    invents "3.4 million weekly active users" and is later asked the same
+    thing again must not have that figure flagged as ungrounded the SECOND
+    time, or the consistency this design exists to produce would fail its
+    own suite's figure check on every replay.
+    """
+    known = world_figures(case_world)
+    for fact in improvised_facts or []:
+        known |= {_normalize_figure(f) for f in figures_in_text(fact)}
+    return known
+
+
+def ungrounded_figures(
+    answer: str, case_world: dict, improvised_facts: list[str] | None = None
+) -> list[str]:
+    """Returns every numeric token in `answer` that is not a figure the
+    world states OR a figure already improvised this interview.
+    AGENT-INTERVIEWER-SPEC.md §5's "assertion with teeth": `grounded_in`
+    alone does not catch an invented figure sitting in the sentence beside
+    an honestly grounded one.
+
+    `improvised_facts` defaults to `None` (treated as empty) so every
+    existing call site -- including the golden suite's fixtures 1/2/4,
+    which never improvise -- keeps working unmodified.
+
+    🔴 SET MEMBERSHIP against `known_figures`, deliberately NOT a substring
     search of the flattened world. Measured 2026-08-05, and the substring
     version was written first: "roughly 7 designers" PASSED against a world
     containing no 7, because a single digit is a substring of almost any
@@ -150,7 +176,7 @@ def ungrounded_figures(answer: str, case_world: dict) -> list[str]:
     imprecision planner's `is_generic_question` accepts for the same reason
     -- cheap, deterministic, and it measures the property that matters.
     """
-    known = world_figures(case_world)
+    known = known_figures(case_world, improvised_facts)
     missing = []
     for figure in figures_in_text(answer):
         if figure in _ALLOWED_FIGURES:

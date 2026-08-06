@@ -3188,6 +3188,79 @@ Phase 5.
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
 
+**🟢 2026-08-06 (session 13) · THE PROBE RESPONDS TO THE ANSWER, THE IMPROVISED FACT REPEATS, AND
+TWO DEFECTS SURFACED THAT ONLY A LIVE RUN COULD SEE.**
+
+`generate_probe` and invent-and-record are built as pure functions. The graph half is still to come.
+**356 offline passed.** The two properties that decide whether this design works cannot be tested
+offline, so both were run live, on `fast`, for about 7 calls total.
+
+**1. The probe is not `write_bridge` again.** Same method that killed `write_bridge` on 2026-08-05:
+one question, four materially different answers, compare the probes. **4 of 4 distinct, each
+quoting the candidate:**
+
+```
+sharp/segmented    "You said enterprises will buy on price and latency if frontier capability
+                    converges. How does Anthropic's compute partnership with Amazon and Google
+                    shape its ability to keep a price advantage?"
+flat/stuck         "Which competitor do you think poses the biggest threat to Anthropic over the
+                    next three years, and why?"
+pushback           "You said compute contracts lock Anthropic into a cost structure it can't
+                    escape when inference prices fall. What specific aspect of those contracts..."
+very short         "You said compute costs are the biggest threat; can you elaborate on how the
+                    compute partnership constraints with Amazon and Google might limit..."
+```
+
+The flat/stuck answer is the interesting one: with nothing specific to quote, the probe asks the
+candidate to commit to something rather than reciting a canned line. That is the right behaviour and
+it is the case `write_bridge` failed.
+
+**2. The improvised fact repeated EXACTLY.** Asked for a figure the world does not state, then asked
+again with the invention carried in `improvised_facts`:
+
+```
+ask 1   can_answer False   "Claude.ai has 5 million weekly active users."
+        improvised_fact    'Claude.ai has 5 million weekly active users.'
+ask 2   can_answer True    "Claude.ai has 5 million weekly active users."
+        improvised_fact    ''   (nothing to re-record -- already in the list)
+```
+
+**`can_answer` drifted in meaning and the node must not key off it.** On the repeat it came back
+True, which is defensible ("this rests on an established fact") but is not the documented "the world
+states this". **`improvised_fact` being non-empty is the ONLY signal to append.** Keying the node
+off `can_answer` would double-record on every repeat.
+
+**🔴 DEFECT 1, and it is the third occurrence of the same lesson: `angle_used` exact-match failed in
+3 of 4 live probes.** The prompt says copy the ladder angle "EXACTLY, character for character"; the
+model dropped the trailing period three times out of four. Every near-miss fell through to the
+positional fallback and resolved to the SAME dimension, which **collapses the probe ladder's rubric
+coverage** — the thing Phase 4's Evaluator is supposed to read, and the thing "THREE DECISIONS" #3
+moved onto the ladder in the first place. A green offline suite could not see this: its fixtures
+copy the angle correctly, because a test author does.
+
+Fixed in Python, not in the prompt: `_normalise_angle` matches on casefolded, whitespace-collapsed,
+trailing-punctuation-stripped text. Narrow on purpose, with a **vacuity floor** — a genuinely
+different ladder angle must still compare unequal, or normalisation would attribute probes to the
+wrong dimension, which is worse than the fallback it replaces. Both the four near-miss cases and the
+floor were **watched failing** against an identity `_normalise_angle`.
+
+**🔴 DEFECT 2, NOT FIXED, Karthik's call: the invented figure was "5 million weekly active users".**
+That is a fake round number, the exact register `contains_fake_round_number` exists to catch and
+that CLAUDE.md § Design bans in generated content. The prompt asks for "the case world's own organic
+decimal precision, even for an invented figure" and the model ignored it — **a prompted ban failing
+for the fourth time in this project.** The deterministic fix is a Python post-check plus one retry
+when the invented fact is fake-round, which costs a call only when it trips. **Not built:** it is
+prompt-vs-Python scope inside a story that is already the largest in the phase, and the assertion
+should be widened before anything changes, per the phase's own first trap.
+
+**🔴 DEFECT 3, NOT FIXED, and it is the known one with new evidence: U+2011 reached candidate-facing
+output.** The first probe smoke crashed on `UnicodeEncodeError: '‑'` — a non-breaking hyphen in
+a live probe. This is the open defect the session-12 handoff describes (`no_dash_variants` catches 2
+of 6 variants, `stripDashes` has the identical hole), and it is no longer hypothetical: it was
+observed **in model output on a candidate-facing surface** on the first live probe ever generated.
+The fix design in that handoff still stands, and probe text is a **new** model-output surface that
+inherits no guard.
+
 **🟢 2026-08-06 (session 13) · THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH, AND THE GENERATIVE
 CASE ARCHITECT IS OUT OF THE RUNTIME PATH.**
 

@@ -36,6 +36,7 @@ from tests.golden.interviewer.assertions import (
     contains_fake_round_number,
     figures_in_text,
     grounded_in_is_empty,
+    known_figures,
     missing_grounding,
     no_dash_variants,
     refusal_names_silence,
@@ -255,8 +256,69 @@ def test_ungrounded_figures_rejects_a_figure_embedded_in_a_larger_world_number()
 
 
 # ==============================================================================
+# known_figures / ungrounded_figures's `improvised_facts` parameter --
+# story 3.5.4's retargeting (PHASE-3.5-SPEC.md "THREE DECISIONS" #2): once a
+# fact is invented and recorded, repeating it must NOT be flagged as
+# ungrounded on a later ask, or the consistency this design exists to
+# produce would fail the suite's own figure check on every replay.
+# ==============================================================================
+
+
+def test_known_figures_defaults_to_world_figures_alone() -> None:
+    """No `improvised_facts` argument (or `None`) -- every existing call
+    site, including every case that never improvises -- must see exactly
+    `world_figures`, unchanged."""
+    assert known_figures(APM_WORLD) == known_figures(APM_WORLD, None)
+
+
+def test_known_figures_unions_in_improvised_facts() -> None:
+    facts = ["Assume weekly active users are around 3.4 million."]
+    known = known_figures(APM_WORLD, facts)
+    assert "3.4" in known
+    assert "41000" in known  # still there -- union, not replacement
+
+
+def test_ungrounded_figures_accepts_a_figure_from_improvised_facts() -> None:
+    """Brief's exact scenario: a fact invented on an earlier call, cited
+    again in a later answer, must NOT be flagged even though no world in
+    this suite states 3.4 million."""
+    answer = "Assume weekly active users are around 3.4 million, consistent with what I said earlier."
+    facts = ["Assume weekly active users are around 3.4 million."]
+    assert ungrounded_figures(answer, APM_WORLD, facts) == []
+
+
+def test_ungrounded_figures_still_rejects_a_figure_absent_from_both_world_and_improvised_facts() -> None:
+    """The retargeting must not become invent-freely: a NEW figure that
+    matches neither the world nor anything already improvised is still
+    caught -- this is the re-invention (self-contradiction) failure the
+    whole design exists to prevent."""
+    answer = "Assume weekly active users are around 5.1 million."
+    facts = ["Assume weekly active users are around 3.4 million."]
+    assert ungrounded_figures(answer, APM_WORLD, facts) == ["5.1"]
+
+
+def test_ungrounded_figures_with_no_improvised_facts_behaves_exactly_as_before() -> None:
+    """Positional/default-argument backward compatibility: the two-argument
+    call every existing case (1, 2, 4) and every test above this section
+    makes must be untouched by the new third parameter."""
+    answer = "Ferngrove has about 62,000 subscribers."
+    assert ungrounded_figures(answer, APM_WORLD) == ["62,000"]
+    assert ungrounded_figures(answer, APM_WORLD, None) == ["62,000"]
+    assert ungrounded_figures(answer, APM_WORLD, []) == ["62,000"]
+
+
+# ==============================================================================
 # can_answer=False must mean no figure at all -- not just none that fails
 # grounding. Brief control: a refusal that still volunteers a number.
+#
+# 🔴 Retained rather than deleted even though story 3.5.4 repoints its ONLY
+# call site (`cases.py`'s two refusal fixtures are now invention fixtures,
+# which no longer use `contains_any_figure`): the checker itself is still
+# correct and still exercised here, and a future case shape (a genuine
+# "the model still refused" regression check) is exactly what would reuse
+# it. No fields without a second caller (CLAUDE.md's own rule) is about
+# schema fields, not about deleting a still-correct, still-tested function
+# on the day its last caller is repointed.
 # ==============================================================================
 
 

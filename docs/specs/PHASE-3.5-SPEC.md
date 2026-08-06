@@ -362,26 +362,42 @@ probe edge reopens the same file within the same story and running ~40 `fast` ca
 a large fraction of a day's budget for one intermediate state. It is owed before the phase gate.
 
 **Acceptance**
-- [ ] `generate_probe(case_world, improvised_facts, main_question, transcript, ladder)` is a **pure**
+- [x] `generate_probe(case_world, improvised_facts, main_question, transcript, ladder)` is a **pure**
       function, no session and no database, matching all four existing agents
-- [ ] A probe **responds to what the candidate actually said**. A probe that reads identically
-      against two materially different answers is the `write_bridge` failure again — that function
-      was deleted on 2026-08-05 for being a constant function wearing an LLM call. **Check for it
-      the same way: several different answers, compare the probes**
+- [x] A probe **responds to what the candidate actually said**. Checked the way `write_bridge` was
+      caught: one question, four materially different answers, compare the probes. **4 of 4
+      distinct, each quoting the candidate.** The flat "I'm not sure" answer is the decisive case —
+      with nothing to quote the probe asks the candidate to commit, rather than emitting a canned
+      line. Output in DEV-STATE § Decisions 2026-08-06 (session 13)
 - [ ] `improvised_facts` added to `InterviewState` as an **append-only** list with a reducer, the
       same shape as `answer_evaluations`' `operator.add` — see ARCHITECTURE §4 "The trap"
-- [ ] An answer with `can_answer=False` **invents a plausible fact, records it, and states it as
-      given.** The refusal language in the clarification prompt comes out
-- [ ] 🔴 **Consistency assertion:** ask for the same invented fact twice, get the same value.
-      This replaces the refusal assertion as the suite's assertion with teeth
-- [ ] `ungrounded_figures` retargeted at `case_world ∪ improvised_facts` rather than deleted
+- [x] An answer with `can_answer=False` **invents a plausible fact, records it, and states it as
+      given.** The refusal language is out of the clarification prompt. 🔴 **The invented figure came
+      back FAKE-ROUND ("5 million weekly active users") — recorded as an open defect, not fixed**
+- [x] 🔴 **Consistency assertion:** asked twice with the invention carried forward, the value
+      repeated **exactly**. 🔴 And it surfaced a contract detail the node depends on: on the repeat
+      `can_answer` came back **True**, so **`improvised_fact` being non-empty is the only safe signal
+      to append.** Keying the node off `can_answer` would double-record
+- [x] `ungrounded_figures` retargeted at `case_world ∪ improvised_facts` rather than deleted
 - [ ] `decide_next`: the `followup_count == 0` assert removed, `_QUESTIONS_THIS_PHASE = 1`, exit on
       probe count or `_TIME_BUDGET_MINUTES`. **Exit condition stays in exactly one place**
 - [ ] The probe edge is a real edge in `build.py`, and `await_candidate` **still contains only
       `interrupt()` and its return** — assert the single-call guarantee across a probe loop, not just
       a question loop. `falsify_looping_interrupt.py` covers questions and **does not cover probes**
 - [ ] 🔴 **Re-run EVERY live test file that builds a graph**, not just the edited one. Named trap
-- [ ] The TPM computation of the budget section, **done and recorded, at probe 10**
+- [x] The TPM computation of the budget section, **done and recorded, at probe 10.** Measured with
+      `tiktoken` `o200k_base` against the real curated worlds (largest, `openai.json`, **1,392
+      tokens**):
+
+      | At probe 10 | typical 250-word answers | verbose 500-word answers |
+      |---|---|---|
+      | full transcript | 7,074 | **10,274 — OVER the 8,000 TPM ceiling** |
+      | first answer + last 4 turns | 5,154 | **6,754 — fits** |
+
+      **The naive design does not fit**, the same finding AGENT-INTERVIEWER-SPEC §6 reached. Window
+      is the candidate's **first answer plus the last 4 turns** — the first answer is their thesis
+      and every later probe pushes on it. **~47,000 `fast` tokens per interview, so about FOUR
+      interviews a day**, and iterating on this phase competes with sitting it
 
 ---
 
