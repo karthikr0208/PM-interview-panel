@@ -66,6 +66,15 @@ class CaseWorld(BaseModel):
     metrics: BusinessMetrics
     situation: StrategicSituation
     supporting_facts: list[str]  # 8-15 atomic, verifiable statements
+    # PHASE-3.5-SPEC.md 3.5.2: curated worlds describe REAL companies, whose
+    # facts go stale in a way a generated world's never do -- OpenAI and
+    # Anthropic move faster than the other six curated worlds combined.
+    # Shown to the candidate verbatim ("This brief reflects public
+    # information as of <as_of>. Treat it as ground truth for this
+    # interview.") so staleness is disclosed rather than silently wrong.
+    # Left "" for agent-generated worlds, which have no real-world date to
+    # anchor to -- generate_case_world's prompt is unchanged by this story.
+    as_of: str = ""
 
 
 # One block, not built up piecemeal — see resume_analyst.py's identical

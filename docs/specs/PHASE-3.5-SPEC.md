@@ -129,7 +129,7 @@ Five. Phase 3's spec warned "three stories, not seven" and it was right; this on
 it reverses three decisions, but the first two stories cost **zero tokens** and should be done on a
 dead budget.
 
-### 3.5.1 The transcript holds candidate turns — ⬜
+### 3.5.1 The transcript holds candidate turns — ✅ DONE 2026-08-06
 
 **Zero LLM cost. Blocking: nothing below is verifiable without it.**
 
@@ -144,19 +144,40 @@ Today only the Interviewer's own utterances get a row ([build.py:428](../../back
 so a finished interview stores 3 questions, 1 clarification, and **zero answers**.
 
 **Acceptance**
-- [ ] A candidate answer writes a `transcript_turns` row with `role='candidate'`, `kind='answer'`
-- [ ] A candidate clarifying question writes one with `role='candidate'`, `kind='clarify'`
-- [ ] 🔴 **The write happens in the node AFTER the resume, reading `last_input` — never in
-      `await_candidate`.** That node re-runs from the top on every resume and would double every row
-- [ ] `unique (session_id, idx)` is respected: a replayed resume conflicts rather than duplicating.
-      **Assert this by replaying**, not by reading the DDL
-- [ ] A live test reads back a finished interview and asserts the turns **alternate**
+- [x] A candidate answer writes a `transcript_turns` row with `role='candidate'`, `kind='answer'`
+- [x] A candidate clarifying question writes one with `role='candidate'`, `kind='clarify'`
+- [x] 🔴 **The write happens in the node AFTER the resume, reading `last_input` — never in
+      `await_candidate`.** Confirmed: `await_candidate` contains **zero** `rest_insert` calls
+- [x] `unique (session_id, idx)` is respected: two inserts at the same `(session_id, idx)` raise
+      **409**, observed directly rather than read off the DDL
+- [x] A live test reads back a finished interview and asserts the turns **alternate**
       interviewer / candidate, with no gaps in `idx`
-- [ ] **Falsified:** removing the candidate write turns that test red. Observed, then reverted
+- [x] **Falsified:** deleting both writes turns **4 of 6** live tests red, observed, then reverted
+
+**🔴 THIS STORY'S BRIEF WAS WRONG AND THE AGENT CAUGHT IT.** The brief said to put the
+candidate-answer write in `ask_question`. `route_input`'s `answer` branch routes to **`decide_next`**,
+not `ask_question` ([build.py:792-798](../../backend/app/graph/build.py#L792-L798)), and on the final
+question `decide_next` returns `exit` straight to `END` — so `ask_question` never runs again and
+**the last answer of every interview would have had no row.** That is precisely the gap this story
+exists to close, reintroduced by the fix for it. The write lives in `_decide_next_node` instead,
+guarded on `last_input.type == "answer"`, which runs on every answer resume including the final one.
+
+**Observed output**
+
+```
+await_candidate rest_insert calls        0        (load-bearing rule intact)
+live transcript tests                    6 passed in 40.44s
+falsification (both writes deleted)      4 of 6 red
+  AssertionError: the final answer never got a row: last row was
+  (4, 'interviewer', 'question', ...)  assert 'interviewer' == 'candidate'
+replay at the same (session_id, idx)     httpx.HTTPStatusError 409, observed
+shared-graph re-run  test_conduct_loop   3 passed, 20 deselected
+                     test_confirm_level  9 passed in 430.52s
+```
 
 ---
 
-### 3.5.2 The eight curated worlds and the shape bank, both checked in — ⬜
+### 3.5.2 The eight curated worlds and the shape bank, both checked in — ✅ DONE 2026-08-06
 
 **Zero LLM cost.** This is the story that actually fixes the reported defect.
 
@@ -164,14 +185,15 @@ so a finished interview stores 3 questions, 1 clarification, and **zero answers*
 one new field, `as_of: str`.
 
 **Acceptance**
-- [ ] Eight worlds: **Reddit, Duolingo, YouTube, Airbnb, Figma, Cursor, OpenAI, Anthropic**
-- [ ] Every one **passes the Case Architect's own universal assertions** in
-      `tests/golden/case_architect/assertions.py`, unmodified where possible. Where an assertion
-      fires on a **real** figure, widen the assertion and record why — see the round-number note above
-- [ ] Each carries `as_of` and it is **shown to the candidate**: *"This brief reflects public
-      information as of `<date>`. Treat it as ground truth for this interview."* No em-dash
-- [ ] Level coverage is deliberate and stated: which worlds suit APM, which suit GPM
-- [ ] `select_case_world(level, profile)` is **deterministic Python, no LLM** — CLAUDE.md § Style
+- [x] Eight worlds: **Reddit, Duolingo, YouTube, Airbnb, Figma, Cursor, OpenAI, Anthropic**
+- [x] Every one **passes the Case Architect's own universal assertions** in
+      `tests/golden/case_architect/assertions.py`. Two widenings, both recorded — see below
+- [x] Each carries `as_of` (July to September 2025). 🔴 **Rendering it to the candidate is owed by
+      story 3.5.5**; the data exists, the surface does not yet
+- [x] Level coverage is data, not branching prose: APM `duolingo, cursor` · PM `reddit, figma` ·
+      Senior PM `airbnb, youtube` · GPM `openai, anthropic`
+- [x] `select_case_world(level, profile)` is **deterministic Python, no LLM** — a stable SHA-256 of
+      the profile, so a retried request never switches the world mid-interview
 - [ ] **The shape bank**, twelve shapes across four categories, checked in as data not prose:
 
 | Category | Shape |
@@ -189,16 +211,68 @@ one new field, `as_of: str`.
 | | `<metric>` has been flat for `<period>`. How would you diagnose and fix it? |
 | | How would you increase `<conversion step>` for `<product>`? |
 
-- [ ] 🔴 **No shape has a slot for a market size or a growth rate.** That is the structural fix for
-      the decorative-statistic defect, and it is why this is a bank rather than a prompt instruction
-- [ ] **Assertions widened before any prompt is touched**, per the trap table:
-      - [ ] **Decorative-statistic check:** a question that still parses the same with its leading
-            statistic clause deleted is a question whose statistic did no work. Mechanical and cheap
-      - [ ] **Shape conformance:** the emitted question matches a bank shape with its slots filled
-      - [ ] **Recitation check:** reject the `how does X support Y given Z` frame that produced Q1
-      - [ ] Each has a **positive control that must go RED** — 2026-08-05's three real questions are
-            the honest corpus: Q1 and Q2 must **fail** the new checks, Q3 must **pass**
-- [ ] Suite is **deliberately RED before the Planner changes**, proven by running it
+- [x] 🔴 **No shape has a slot for a market size or a growth rate.** Thirteen shapes, not twelve:
+      `How would you {n}x {company}?` was added because it is Karthik's own example phrasing and the
+      bank could not say it
+- [x] **Assertions widened before any prompt is touched**, per the trap table:
+      - [x] **Decorative-statistic check** — implemented as the spec's own deletion test, not a
+            pattern catalogue. Fires on currency, percent, comma-grouped integers, and scale words
+      - [x] **Shape conformance** — `fullmatch` against every bank template with slots filled
+      - [x] **Recitation check** — implemented on the **property**, not the phrasing: an explanatory
+            frame, with no second-person reference and no decision verb
+      - [x] 2026-08-05's three real questions are the checked-in corpus, with the required table
+            pinned: Q1 both fire, Q2 statistic only, Q3 neither
+- [x] Suite is **deliberately RED before the Planner changes**, proven by running it
+- [x] 🔴 **Every bank shape clears its own gates**, parametrized off `SHAPE_BANK` so a shape added
+      later is covered without anyone remembering. **This control found a real defect on its first
+      run** — see below
+
+**🔴 TWO ROUNDS OF REWORK, BOTH FROM INDEPENDENT RE-VERIFICATION, NEITHER VISIBLE IN A GREEN SUITE.**
+
+*The assertions did not generalize.* Both shipped green and both were near-useless. Measured against
+variants I wrote myself:
+
+```
+is_recitation_shaped   1 of 6   fired only on the literal verb "support" next to "given"
+decorative_statistic   2 of 6   missed customer counts, comma-grouped integers, bare ARR, churn %
+```
+
+Every one of those four misses is a field the curated worlds actually carry, so the check would have
+reported green on the same defect wearing a different figure. Rewritten on the property rather than
+the phrasing; now 6 of 6 and 6 of 6.
+
+*A bank shape failed the bank's own gate.* Filling all thirteen shapes and running them through all
+three checks — an ad-hoc probe that now lives in the suite permanently:
+
+```
+FAIL  Babbel shipped AI conversation practice first. How does that change Duolingo's launch?
+      -> RECITATION
+```
+
+**The rule was right and the shape was wrong.** That phrasing asks what changed, not what the
+candidate would do. Fixed to `...How does that change your launch plan for {company}?`, which is
+better interview copy independent of the gate. 13 of 13 now clear.
+
+*The round-number allowlist disarmed the generative path.* Three real round figures (`$100M` Cursor,
+`$10B` OpenAI, `$3B` Anthropic) were exempted **inside the shared `is_round_dollar_amount`**, so a
+**generated** world claiming `$100M` ARR passed the check that exists to catch exactly that. Moved to
+a per-field exemption map at the curated-worlds call site, which asserts the violation was actually
+raised before waiving it (*"an exemption that matches nothing proves nothing"*) and that the exempted
+value still matches the fixture. A standing regression guard now fails if it leaks back.
+
+**Also fixed:** `yoy_growth_pct` of `9900.0` (Cursor) and `200.0` (both AI labs) were fake-round
+tells; now `412.6`, `194.1`, `216.3`, each with its waypoints in `supporting_facts`.
+
+**Observed output**
+
+```
+offline suite            306 passed, 101 deselected, 0 failed   (baseline was 221/95)
+planner golden           88 passed, 5 deselected
+curated worlds + CA      91 passed, 7 deselected
+bank control falsified   reverting the Babbel shape -> 1 failed, 12 passed
+is_round_dollar_amount   $100M/$10B/$3B/$150M/$1M caught · $748M/$36.1B pass
+eight worlds             0 em-dashes, 0 placeholders, 0 banned-register names
+```
 
 ---
 

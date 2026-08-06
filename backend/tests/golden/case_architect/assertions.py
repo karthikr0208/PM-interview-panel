@@ -49,19 +49,49 @@ _BANNED_ROUND_PERCENTAGES = frozenset({0.0, 25.0, 50.0, 75.0, 100.0})
 
 _DOLLAR_MANTISSA_RE = re.compile(r"^[\d,]+(\.\d+)?$")
 
-
+# Widened 2026-08-06 for the eight curated real-company worlds
+# (PHASE-3.5-SPEC.md 3.5.2). This function was written to catch a MODEL
+# reaching for a lazy round number ("$1M", "$150M"); it was never validated
+# against a REAL company's disclosed figures, and real disclosed revenue is
+# routinely reported as a whole number of millions with no decimal ("$748M"
+# for Duolingo's 2024 revenue, "$749M" for Figma's) -- the absence of a
+# decimal there is a reporting convention, not a generative tell. The old
+# blanket "any missing decimal is round" rule punished these for being
+# precisely what they are.
+#
+# Fixed generally, not with an allowlist: a whole-number mantissa is only
+# treated as round when it carries FEW significant digits after stripping
+# trailing zeros ("1" for "$1M" or "$100M", still banned) -- "748" (3 sig
+# figs) is not. This keeps the check a property of the STRING, so it applies
+# identically to every caller, including the Case Architect's own live
+# generation golden suite, whose whole job is catching a model that reaches
+# for a lazy round figure. `$100M` stays banned here on purpose: it is the
+# canonical number a model invents for a fictional company, and a handful of
+# curated worlds' real, genuinely-round headline figures ($100M Cursor ARR,
+# $10B OpenAI run-rate, $3B Anthropic run-rate) are NOT exempted in this
+# shared function -- see `tests/test_curated_worlds.py`'s
+# `_KNOWN_REAL_ROUND_AMOUNTS`, which waives exactly those three (slug, field)
+# pairs at the call site instead, where the exemption cannot leak onto a
+# generated world. (An earlier version of this comment described a
+# same-named allowlist living HERE; that was wrong -- it silently disarmed
+# this check for every caller, including the live suite, and was reverted.)
 def is_round_dollar_amount(value: str) -> bool:
     """True iff `value` (e.g. "$4.7M", "$1M", "$1,000,000") is a
-    suspiciously round dollar figure: its numeric mantissa carries no
-    decimal point. "$1M" and "$1,000,000" are the tells named in spec §4;
-    "$4.7M" and "$3.2B" are organic and pass.
+    suspiciously round dollar figure. "$4.7M" and "$3.2B" are organic and
+    pass; "$1M", "$100M", and "$1,000,000" are the tells named in spec §4
+    and fail. See the block comment above: no allowlist lives in this
+    function, deliberately -- real-but-round curated figures are waived at
+    the curated-worlds test's call site, not here.
     """
     mantissa = value.strip().lstrip("$")
     if mantissa and mantissa[-1] in "MBKmbk":
         mantissa = mantissa[:-1]
     if not _DOLLAR_MANTISSA_RE.match(mantissa):
         raise ValueError(f"not a recognisable dollar amount: {value!r}")
-    return "." not in mantissa
+    if "." in mantissa:
+        return False
+    significant = mantissa.replace(",", "").rstrip("0") or "0"
+    return len(significant) <= 2
 
 
 def banned_round_numbers(

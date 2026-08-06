@@ -1,0 +1,66 @@
+{
+  "company": {
+    "name": "Figma",
+    "one_line": "Figma makes browser-based, multiplayer design software, used to design interfaces collaboratively, and has expanded into adjacent tools including whiteboarding (FigJam) and AI-assisted app generation (Figma Make).",
+    "stage": "public",
+    "employees": 1600,
+    "founded_year": 2012
+  },
+  "market": {
+    "description": "Collaborative product design and prototyping software, increasingly threatened at its edges by AI tools that can generate working interfaces or apps directly from a prompt, potentially lowering the skill floor for what used to require a dedicated design tool.",
+    "size_usd": "$56.2B",
+    "growth_rate_pct": 15.3,
+    "competitors": [
+      {
+        "name": "Adobe",
+        "positioning": "Owns the broader creative software suite and enterprise relationships, and continues to develop its own competing design tools after its attempted acquisition of Figma was blocked by regulators and terminated in December 2023.",
+        "relative_strength": "Much deeper enterprise creative-software relationships and a broader existing product suite to bundle a competing design tool into."
+      },
+      {
+        "name": "Canva",
+        "positioning": "A far larger, more casual user base spanning marketing and general design, that has expanded into product design and whiteboarding features that overlap with Figma's.",
+        "relative_strength": "A much bigger non-designer user base and simpler onboarding, giving it a growth surface Figma's more professional tool doesn't reach as easily."
+      },
+      {
+        "name": "Lovable",
+        "positioning": "Generates a working app or interface directly from a text prompt, skipping the design-file step Figma is built around entirely.",
+        "relative_strength": "Removes the need for a dedicated design tool for a growing set of simple app-building use cases, competing for budget and attention rather than for design-file feature parity."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$749M",
+    "yoy_growth_pct": 48.0,
+    "gross_margin_pct": 90.8,
+    "monthly_churn_pct": 1.8,
+    "customer_count": 450000
+  },
+  "situation": {
+    "prompt": "AI tools that generate a working interface or app directly from a prompt are starting to compete for the same budget and attention that used to go exclusively to dedicated design software like Figma, and Figma has responded with its own AI app-generation feature, Figma Make. How aggressively should Figma invest in AI generation features that could shrink the amount of manual design work its core product is built around?",
+    "tension": "Building strong AI generation features inside Figma protects it from being bypassed entirely by AI-first competitors, but the same features could reduce the amount of hands-on design work professional users do inside Figma, which is what its seat-based pricing and core value proposition have always been built on. Figma has to compete with the disruption without accelerating it.",
+    "options": [
+      "Own the AI generation layer: invest heavily in Figma Make and similar features so that even prompt-to-app workflows happen inside Figma rather than a competitor.",
+      "Protect the core: keep AI generation as a smaller, secondary feature and focus investment on defending the collaborative, hands-on design workflow professional teams already pay for.",
+      "Reposition around orchestration: position Figma as the place where AI-generated and human-designed work get reviewed, refined, and handed off together, regardless of which AI tool generated the first draft."
+    ],
+    "constraints": [
+      "Figma's $1 billion breakup fee from Adobe's terminated acquisition gave it a large cash cushion, but it is now a public company under quarterly growth expectations.",
+      "Figma's pricing model is largely seat-based, which creates a direct incentive tension if AI generation features reduce the number of people who need a paid seat to get design work done.",
+      "A large share of Figma's existing user base are professional designers whose workflow and identity are built around the tool they already use daily."
+    ],
+    "leadership_belief": "Leadership has publicly framed AI as an extension of Figma's existing collaborative canvas rather than a replacement for it, betting that the same multiplayer, review-and-iterate workflow that made Figma valuable for human designers will remain valuable even when the first draft comes from an AI."
+  },
+  "supporting_facts": [
+    "Adobe announced its intent to acquire Figma for $20 billion in September 2022; the deal was terminated in December 2023 after regulators in the UK and EU signaled they would block it, and Figma received a $1 billion breakup fee.",
+    "Figma completed its initial public offering on the NYSE under the ticker FIG in 2025.",
+    "Figma reported 2024 revenue of approximately $749 million, up roughly 48% year over year, disclosed in its IPO filings.",
+    "Figma disclosed over 450,000 paying customers (organizations) in its IPO filings.",
+    "Figma launched Figma Make, an AI-powered prompt-to-app generation feature, in 2025.",
+    "Figma's core product remains FigJam (whiteboarding) and Figma Design, its original browser-based, multiplayer interface design tool launched in 2016.",
+    "Figma disclosed very high gross margins in its IPO filings, consistent with a software business with limited hosting-cost intensity relative to revenue.",
+    "Figma's pricing is primarily seat-based (per editor), a structure common across collaborative SaaS tools.",
+    "A wave of AI-first prototyping and app-generation tools, including Lovable and Vercel's v0, gained significant attention through 2024 and 2025 as a new category adjacent to traditional design tools.",
+    "Monthly churn figures in this brief are an estimate; Figma discloses net dollar retention rather than a churn percentage at this level of precision."
+  ],
+  "as_of": "September 2025"
+}

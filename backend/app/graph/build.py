@@ -351,13 +351,33 @@ def _make_plan_interview(
 # append will occupy once merged. `messages` only ever grows in this loop
 # (both the candidate's and the Interviewer's turns are appended to it, via
 # `add_messages`), so this is monotonic and unique per session without a
-# separate counter field. Only the Interviewer's own generated utterances
-# are mirrored into `transcript_turns` (ask_question's question,
-# answer_clarification_node's answer) -- the candidate's words live in
-# `messages`, durable via the Postgres checkpointer, which is this phase's
-# "transcript in state" (PHASE-3-SPEC.md's own "Done when" bar). Phase 4
-# will need to decide how the Evaluator sources the candidate's raw answer
-# text; deferred rather than guessed at here. See story 3.2's final report.
+# separate counter field.
+#
+# 🔴 Story 3.5.1: BOTH sides of the conversation are mirrored into
+# `transcript_turns` now, not just the Interviewer's. Before this story only
+# ask_question's question and answer_clarification_node's answer got a row,
+# so a finished interview stored 3 questions + 1 clarification and ZERO
+# candidate answers -- a schema-shaped gap the DDL never had (`role` and
+# `kind` already covered `candidate`/`answer`/`clarify`), just a missing
+# write. Phase 4's Evaluator reads the candidate's answer from here.
+#
+# The candidate's own turn is written by the node that runs IMMEDIATELY
+# after `await_candidate`'s resume, at `idx = len(messages) - 1` --
+# `await_candidate`'s return already merged the candidate's HumanMessage
+# into `messages` before that next node runs, so the row is for the turn
+# that just arrived, not the next one:
+#   - clarify path: `answer_clarification_node` (also still writes its own
+#     "meta" answer at the unchanged `idx = len(messages)`)
+#   - answer path: `_decide_next_node`, NOT `ask_question`. `route_input`'s
+#     "answer" edge always lands on `_decide_next_node` first, whether the
+#     loop is about to ask another question or exit -- and on the FINAL
+#     question, `decide_next()` returns "exit" straight to END without ever
+#     calling `ask_question` again (`test_conduct_loop.py`'s own
+#     `test_the_loop_asks_two_to_three_questions_and_exits` proves this: no
+#     further node runs after the 3rd answer). Writing the candidate's last
+#     answer in `ask_question` would silently drop it. `await_candidate`
+#     itself stays untouched -- it may still contain nothing but
+#     `interrupt()` and its return.
 # ═══════════════════════════════════════════════════════════════════════
 
 
@@ -532,11 +552,32 @@ def _make_answer_clarification_node(
         `question_plan[current_q_idx - 1]` -- `current_q_idx` already
         points PAST the question currently on the table, because
         `ask_question` increments it the moment it asks.
+
+        Story 3.5.1: also writes the CANDIDATE's clarifying question to
+        `transcript_turns` -- this node is the one that runs immediately
+        after `await_candidate`'s resume on the clarify path, per the
+        module banner comment above. `idx = len(messages) - 1` because
+        `await_candidate`'s return already merged the candidate's
+        HumanMessage before this node runs; this node's OWN row (the
+        Interviewer's answer, below) keeps its unchanged `idx =
+        len(messages)`, one higher.
         """
         session_id = state["session_id"]
         clarifying_question = (state.get("last_input") or {}).get("text", "")
         pending_idx = max(state.get("current_q_idx", 1) - 1, 0)
         planned_question = state["question_plan"][pending_idx]["question"]
+
+        candidate_idx = len(state.get("messages") or []) - 1
+        await rest_insert(
+            "transcript_turns",
+            {
+                "session_id": session_id,
+                "idx": candidate_idx,
+                "role": "candidate",
+                "kind": "clarify",
+                "content": clarifying_question,
+            },
+        )
 
         started = time.perf_counter()
         await rest_insert(
@@ -611,16 +652,42 @@ _QUESTIONS_THIS_PHASE = 3
 _TIME_BUDGET_MINUTES = 40
 
 
-def _decide_next_node(state: InterviewState) -> dict:
-    """No-op body. Exists only because LangGraph's conditional-edge
-    `path_map` values must name a real node: `route_input`'s "answer"
-    branch needs a destination before `decide_next` (below)'s own outgoing
-    conditional edge -- registered under this SAME node name -- can read
-    state and choose ask/exit. Writes nothing: this phase mirrors only the
-    Interviewer's own utterances into `transcript_turns` (see the module
-    banner above), and this node exists between two of the candidate's, not
-    the Interviewer's.
+async def _decide_next_node(state: InterviewState) -> dict:
+    """Exists because LangGraph's conditional-edge `path_map` values must
+    name a real node: `route_input`'s "answer" branch needs a destination
+    before `decide_next` (below)'s own outgoing conditional edge --
+    registered under this SAME node name -- can read state and choose
+    ask/exit.
+
+    Story 3.5.1: this node, not `ask_question`, owns the candidate's
+    ANSWER write to `transcript_turns` -- see the module banner comment's
+    full reasoning for why `ask_question` cannot be the one (it never runs
+    again after the final question's answer). `last_input` is guaranteed
+    present here: this node's only inbound edge is `route_input`'s
+    "answer" branch, reachable only after a real `await_candidate` resume,
+    never on the interview's opening question. The `type == "answer"`
+    check is still applied defensively, matching `route_input`'s own
+    default-on-missing-type behaviour immediately upstream, rather than
+    trusting that guarantee unconditionally.
+
+    `idx = len(messages) - 1`, same reasoning as
+    `answer_clarification_node`'s candidate write: `await_candidate`'s
+    return already merged the candidate's HumanMessage into `messages`
+    before this node runs.
     """
+    last_input = state.get("last_input") or {}
+    if last_input.get("type") == "answer" and last_input.get("text") is not None:
+        idx = len(state.get("messages") or []) - 1
+        await rest_insert(
+            "transcript_turns",
+            {
+                "session_id": state["session_id"],
+                "idx": idx,
+                "role": "candidate",
+                "kind": "answer",
+                "content": last_input["text"],
+            },
+        )
     return {}
 
 

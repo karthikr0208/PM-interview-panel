@@ -138,7 +138,7 @@ toggle no script can flip.** See Blockers.
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
-| 3.5 Question quality | 🔴 **SPEC WRITTEN 2026-08-06, nothing built.** Five stories. Reverses three decisions on Karthik's call: **curated real-company worlds** replace generation, the Interviewer **may now invent** (as invent-and-record), and the interview becomes **ONE question probed live** instead of three. Stories 3.5.1 and 3.5.2 cost **zero tokens** | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | — |
+| 3.5 Question quality | 🟡 **2 of 5 stories DONE 2026-08-06, at ZERO token cost.** 3.5.1 the transcript now holds candidate turns; 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions. **Three separate defects were caught by independent re-verification, none visible in a green suite** — two assertions that did not generalize (1-of-6 and 2-of-6), a bank shape failing its own gate, and an allowlist that disarmed the generative round-number check. **3.5.3 next, and it spends the first token** | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **306 offline (was 221), 6 live transcript, 113 vitest** |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -3165,8 +3165,49 @@ does the probe call still fit under **8,000 TPM at probe 10**, and at N tokens p
 many interviews exist in a 200,000-token day?** If a full interview costs 30,000 `fast` tokens that
 is six, and iterating on this phase competes with sitting it.
 
-**Nothing was built and no tokens were spent on 2026-08-06.** Spec only, deliberately: two of the
-five stories cost zero tokens and should be done on a dead budget.
+**🟢 STORIES 3.5.1 AND 3.5.2 ARE DONE, same day, at ZERO token cost.** See PHASE-3.5-SPEC.md for the
+acceptance boxes and observed output. Three findings worth carrying:
+
+**🔴 1. My own brief for 3.5.1 was wrong, and the subagent caught it.** The brief said to write the
+candidate's answer in `ask_question`. `route_input`'s `answer` branch routes to **`decide_next`**, and
+on the final question `decide_next` returns `exit` straight to `END`, so `ask_question` never runs
+again — **the last answer of every interview would have had no row.** The exact gap the story exists
+to close, reintroduced by its own fix. The write lives in `_decide_next_node` instead. **Asking a
+subagent for contradictions is not a formality; this is the second time it has returned the most
+valuable thing in the report.**
+
+**🔴 2. Two brand-new assertions shipped green and near-useless.** Measured against variants written
+after the fact:
+
+```
+is_recitation_shaped   1 of 6   fired only on the literal verb "support" next to "given"
+decorative_statistic   2 of 6   missed customer counts, comma-grouped integers, bare ARR, churn %
+```
+
+All four misses are fields the curated worlds carry, so both checks would have reported green on the
+same defect wearing a different figure. **The lesson is narrower than "verify subagents": a NEW
+assertion needs its own counter-examples, written by someone other than its author, before it counts
+as a gate.** Rewritten on the property rather than the phrasing — recitation is now "an explanatory
+frame, no second person, no decision verb" — and both are 6 of 6.
+
+**🔴 3. An allowlist disarmed a shared assertion, which is this project's signature failure.** Three
+genuinely round real figures (`$100M`, `$10B`, `$3B`) were exempted **inside**
+`is_round_dollar_amount`, so a **generated** world claiming `$100M` ARR passed the check whose entire
+job is catching that. The Case Architect still generates and its golden suite still runs. Moved to a
+per-field exemption map at the curated-worlds call site that asserts the violation was raised before
+waiving it, plus a standing guard that fails if it leaks back.
+
+**And the control that paid immediately.** Filling all thirteen bank shapes and running them through
+their own three gates found one shape that could never be emitted without failing them
+(`"...How does that change Duolingo's launch?"` reads as recitation). **The rule was right and the
+shape was wrong.** It is now a checked-in test parametrized off `SHAPE_BANK`, so a shape added later
+is covered without anyone remembering.
+
+**🔴 The `as_of` dates are July to September 2025 and today is 2026-08-06** — the briefs are roughly
+a year stale, worst for OpenAI, Anthropic and Cursor. Deliberately not backdated to look current;
+`as_of` is shown to the candidate, so it is disclosed rather than hidden. **Rendering that line is
+owed by story 3.5.5.** Karthik has the fact sheets for review and **3.5.3 must not read them until
+he has signed off** — a wrong number here becomes a wrong number in an interview question.
 
 **🟢🔴 2026-08-05 (session 11) · PHASE 3 GATE #4 IS CLOSED. THE FLOW WORKS. THE QUESTIONS ARE THE
 PROBLEM, AND THAT IS A PLANNER ISSUE, NOT AN INTERVIEWER ISSUE.**

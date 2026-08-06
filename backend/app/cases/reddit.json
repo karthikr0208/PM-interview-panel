@@ -1,0 +1,67 @@
+{
+  "company": {
+    "name": "Reddit",
+    "one_line": "Reddit runs a network of thousands of community-run discussion forums (subreddits), monetized mainly through advertising and, since 2024, licensing deals that let AI companies train on its content.",
+    "stage": "public",
+    "employees": 2000,
+    "founded_year": 2005
+  },
+  "market": {
+    "description": "Online social and community platforms compete for user attention and digital ad spend, with a newer second market emerging in 2024 for licensing large bodies of user-generated content as training and retrieval data for AI models.",
+    "size_usd": "$740.3B",
+    "growth_rate_pct": 10.7,
+    "competitors": [
+      {
+        "name": "Meta",
+        "positioning": "The dominant social ad platform, with far deeper advertiser tooling and audience targeting data across Facebook and Instagram.",
+        "relative_strength": "A much larger, more mature self-serve ad platform and sales organization than Reddit has built."
+      },
+      {
+        "name": "Discord",
+        "positioning": "Real-time chat and voice communities that many younger users now treat as their default place to hang out, pulling attention away from forum-style browsing.",
+        "relative_strength": "Stronger real-time engagement and a younger core audience than Reddit's."
+      },
+      {
+        "name": "X",
+        "positioning": "Public, real-time commentary and news discussion that overlaps heavily with what people use Reddit for.",
+        "relative_strength": "A faster breaking-news cycle and a built-in roster of public figures and celebrities that Reddit largely lacks."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$1.3B",
+    "yoy_growth_pct": 62.0,
+    "gross_margin_pct": 88.4,
+    "monthly_churn_pct": 4.1,
+    "customer_count": 110000000
+  },
+  "situation": {
+    "prompt": "Reddit now licenses its content to AI companies for model training, but AI-generated answers built from that same content increasingly let people get what they need without ever visiting Reddit. How should Reddit balance growing its data-licensing revenue against protecting the direct traffic and engagement its ad business depends on?",
+    "tension": "Data licensing is high-margin and already signed, but every AI answer that satisfies someone's question using Reddit's own content is a visit and an ad impression Reddit does not get. Reddit's own stock has already moved sharply on fears that changes to Google's search results, including AI-generated overviews, are cutting into the referral traffic the ad business depends on, so the two revenue lines are not simply additive, they may actively work against each other.",
+    "options": [
+      "Lean further into licensing: sign more AI training and retrieval deals, and treat some traffic loss as an acceptable cost of a new high-margin revenue line.",
+      "Restrict and gate: wall off more content behind login, rate-limit AI crawlers, and protect direct traffic even if it slows licensing revenue growth.",
+      "Build the answer layer itself: invest in Reddit's own AI-powered question-answering product so people get AI-native value without ever leaving Reddit."
+    ],
+    "constraints": [
+      "Public-company quarterly reporting means any visible traffic decline shows up immediately in investor sentiment.",
+      "Moderators and long-time users have a documented history of revolting against changes perceived as over-commercializing the platform.",
+      "The Google and OpenAI licensing deals are already signed and cannot be unwound without real revenue and legal consequences."
+    ],
+    "leadership_belief": "Leadership has publicly framed data licensing and Reddit's own AI answer product as complementary rather than competing, on the theory that being a trusted, cited source will itself drive brand awareness and return visits."
+  },
+  "supporting_facts": [
+    "Reddit went public on the NYSE in March 2024 under the ticker RDDT.",
+    "Reddit reported full-year 2024 revenue of approximately $1.3 billion, up roughly 62% year over year.",
+    "Reddit signed a data-licensing agreement with Google in 2024 reported to be worth roughly $60 million a year, and a separate licensing deal with OpenAI the same year.",
+    "In 2023, Reddit's move to charge for API access broke popular third-party apps including Apollo, triggering a coordinated blackout by thousands of volunteer moderators.",
+    "Reddit's stock fell sharply in mid-2025 amid investor concern that changes to Google's search results, including AI Overviews, were reducing the referral traffic Reddit depends on.",
+    "Reddit launched Reddit Answers, an AI-powered question-answering feature built on Reddit's own content, in December 2024 and expanded it through 2025.",
+    "Daily active unique visitors were reported at roughly 101.7 million in Q4 2024, and have continued to grow since (110 million is this brief's estimate of the more recent figure).",
+    "Reddit's business is almost entirely funded by advertising, unlike more diversified peers that also carry meaningful subscription revenue.",
+    "Reddit hosts well over 100,000 active communities (subreddits), moderated by unpaid volunteers rather than paid staff.",
+    "Reddit's core browsing and posting experience has changed relatively little since its 2018 redesign, compared to more aggressive product iteration at some competitors.",
+    "Employee count (approximately 2,000) is this brief's estimate based on Reddit's most recent public disclosures and may understate current headcount."
+  ],
+  "as_of": "August 2025"
+}

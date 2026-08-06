@@ -1,0 +1,66 @@
+{
+  "company": {
+    "name": "Anthropic",
+    "one_line": "Anthropic builds the Claude family of AI models, sold through a consumer app (Claude.ai), a developer API, and enterprise and coding-focused products, with safety positioned as a core part of its identity.",
+    "stage": "growth",
+    "employees": 1600,
+    "founded_year": 2021
+  },
+  "market": {
+    "description": "Frontier AI models sold through consumer, developer API, and enterprise channels, where Anthropic has built particular strength in coding and enterprise trust while trailing far behind the largest consumer AI assistants in total user reach.",
+    "size_usd": "$89.7B",
+    "growth_rate_pct": 29.4,
+    "competitors": [
+      {
+        "name": "OpenAI",
+        "positioning": "Dominant consumer mindshare and distribution through ChatGPT, with by far the largest consumer AI user base of any lab.",
+        "relative_strength": "A consumer distribution lead measured in hundreds of millions of users that is very difficult for a smaller, enterprise-leaning competitor to close quickly."
+      },
+      {
+        "name": "Google DeepMind",
+        "positioning": "Deep pockets and integration across Google's own cloud, Search, and productivity products, with proprietary chip infrastructure.",
+        "relative_strength": "Can fund model development from an existing highly profitable core business and distribute directly into products already used by billions."
+      },
+      {
+        "name": "Open-weight labs (Meta, DeepSeek, and others)",
+        "positioning": "Release highly capable models for free or at very low cost, compressing the pricing power of paid, closed-weight API providers like Anthropic.",
+        "relative_strength": "Zero or near-zero licensing cost undercuts API pricing directly, especially for buyers who do not need frontier-tier capability for every task."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$3B",
+    "yoy_growth_pct": 216.3,
+    "gross_margin_pct": 44.2,
+    "monthly_churn_pct": 3.1,
+    "customer_count": 35000000
+  },
+  "situation": {
+    "prompt": "Anthropic has built real strength in coding and enterprise use cases, including through tools like Claude Code, and counts Amazon and Google among its major investors and infrastructure partners, but its consumer product, Claude.ai, has a far smaller user base than ChatGPT. Should Anthropic invest aggressively to compete for mainstream consumer mindshare, or stay disciplined on the enterprise, developer, and coding focus where it already has real traction?",
+    "tension": "Consumer scale compounds over time through brand awareness, habit formation, and data, and every quarter Anthropic does not compete there is a quarter OpenAI's lead gets harder to close. But Anthropic's enterprise, developer, and coding focus is where it has genuine, defensible share today, and a costly, unproven push for consumer attention could dilute both the focus and the balance sheet without meaningfully closing the distribution gap.",
+    "options": [
+      "Stay disciplined: keep concentrating investment on enterprise, developer, and coding use cases where Anthropic already has real, defensible share.",
+      "Push into consumer: invest significantly in Claude.ai's consumer features, marketing, and distribution to compete more directly for mainstream mindshare.",
+      "Compete indirectly: keep the direct consumer app secondary, but push Claude's presence into other companies' consumer-facing products through partnerships and API integrations instead."
+    ],
+    "constraints": [
+      "Anthropic's compute is substantially tied to specific infrastructure partnerships (notably with Amazon's Trainium chips and AWS, and separately with Google), which shapes what it can do independently of those partners' own priorities.",
+      "Anthropic has positioned safety and responsible deployment as central to its identity and fundraising narrative, which shapes how aggressively it can move on any feature with meaningful misuse or safety risk.",
+      "As a private company, Anthropic's ability to fund a large consumer push depends on continuing to raise capital at a rate that keeps pace with compute costs."
+    ],
+    "leadership_belief": "Leadership has publicly emphasized being deliberately focused rather than trying to win every segment at once, betting that being the clear leader in coding and enterprise trust is a more durable position than a diluted attempt to also chase consumer scale."
+  },
+  "supporting_facts": [
+    "Anthropic was founded in 2021 by former OpenAI researchers, including siblings Dario and Daniela Amodei.",
+    "Amazon has invested billions of dollars in Anthropic and is a primary cloud and custom-chip (Trainium) infrastructure partner; Google has also invested in Anthropic and is a separate cloud infrastructure partner.",
+    "Anthropic's annualized revenue run-rate was reported at approximately $3 billion around mid-2025, with reports of significantly higher targets by the end of 2025; this figure is likely understated by the time any interview using this brief takes place.",
+    "Anthropic's annualized run-rate was reported at roughly $1 billion around the end of 2024, described in coverage as having 'more than tripled' by mid-2025; this brief's yoy_growth_pct (216.3%) is this brief's own estimate consistent with that reporting, not a percentage Anthropic has disclosed directly.",
+    "Anthropic launched Claude Code, a command-line coding agent, in 2025, and Claude models are widely used inside third-party coding tools including Cursor and GitHub Copilot.",
+    "Claude.ai, Anthropic's consumer chat product, has a meaningfully smaller reported user base than OpenAI's ChatGPT.",
+    "Anthropic has published its Constitutional AI approach and Responsible Scaling Policy as part of its public safety positioning.",
+    "Anthropic offers Claude through a consumer app, a developer API, and enterprise products including Claude for Enterprise and Claude for Government offerings.",
+    "Employee count, gross margin, and churn figures in this brief are estimates; Anthropic is privately held and does not disclose financials at this level of detail.",
+    "Anthropic has been reported to be among the highest-valued private AI companies, with funding rounds through 2024 and 2025 valuing it in the tens of billions of dollars."
+  ],
+  "as_of": "July 2025"
+}

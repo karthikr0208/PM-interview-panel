@@ -1,0 +1,66 @@
+{
+  "company": {
+    "name": "YouTube",
+    "one_line": "YouTube is Alphabet's video platform, hosting both long-form and short-form (Shorts) video, monetized through advertising and subscriptions (YouTube Premium, YouTube Music, YouTube TV).",
+    "stage": "public",
+    "employees": 20000,
+    "founded_year": 2005
+  },
+  "market": {
+    "description": "Online video and streaming, spanning short-form social video, long-form entertainment, live sports rights, and increasingly the living-room connected-TV screen, where YouTube now competes directly with traditional television and subscription streaming services.",
+    "size_usd": "$184.9B",
+    "growth_rate_pct": 12.4,
+    "competitors": [
+      {
+        "name": "TikTok",
+        "positioning": "Short-form video built around an algorithmic For You feed that many younger users treat as their primary video app.",
+        "relative_strength": "A more casual, faster-scrolling discovery experience purpose-built for short-form, versus YouTube's long-form-first design that Shorts was added on top of."
+      },
+      {
+        "name": "Netflix",
+        "positioning": "Premium, ad-light long-form entertainment increasingly competing for the same living-room, connected-TV viewing occasion as YouTube.",
+        "relative_strength": "A curated, professionally produced content library with none of the moderation and quality-variance challenges of open-upload video."
+      },
+      {
+        "name": "Twitch",
+        "positioning": "Live streaming, particularly for gaming and creator communities that value real-time interaction over on-demand video.",
+        "relative_strength": "Deeper live, real-time chat and community tooling built specifically for streaming, rather than adapted from an on-demand product."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$36.1B",
+    "yoy_growth_pct": 13.0,
+    "gross_margin_pct": 61.7,
+    "monthly_churn_pct": 5.3,
+    "customer_count": 2700000000
+  },
+  "situation": {
+    "prompt": "YouTube is now reported as the single most-watched service on connected TVs in the US, ahead of traditional cable, while Shorts has become the fastest-growing part of the platform by usage but carries much lower advertising revenue per view than long-form video. How should YouTube prioritize investment between Shorts and its fast-growing living-room, long-form business, given how differently the two make money?",
+    "tension": "Shorts is where a growing share of attention, especially from younger and newer users, is actually going, and starving it risks ceding that audience to TikTok and Instagram Reels. But long-form, living-room viewing, including licensed sports rights, carries far higher ad rates and is where YouTube's revenue growth is actually concentrated, so the format winning the attention war and the format winning the revenue war are not the same one.",
+    "options": [
+      "Prioritize Shorts: keep investing in short-form creator tools and recommendations to defend against TikTok and Reels, accepting lower near-term revenue per view.",
+      "Prioritize the living-room, long-form business: lean further into connected TV, live sports rights, and traditional-length content where ad rates are highest.",
+      "Blend deliberately: use Shorts primarily as a top-of-funnel discovery layer that funnels viewers toward the higher-monetizing long-form and living-room experience."
+    ],
+    "constraints": [
+      "YouTube's revenue is reported inside Alphabet's results as a single ads line, so any internal reallocation between Shorts and long-form is invisible to investors until it shows up in the aggregate number.",
+      "Creators, not YouTube, decide what to upload and where to invest their own production effort, so any strategy has to work through creator incentives, not direct control.",
+      "Sports and licensing rights deals are multi-year commitments that cannot be renegotiated quickly if the strategic priority shifts."
+    ],
+    "leadership_belief": "Leadership has publicly framed Shorts and long-form as complementary rather than competing, describing Shorts as a discovery funnel that grows the overall creator ecosystem and eventually benefits long-form and living-room viewing too."
+  },
+  "supporting_facts": [
+    "YouTube is a wholly owned subsidiary of Alphabet and does not file separate public financial statements; the figures in this brief are Alphabet's disclosed YouTube ad-revenue line plus this brief's own estimates where noted.",
+    "Alphabet reported YouTube advertising revenue of approximately $36.1 billion for full-year 2024.",
+    "YouTube has been reported by Nielsen as the single most-watched streaming service on US connected TVs, ahead of Netflix, for multiple consecutive periods.",
+    "YouTube signed exclusive US streaming rights to NFL Sunday Ticket starting with the 2023 season, its first major live sports rights deal at that scale.",
+    "YouTube Shorts has been reported to generate over 70 billion daily views, though Shorts carries meaningfully lower ad revenue per view than long-form video.",
+    "Employee count (approximately 20,000) is this brief's estimate; Alphabet does not disclose YouTube headcount separately from the rest of the company.",
+    "YouTube Premium and YouTube Music subscription revenue is not broken out separately by Alphabet from the advertising figure above; this brief's arr_usd is ads-only and therefore understates YouTube's total revenue.",
+    "Monthly logged-in users have been reported by YouTube at over 2.5 billion; this brief's customer_count of 2.7 billion is an estimate of continued growth since that disclosure.",
+    "YouTube TV, a separate live-television subscription bundle, has been reported to have several million subscribers as of 2024.",
+    "Gross margin and monthly churn figures in this brief are estimates; Alphabet does not disclose YouTube-specific unit economics."
+  ],
+  "as_of": "August 2025"
+}

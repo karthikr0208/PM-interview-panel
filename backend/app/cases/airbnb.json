@@ -1,0 +1,66 @@
+{
+  "company": {
+    "name": "Airbnb",
+    "one_line": "Airbnb is a marketplace connecting travelers with hosts offering short-term stays, and, since a 2024 relaunch, a wider set of in-destination services and experiences.",
+    "stage": "public",
+    "employees": 7000,
+    "founded_year": 2008
+  },
+  "market": {
+    "description": "Online travel and short-term accommodation, spanning both peer-hosted alternative accommodations and, with Airbnb's 2024 relaunch, an expansion into adjacent in-destination services and experiences.",
+    "size_usd": "$115.4B",
+    "growth_rate_pct": 8.6,
+    "competitors": [
+      {
+        "name": "Booking.com",
+        "positioning": "Broader inventory spanning hotels and alternative accommodations together, with particular strength in European and international markets.",
+        "relative_strength": "A larger, more hotel-inclusive catalog and a stronger foothold outside the US than Airbnb's more peer-hosted, US-centric roots."
+      },
+      {
+        "name": "Vrbo",
+        "positioning": "Targets whole-home, family-oriented travel more directly than Airbnb's broader mix of private rooms, shared spaces, and whole homes.",
+        "relative_strength": "A simpler, more predictable whole-home-only inventory that some family travelers prefer over Airbnb's wider variety."
+      },
+      {
+        "name": "Marriott",
+        "positioning": "A large, professionally operated hotel network with loyalty programs and guaranteed service standards.",
+        "relative_strength": "Consistent, professionally managed quality and a loyalty program that peer-hosted listings cannot fully replicate."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$11.1B",
+    "yoy_growth_pct": 12.0,
+    "gross_margin_pct": 82.6,
+    "monthly_churn_pct": 6.7,
+    "customer_count": 493000000
+  },
+  "situation": {
+    "prompt": "In 2024, Airbnb relaunched with an expanded set of in-destination Services and Experiences, part of CEO Brian Chesky's stated ambition to become a much broader travel platform, even as core lodging growth slows in mature markets and cities like New York effectively ban most short-term rentals. How much should Airbnb invest in this new Services and Experiences expansion versus defending its core lodging business against regulatory and growth headwinds?",
+    "tension": "Services and Experiences is a genuinely new growth avenue in a market where core lodging growth is decelerating in Airbnb's most mature cities, but it also pulls product, engineering, and marketing attention away from a core lodging business that is under real regulatory pressure (short-term rental restrictions in cities including New York) and where trust and safety issues can still surface publicly. A bet on breadth risks starving the business that still generates almost all of the revenue.",
+    "options": [
+      "Go all-in on expansion: fund Services and Experiences aggressively as the next major growth vector, treating slower core lodging growth as the reason the bet is necessary.",
+      "Defend the core: pull back on new-category investment and instead focus product and policy effort on protecting core lodging growth against regulatory headwinds city by city.",
+      "Sequence it: keep Services and Experiences in a small number of proof-of-concept markets while the core lodging team fixes trust, safety, and regulatory relationships first."
+    ],
+    "constraints": [
+      "New York City's Local Law 18, in effect since September 2023, has already removed a large share of previously active listings in one of Airbnb's highest-profile markets, and other cities have proposed similar rules.",
+      "Airbnb's brand and trust have been damaged before by high-profile incidents involving hidden cameras and property damage, and any new category (Experiences, Services) carries its own version of that same trust risk.",
+      "Airbnb is public and under quarterly pressure to show that new-category investment is translating into revenue, not just user experimentation."
+    ],
+    "leadership_belief": "Chesky has publicly described the ambition as building Airbnb into something closer to 'the next version of Amazon,' broader than lodging alone, and has framed Services and Experiences as core to that vision rather than a distraction from it."
+  },
+  "supporting_facts": [
+    "Airbnb is publicly traded on Nasdaq under the ticker ABNB, having gone public in December 2020.",
+    "Full-year 2024 revenue was approximately $11.1 billion.",
+    "Airbnb relaunched its Experiences product and introduced a new Services category (including chefs, personal training, and spa treatments) in a major announcement in May 2024.",
+    "New York City's Local Law 18, effective September 2023, imposed registration requirements that have removed the large majority of previously active short-term rental listings in the city.",
+    "Airbnb reports 'Nights and Experiences Booked' as its primary volume metric each quarter; this brief uses that figure (approximately 493 million for 2024) as its customer_count.",
+    "Airbnb has reported several million active hosts globally.",
+    "CEO Brian Chesky has publicly described wanting Airbnb to expand well beyond lodging, comparing the ambition to Amazon's expansion beyond books.",
+    "Airbnb's core lodging business has faced periodic high-profile trust and safety incidents, including reports of hidden cameras in listings, that have drawn media attention.",
+    "Airbnb's gross margin is among the highest of major travel marketplaces, reflecting its asset-light model of not owning the properties listed on it.",
+    "Monthly churn figures in this brief are an estimate; a two-sided travel marketplace does not have a standard subscription-style churn metric."
+  ],
+  "as_of": "August 2025"
+}

@@ -1,0 +1,67 @@
+{
+  "company": {
+    "name": "Cursor",
+    "one_line": "Cursor, built by Anysphere, is an AI-native code editor (a fork of VS Code) that lets developers write, edit, and refactor code through AI agents embedded directly in the editor.",
+    "stage": "series_c",
+    "employees": 150,
+    "founded_year": 2022
+  },
+  "market": {
+    "description": "AI-assisted software development tools, ranging from autocomplete-style coding assistants to increasingly autonomous coding agents, sold to individual developers and, growingly, to enterprise engineering organizations.",
+    "size_usd": "$27.2B",
+    "growth_rate_pct": 24.8,
+    "competitors": [
+      {
+        "name": "GitHub Copilot",
+        "positioning": "Bundled by default into GitHub and Visual Studio Code, giving it distribution into a huge share of developers' existing workflow without requiring them to switch tools.",
+        "relative_strength": "Default, no-switch distribution through the tools most developers already use, versus Cursor requiring developers to change editors."
+      },
+      {
+        "name": "Claude Code",
+        "positioning": "Anthropic's own command-line coding agent, sold directly to the same developers Cursor serves, built on the same models Cursor pays Anthropic to access.",
+        "relative_strength": "As the model provider itself, Anthropic can ship agentic coding capability the moment it exists in the model, without waiting on or paying a third-party editor."
+      },
+      {
+        "name": "Windsurf",
+        "positioning": "A close, directly competing AI-native code editor pursuing the same agentic-coding-in-the-editor category as Cursor.",
+        "relative_strength": "A near-identical product bet competing head to head for the same early-adopter developer mindshare Cursor is trying to hold onto."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$100M",
+    "yoy_growth_pct": 412.6,
+    "gross_margin_pct": 55.4,
+    "monthly_churn_pct": 4.6,
+    "customer_count": 1000000
+  },
+  "situation": {
+    "prompt": "Cursor's entire product runs on top of AI models it pays OpenAI and Anthropic to access, and both of those same labs are now shipping their own agentic coding tools (like Claude Code) directly to the same developers Cursor sells to. How should Cursor build a durable moat when the companies it depends on for its core technology are becoming its most direct competitors?",
+    "tension": "Cursor's speed advantage came from building a genuinely excellent editor experience on top of whichever model was best at any given moment, switching between providers as models improved. But that same flexibility means Cursor has no proprietary model of its own, and the labs it depends on have both the underlying technology and a direct incentive to capture the coding-agent relationship themselves rather than share it with a reseller.",
+    "options": [
+      "Double down on editor experience and workflow, treating the underlying model as a commodity input and competing on integration, speed, and developer trust rather than model quality.",
+      "Invest in proprietary models or fine-tuning, reducing dependence on any single model provider even at significant cost.",
+      "Move up the stack toward enterprise and team workflows (code review, large-codebase context, deployment pipelines) where a model provider's own consumer-facing coding agent is less likely to compete directly."
+    ],
+    "constraints": [
+      "Cursor's cost structure is heavily exposed to inference costs paid to the same model providers now competing with it, which puts real pressure on gross margin as usage scales.",
+      "Cursor operates with an unusually small team relative to its revenue and user base, limiting how many fronts it can fight on at once.",
+      "Developers who adopt AI coding tools tend to be early adopters willing to switch tools quickly if a competitor's agent is noticeably better, so any perceived quality gap is punished fast."
+    ],
+    "leadership_belief": "Leadership has publicly framed Cursor's advantage as the editor and workflow layer, not the model itself, betting that switching between the best available models as they change will keep Cursor ahead of any single lab's own first-party tool."
+  },
+  "supporting_facts": [
+    "Cursor is built by Anysphere, founded in 2022; the Cursor product itself launched in 2023.",
+    "Cursor was widely reported in 2024 and 2025 as one of the fastest software companies ever to reach $100 million in annualized recurring revenue, reportedly in roughly a year from a much smaller base (reports have cited a starting point near $1 million in ARR).",
+    "Anysphere does not disclose a precise year-over-year revenue growth percentage; this brief's yoy_growth_pct (412.6%) is this brief's own estimate, set in line with the high end of publicly reported hypergrowth ranges for comparable early-stage AI developer tools, not a figure derived from or equal to the roughly 1-million-to-100-million ARR trajectory above.",
+    "Cursor has been reported to have raised funding at a valuation in the billions of dollars through 2024 and 2025, with reported investors including major venture firms and, reportedly, both OpenAI and Anthropic's ecosystems of investors and partners.",
+    "Cursor operates with a notably small team (reported to be under a few hundred people) relative to its revenue scale, a fact frequently cited in coverage of the company.",
+    "Anthropic launched Claude Code, its own command-line agentic coding tool, in 2025, directly overlapping with Cursor's core use case.",
+    "GitHub Copilot, owned by Microsoft, remains the most widely distributed AI coding assistant by default installation, given its bundling into GitHub and Visual Studio Code.",
+    "Cursor is built as a fork of Visual Studio Code, requiring developers to switch their primary editor to adopt it.",
+    "Reported active user figures for Cursor have cited over a million developers using the product; this brief's customer_count uses that figure.",
+    "Employee count, gross margin, and churn figures in this brief are estimates; Anysphere is privately held and does not disclose these at this level of precision.",
+    "Given Cursor's reported growth rate through 2025, the ARR figure in this brief ($100 million) is very likely understated by the time any interview using this brief takes place."
+  ],
+  "as_of": "July 2025"
+}

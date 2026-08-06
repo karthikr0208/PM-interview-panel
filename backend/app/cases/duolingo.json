@@ -1,0 +1,66 @@
+{
+  "company": {
+    "name": "Duolingo",
+    "one_line": "Duolingo makes a free, gamified language-learning app, with revenue coming mostly from subscriptions (Super Duolingo) plus a smaller advertising and test-prep business (the Duolingo English Test).",
+    "stage": "public",
+    "employees": 900,
+    "founded_year": 2011
+  },
+  "market": {
+    "description": "Consumer language learning and education apps, competing for daily habitual usage against both dedicated language apps and general-purpose AI assistants that can now hold a conversation in another language for free.",
+    "size_usd": "$21.6B",
+    "growth_rate_pct": 6.3,
+    "competitors": [
+      {
+        "name": "Babbel",
+        "positioning": "A more efficient, exam- and travel-focused course structure aimed at adults who want practical fluency fast, without Duolingo's gamification layer.",
+        "relative_strength": "Course content is written more directly for practical conversational competence, which some learners find faster than Duolingo's bite-sized drills."
+      },
+      {
+        "name": "Rosetta Stone",
+        "positioning": "A long-established, immersion-based brand trusted by schools, libraries, and older institutional buyers.",
+        "relative_strength": "Decades of brand trust with institutional and older-generation buyers that a newer app has not built."
+      },
+      {
+        "name": "General-purpose AI chat assistants",
+        "positioning": "Free-form conversational practice in almost any language, available inside a general-purpose AI assistant at no additional cost.",
+        "relative_strength": "Open-ended, corrective conversation practice that no fixed-curriculum app can fully replicate, at zero marginal cost to the user."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$748M",
+    "yoy_growth_pct": 41.0,
+    "gross_margin_pct": 71.8,
+    "monthly_churn_pct": 3.4,
+    "customer_count": 10300000
+  },
+  "situation": {
+    "prompt": "In 2025, Duolingo's CEO publicly announced the company would become AI-first, using AI to replace much of the contract work behind course content creation, which triggered a visible social media backlash and calls to delete the app even as engagement kept growing. How should Duolingo keep the brand's trust and playful tone intact while leaning harder into AI-generated content and features?",
+    "tension": "AI content generation lets Duolingo ship new courses and exercise types far faster and far more cheaply than human course designers ever could, but the same announcement that promised this speed also produced the loudest public backlash the company has faced, including calls for a boycott. Speed and cost savings are real and immediate; the brand damage, if it changes long-term retention or new-user trust, would show up slowly and be much harder to reverse.",
+    "options": [
+      "Push forward publicly: keep the AI-first narrative, use it to justify faster content expansion into new courses and subjects, and treat the backlash as a one-time news cycle.",
+      "Go quiet: keep using AI heavily in production but stop talking about it publicly, letting the product speak for itself rather than the strategy memo.",
+      "Hybrid, human-in-the-loop: keep AI as a drafting and scaling tool but visibly preserve human review and involvement in course design, and message that explicitly."
+    ],
+    "constraints": [
+      "Duolingo's brand voice (playful, slightly irreverent) is itself a major driver of its organic social media growth, so any perceived betrayal of trust risks that channel specifically.",
+      "The company is public and under quarterly pressure to keep showing the same efficiency gains AI was promised to deliver.",
+      "A meaningful share of past course content relied on outside contractors and educators whose displacement is itself a visible, quotable story."
+    ],
+    "leadership_belief": "Leadership has continued to defend the AI-first strategy publicly, arguing that user growth and engagement metrics kept climbing through and after the backlash, which they take as evidence the controversy did not materially damage the brand."
+  },
+  "supporting_facts": [
+    "Duolingo is publicly traded on Nasdaq under the ticker DUOL, having gone public in 2021.",
+    "Full-year 2024 revenue was approximately $748 million, up roughly 41% year over year.",
+    "In April 2025, CEO Luis von Ahn sent a company-wide memo saying Duolingo would become an 'AI-first' company, phasing out some contractor work in favor of AI-generated content.",
+    "The AI-first announcement triggered a visible backlash on TikTok and Instagram, including calls to delete the app, though Duolingo's own social accounts continued posting through it.",
+    "Duolingo has continued to report user growth through 2025, including double-digit daily active user growth, which leadership has cited as evidence the backlash did not show up in usage.",
+    "Duolingo generates most of its revenue from Super Duolingo subscriptions, with a smaller contribution from advertising and the Duolingo English Test, a paid alternative to TOEFL/IELTS.",
+    "The company operates with a notably small headcount (well under 1,000 employees) relative to its scale, which it has repeatedly cited as a point of pride.",
+    "Duolingo has used generative AI publicly since 2023 for features including Duolingo Max, a higher-tier subscription offering AI-powered conversational practice and explanations.",
+    "Paid subscriber count (used here as this brief's customer_count) was approximately 10 million in early 2025 and has continued to grow.",
+    "Gross margin and monthly churn figures in this brief are this brief's estimates based on typical consumer subscription SaaS structure, not figures Duolingo discloses at this level of precision."
+  ],
+  "as_of": "August 2025"
+}

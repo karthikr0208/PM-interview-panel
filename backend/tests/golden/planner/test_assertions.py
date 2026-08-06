@@ -24,6 +24,7 @@ import json
 
 import pytest
 
+from app.questions.shapes import SHAPE_BANK, select_shape
 from tests.golden.case_architect import assertions as ca_assertions
 from tests.golden.planner.assertions import (
     RUBRIC_DIMENSIONS,
@@ -31,8 +32,11 @@ from tests.golden.planner.assertions import (
     contains_banned_register_name,
     contains_fake_round_number,
     count_out_of_range,
+    decorative_statistic,
     empty_grounded_in,
     is_generic_question,
+    is_recitation_shaped,
+    matches_no_shape,
     missing_dimension_coverage,
     missing_grounding,
     no_dash_variants,
@@ -668,3 +672,423 @@ def test_a_grounded_non_generic_question_can_be_written_against_the_sparse_world
     ]
     assert missing_grounding(grounded_in, SPARSE_WORLD) == []
     assert is_generic_question(question, SPARSE_WORLD) is False
+
+
+# ==============================================================================
+# Story 3.5.2 -- decorative_statistic, matches_no_shape, is_recitation_shaped.
+#
+# The honest corpus: DEV-STATE.md § Decisions 2026-08-05's three questions,
+# recorded verbatim (do not paraphrase these -- they are quoted, not
+# summarized, per the brief). This is the product's own real output the day
+# before this story, kept as the positive/negative control for all three new
+# checks rather than a hand-picked example.
+# ==============================================================================
+
+Q1 = (
+    "At Nimbus Capital, how does the AI Risk Suite's current module mix support the "
+    "company's revenue model given the $12.3B market size and the 31.4% ARR growth "
+    "last year?"
+)
+
+Q2 = (
+    "Considering Nimbus Capital's position in a market worth $12.3B, how does the "
+    "competitive landscape with LendWise Analytics influence your go-to-market "
+    "strategy for the AI Risk Suite?"
+)
+
+Q3 = (
+    "Given Nimbus Capital's constraints, would you prioritize building the "
+    "BehavioralRisk AI module, improve existing modules, or target SME lending, "
+    "and why?"
+)
+
+
+# --- decorative_statistic: the brief's required table -------------------------
+
+
+def test_decorative_statistic_fires_on_q1_the_market_size_and_growth_clause() -> None:
+    """Q1 stapled both a market-size figure AND a growth-rate figure to the
+    question. Either firing is sufficient to flag the question, so this
+    only pins that SOMETHING fires and that the matched fragment carries the
+    actual figure -- not which of the two clauses is returned first."""
+    result = decorative_statistic(Q1)
+    assert result is not None, "Q1 has a decorative statistic and must be flagged"
+    assert "$12.3B" in result or "31.4" in result, (
+        f"matched fragment should carry the offending figure, got {result!r}"
+    )
+
+
+def test_decorative_statistic_fires_on_q2_the_market_worth_clause() -> None:
+    result = decorative_statistic(Q2)
+    assert result is not None, "Q2 has a decorative statistic and must be flagged"
+    assert "$12.3B" in result, f"matched fragment should carry the figure, got {result!r}"
+
+
+def test_decorative_statistic_does_not_fire_on_q3_which_has_no_statistic() -> None:
+    """Q3 is the shape to generalize from (spec's own framing): a forced
+    trade-off with no market-size or growth-rate figure anywhere in it."""
+    assert decorative_statistic(Q3) is None
+
+
+def test_decorative_statistic_generalizes_beyond_the_three_named_strings() -> None:
+    """The brief's explicit worry: a check that only matches Q1/Q2's exact
+    numbers would not be measuring anything. Same shape of clause, a
+    DIFFERENT company and DIFFERENT figures -- must still fire, proving the
+    match is structural (dollar-figure-near-'market', percent-figure-near-
+    'growth'), not a hard-coded string comparison."""
+    different_company_same_shape = (
+        "How would you improve retention at Solstice Health, given the $47.9M "
+        "market size and the 8.6% quarterly growth?"
+    )
+    result = decorative_statistic(different_company_same_shape)
+    assert result is not None, "must generalize to a different company/figures"
+    assert "$47.9M" in result
+
+    market_worth_variant = (
+        "Considering Solstice Health's position in a market worth $47.9M, how "
+        "would you prioritize the next release?"
+    )
+    result2 = decorative_statistic(market_worth_variant)
+    assert result2 is not None
+    assert "$47.9M" in result2
+
+
+def test_decorative_statistic_fires_on_a_customer_count_style_figure() -> None:
+    """Regression, independent re-verification 2026-08-06: the first version
+    only recognized '$X market size' and 'X% growth', and was blind to every
+    other figure the curated worlds actually carry -- `customer_count` here.
+    A bare number followed by a scale word ('97.2 million') must fire."""
+    result = decorative_statistic(
+        "Given Reddit's 97.2 million daily actives, how would you prioritize "
+        "the next quarter's roadmap?"
+    )
+    assert result is not None
+    assert "97.2 million" in result
+
+
+def test_decorative_statistic_fires_on_a_comma_grouped_integer() -> None:
+    """A comma-grouped integer ('8,400') must not be mistaken for a clause
+    boundary -- the internal comma is part of the figure, not the
+    terminator, and the check must still find the figure and fire."""
+    result = decorative_statistic(
+        "With 8,400 enterprise customers, how would you expand upmarket?"
+    )
+    assert result is not None
+    assert "8,400" in result
+
+
+def test_decorative_statistic_fires_on_an_arr_dollar_figure() -> None:
+    """Regression: `metrics.arr_usd`-shaped figure, a dollar amount with no
+    'market' in sight -- must still fire on the currency pattern alone."""
+    result = decorative_statistic(
+        "Given Cursor's $247M ARR, how would you defend against a fast follower?"
+    )
+    assert result is not None
+    assert "$247M" in result
+
+
+def test_decorative_statistic_fires_on_a_churn_percent_figure() -> None:
+    """Regression: `metrics.monthly_churn_pct`-shaped figure -- a percent
+    with no 'growth' in sight -- must still fire on the percent pattern
+    alone."""
+    result = decorative_statistic(
+        "With monthly churn at 3.7%, how would you redesign onboarding?"
+    )
+    assert result is not None
+    assert "3.7%" in result
+
+
+def test_decorative_statistic_deletion_test_rejects_a_clause_that_swallows_the_question() -> None:
+    """The deletion test's own floor: if removing the matched clause would
+    not leave a real standalone question behind, the match must not be
+    returned. Constructed adversarially -- a 'question' that is nothing but
+    the statistic clause -- to prove `_clause_deletion_leaves_a_standalone_
+    question` is load-bearing, not decorative itself."""
+    assert decorative_statistic("Given the $12.3B market size?") is None
+
+
+def test_decorative_statistic_vacuity_floor_empty_question_returns_none() -> None:
+    """An empty question has no statistic to find, so `None` here is
+    CORRECT, not a silent pass on a bad question -- this is a denial check,
+    not a membership check, so the vacuity risk is different from
+    `missing_grounding`'s (see the function's own docstring). The floor that
+    actually catches an empty question is `blank_or_short_fields`, exercised
+    together with this one below so the pairing is not just asserted in
+    prose."""
+    assert decorative_statistic("") is None
+    assert decorative_statistic(None) is None  # defensive: must not raise
+    # Paired floor: an empty question is caught by the EXISTING vacuity
+    # check, so a suite that runs both never lets a blank question through
+    # by relying on `decorative_statistic` alone.
+    assert blank_or_short_fields({"question": ""}, min_len=15) == ["question"]
+
+
+# --- is_recitation_shaped: the brief's required table --------------------------
+
+
+def test_is_recitation_shaped_fires_on_q1_the_how_does_x_support_y_given_z_frame() -> None:
+    assert is_recitation_shaped(Q1) is True
+
+
+def test_is_recitation_shaped_does_not_fire_on_q2() -> None:
+    """Q2 has an explanatory frame ('how does') but also turns to the
+    candidate directly -- 'your go-to-market strategy' -- so it clears on
+    the second-person condition. Proves this check is independent of
+    `decorative_statistic`, not a restatement of it (Q2 also fires that
+    check, for an unrelated reason)."""
+    assert is_recitation_shaped(Q2) is False
+
+
+def test_is_recitation_shaped_does_not_fire_on_q3() -> None:
+    """Q3 has no explanatory frame at all ('would you prioritize' is a
+    decision verb, not 'how does'/'what role does'/etc), so it never even
+    reaches the second-person or decision-verb checks."""
+    assert is_recitation_shaped(Q3) is False
+
+
+# --- is_recitation_shaped: regression, independent re-verification 2026-08-06 --
+#
+# The first version matched the literal string "how does ... support ...
+# given" and fired on Q1 alone. These six cases (from the coordinator's own
+# re-verification run) are the proof the property-based rule generalizes:
+# same explanatory-frame-with-no-decision-and-no-second-person shape,
+# different verbs and different frames, all correctly recognized.
+
+
+def test_is_recitation_shaped_flips_true_with_a_different_verb_drive() -> None:
+    """Named regression: same frame as Q1, verb swapped from 'support' to
+    'drive'. The old literal match could never fire on this; this is the
+    exact false-pass the coordinator caught."""
+    assert is_recitation_shaped(
+        "At Nimbus Capital, how does the current ad mix drive the revenue "
+        "model given the $12.3B market size and the 31.4% ARR growth last "
+        "year?"
+    ) is True
+
+
+def test_is_recitation_shaped_flips_true_with_a_different_verb_contribute() -> None:
+    """Named regression: verb swapped to 'contribute', different company."""
+    assert is_recitation_shaped(
+        "How does Duolingo's streak feature contribute to retention given "
+        "the cohort data from last quarter?"
+    ) is True
+
+
+def test_is_recitation_shaped_fires_on_the_same_frame_with_no_given_clause() -> None:
+    """The frame alone -- no trailing 'given Z' clause at all -- is still
+    recitation-shaped: it only asks how one fact of the world relates to
+    another, with no second-person turn and no decision verb."""
+    assert is_recitation_shaped(
+        "How does Figma's plugin ecosystem support its enterprise motion?"
+    ) is True
+
+
+def test_is_recitation_shaped_fires_on_a_walk_me_through_how_frame() -> None:
+    assert is_recitation_shaped(
+        "Walk me through how YouTube Premium is positioned relative to Spotify."
+    ) is True
+
+
+def test_is_recitation_shaped_fires_on_a_what_role_does_frame() -> None:
+    assert is_recitation_shaped(
+        "What role does Cursor's free tier play in its conversion funnel?"
+    ) is True
+
+
+def test_is_recitation_shaped_generalizes_to_a_differently_worded_recitation() -> None:
+    """Same frame, different company/nouns -- must still fire."""
+    assert is_recitation_shaped(
+        "How does Solstice Health's current pricing structure support its "
+        "retention goals given the churn data from last quarter?"
+    ) is True
+
+
+def test_is_recitation_shaped_accepts_a_forced_tradeoff_question() -> None:
+    """Q3's own shape (spec's "generalize from this") must never be flagged
+    -- a forced trade-off between different kinds of bet is exactly what
+    this check exists to let through."""
+    assert is_recitation_shaped(
+        "Should Solstice Health build a new triage module, harden the "
+        "existing one, or expand into SMB clinics, and why?"
+    ) is False
+
+
+def test_is_recitation_shaped_vacuity_floor() -> None:
+    """Empty input must not vacuously report True (that would flag every
+    blank question as 'recitation-shaped', which is meaningless), and must
+    not crash on `None`."""
+    assert is_recitation_shaped("") is False
+    assert is_recitation_shaped(None) is False
+
+
+# --- matches_no_shape -----------------------------------------------------------
+
+# One shared fill-values dict, reused by every test below that needs a
+# filled shape -- keeps the values in ONE place rather than a copy per
+# test, per the coordinator's explicit instruction. Every slot name that
+# appears anywhere in SHAPE_BANK must have an entry here, or `.format()`
+# raises `KeyError` for whichever shape needs the missing one -- which is
+# the desired failure mode (loud, at the offending shape) if the bank ever
+# grows a new slot name this dict does not cover.
+_SHAPE_FILL_VALUES: dict[str, str] = {
+    "company": "Duolingo",
+    "adjacent_market": "gaming",
+    "capability": "AI conversation practice",
+    "product": "the Super subscription",
+    "new_segment": "small businesses",
+    "competitor": "Babbel",
+    "current_model": "a flat subscription",
+    "alternative_model": "usage-based pricing",
+    "metric": "weekly active users",
+    "period": "two quarters",
+    "conversion_step": "signup-to-first-lesson",
+    "n": "3",
+}
+
+
+def _fill(shape) -> str:
+    return shape.template.format(**{slot: _SHAPE_FILL_VALUES[slot] for slot in shape.slots})
+
+
+def test_matches_no_shape_accepts_a_question_built_from_the_bank_itself() -> None:
+    """Positive control: every bank shape (thirteen as of 2026-08-06's added
+    Nx-growth shape), filled with plausible slot values, must be recognized
+    as a conforming shape (i.e. `matches_no_shape` returns False). If the
+    bank's own output failed this check, the check would be measuring
+    nothing."""
+    for shape in SHAPE_BANK:
+        filled = _fill(shape)
+        assert matches_no_shape(filled) is False, (
+            f"a question built directly from the bank must conform: {filled!r}"
+        )
+
+
+def test_matches_no_shape_accepts_karthiks_literal_10x_duolingo_example() -> None:
+    """Named acceptance: PHASE-3.5-SPEC.md quotes 'how would you 10x
+    Duolingo' as one of Karthik's own examples of the target register. The
+    original 12-shape bank had no shape it could fill exactly to reproduce
+    this phrasing (`{n}x` with no separate 'grow ... at ... by' framing);
+    the added growth shape `How would you {n}x {company}?` closes that gap."""
+    assert matches_no_shape("How would you 10x Duolingo?") is False
+
+
+def test_matches_no_shape_rejects_a_freeform_question_that_matches_no_template() -> None:
+    assert matches_no_shape("Tell me about a time you disagreed with a stakeholder.") is True
+
+
+def test_matches_no_shape_vacuity_floor_empty_question_conforms_to_nothing() -> None:
+    """An empty string must be True (conforms to no shape), never
+    vacuously False -- a blank question is not a filled shape."""
+    assert matches_no_shape("") is True
+    assert matches_no_shape(None) is True
+    assert matches_no_shape("   ") is True
+
+
+def test_select_shape_is_deterministic() -> None:
+    """CLAUDE.md § Style / the brief's Part 1 requirement: no LLM, and the
+    same (level, category) must always return the same shape."""
+    first = select_shape("PM", "growth")
+    second = select_shape("PM", "growth")
+    assert first == second
+    assert first in SHAPE_BANK
+    assert first.category == "growth"
+
+
+def test_select_shape_covers_all_four_categories_across_the_four_levels() -> None:
+    """Sanity check on the bank's shape: every category is selectable for
+    every known level without raising."""
+    for level in FOUR_LEVELS:
+        for category in {s.category for s in SHAPE_BANK}:
+            shape = select_shape(level, category)
+            assert shape.category == category
+
+
+# ==============================================================================
+# THE cross-gate control -- the coordinator's own ad hoc probe, made
+# permanent. It found a real defect on its first run: the original gtm
+# shape "{competitor} shipped {capability} first. How does that change
+# {company}'s launch?" reads as recitation-shaped once filled (an
+# explanatory frame with no `you`/`your` and no decision verb), which is
+# `is_recitation_shaped` correctly doing its job -- the SHAPE was wrong,
+# not the rule. Fixed by adding "your launch plan for" to that template
+# (see shapes.py's comment on that shape for the full story).
+#
+# Parametrized directly off `SHAPE_BANK`, not a hard-coded count or list of
+# strings, so a shape added later is automatically covered by this test and
+# CANNOT be checked in in a state where the Planner could never emit it
+# without failing its own gates -- which is exactly the class of bug this
+# test caught. This is the single most valuable test in this file: it is
+# the one that verifies the bank and the checks agree with each other,
+# which every other test in this file silently assumes.
+# ==============================================================================
+
+
+@pytest.mark.parametrize("shape", SHAPE_BANK, ids=lambda s: s.template)
+def test_every_bank_shape_clears_its_own_gates(shape) -> None:
+    """Fill this shape with plausible values and assert the result clears
+    all three gates the Planner will need to clear in story 3.5.3: no
+    decorative statistic, not recitation-shaped, and -- trivially, but
+    checked for completeness -- conforms to a bank shape (its own)."""
+    filled = _fill(shape)
+
+    stat = decorative_statistic(filled)
+    assert stat is None, (
+        f"shape {shape.template!r} filled as {filled!r} carries a decorative "
+        f"statistic once filled: {stat!r}"
+    )
+
+    assert is_recitation_shaped(filled) is False, (
+        f"shape {shape.template!r} filled as {filled!r} is recitation-shaped -- "
+        f"the Planner could never emit this shape's output without failing its "
+        f"own gate"
+    )
+
+    assert matches_no_shape(filled) is False, (
+        f"shape {shape.template!r} filled as {filled!r} does not conform to any "
+        f"bank shape, including its own -- the fill or the template has a bug"
+    )
+
+
+# ==============================================================================
+# Part 4 of the brief: prove the suite is RED against today's Planner output,
+# BEFORE any prompt change. Q1 and Q2 are real questions this product served
+# on 2026-08-05 -- if a golden test required
+# `assert decorative_statistic(q) is None` (or `not is_recitation_shaped(q)`)
+# on every served question, as the future prompt change will need to satisfy,
+# today's output fails it. This test encodes that exact assertion and proves
+# it currently fails, so the suite is falsifiable rather than green by
+# default. See the brief's Part 4 and the pasted terminal output in the
+# session report for the standalone proof run outside pytest's own
+# pass/fail framing.
+# ==============================================================================
+
+
+def test_RED_todays_q1_and_q2_would_fail_a_no_decorative_statistic_gate() -> None:
+    """This test is EXPECTED TO STAY GREEN forever (it asserts the failure,
+    not the fix) -- it exists to document, executably, that the gate story
+    3.5.3 must satisfy is not met by story 3.5.2's own starting point."""
+    assert decorative_statistic(Q1) is not None, (
+        "Q1 SHOULD fail a decorative-statistic gate today -- if this "
+        "assertion itself fails, the check has gone blind to the exact "
+        "defect it exists to catch"
+    )
+    assert decorative_statistic(Q2) is not None, "Q2 should also fail it"
+    assert decorative_statistic(Q3) is None, "Q3 has no statistic and must pass"
+
+
+def test_RED_todays_q1_would_fail_a_not_recitation_shaped_gate() -> None:
+    assert is_recitation_shaped(Q1) is True, (
+        "Q1 SHOULD fail a not-recitation-shaped gate today"
+    )
+    assert is_recitation_shaped(Q2) is False
+    assert is_recitation_shaped(Q3) is False
+
+
+def test_RED_todays_three_questions_conform_to_no_bank_shape() -> None:
+    """None of Q1/Q2/Q3 were built from the shape bank (it didn't exist when
+    they were served) -- `matches_no_shape` must say so for all three,
+    additional evidence that today's Planner output would fail a
+    shape-conformance gate."""
+    assert matches_no_shape(Q1) is True
+    assert matches_no_shape(Q2) is True
+    assert matches_no_shape(Q3) is True

@@ -1,0 +1,66 @@
+{
+  "company": {
+    "name": "OpenAI",
+    "one_line": "OpenAI builds and sells access to frontier AI models, through the consumer ChatGPT product, a developer API, and enterprise offerings, and operates as a capped-profit company controlled by a nonprofit parent.",
+    "stage": "growth",
+    "employees": 3000,
+    "founded_year": 2015
+  },
+  "market": {
+    "description": "Frontier AI models and the products built on top of them, spanning a mass-consumer chat product, a developer API business, and enterprise deployments, against both other frontier labs and increasingly capable open-weight models that commoditize the middle of the market.",
+    "size_usd": "$196.4B",
+    "growth_rate_pct": 33.2,
+    "competitors": [
+      {
+        "name": "Google DeepMind",
+        "positioning": "Backed by Google's distribution across Search, Android, and Workspace, and by Google's own proprietary TPU compute rather than having to rent it.",
+        "relative_strength": "Owns its own chips and cloud infrastructure end to end, and can distribute a model into products with billions of existing users overnight."
+      },
+      {
+        "name": "Anthropic",
+        "positioning": "A safety-focused frontier lab with a strong reputation in coding and enterprise trust, competing directly for API and enterprise developer share.",
+        "relative_strength": "A reputation for reliability and safety that has translated into strong developer and enterprise trust, particularly in coding use cases."
+      },
+      {
+        "name": "Meta",
+        "positioning": "Releases capable open-weight models (Llama) for free, commoditizing the capability tier just below the frontier and undercutting paid API pricing from below.",
+        "relative_strength": "Can subsidize model development from its core advertising business and give the models away, removing the price floor competitors depend on."
+      }
+    ]
+  },
+  "metrics": {
+    "arr_usd": "$10B",
+    "yoy_growth_pct": 194.1,
+    "gross_margin_pct": 41.7,
+    "monthly_churn_pct": 3.8,
+    "customer_count": 700000000
+  },
+  "situation": {
+    "prompt": "ChatGPT has by far the largest consumer user base of any AI assistant, while OpenAI simultaneously carries enormous and growing compute costs from training and serving models at that scale, including massive long-term data center commitments. Should OpenAI keep prioritizing free consumer scale and reach, or shift more aggressively toward higher-margin enterprise and API revenue to fund its compute costs sustainably?",
+    "tension": "Consumer scale is OpenAI's clearest competitive advantage today, a distribution lead that is very hard for competitors to close quickly, but the free tier that drives most of that scale does not by itself cover the compute costs behind it. Enterprise and API revenue is higher margin per user but far smaller in absolute reach, and doubling down there risks ceding the consumer relationship that makes OpenAI a household name in the first place.",
+    "options": [
+      "Keep prioritizing consumer scale: continue investing in ChatGPT's free tier and consumer features, treating the compute cost as the price of maintaining category leadership.",
+      "Shift weight toward enterprise and API: prioritize product and sales investment on higher-margin business and developer revenue to fund compute more sustainably.",
+      "Introduce a stronger ad-supported layer in the free consumer tier, monetizing the scale directly rather than relying on it purely as a funnel to paid tiers."
+    ],
+    "constraints": [
+      "OpenAI's compute commitments, including large multi-year data center and chip agreements, are already signed and represent enormous fixed and semi-fixed costs regardless of near-term revenue mix.",
+      "OpenAI operates as a capped-profit company under a nonprofit parent, which has created public governance scrutiny (including the November 2023 board crisis) that any major strategic shift will be read through.",
+      "Competing frontier labs, particularly Google, can subsidize their AI investment from an existing profitable core business in a way OpenAI cannot."
+    ],
+    "leadership_belief": "Leadership has publicly maintained that consumer scale and reach are strategically necessary even at a near-term cost, on the theory that the distribution and data advantage from hundreds of millions of users compounds into a durable long-term edge that a narrower enterprise-first strategy would not build."
+  },
+  "supporting_facts": [
+    "OpenAI was founded in 2015 and restructured into a capped-profit company (OpenAI LP, later further restructured) governed by a nonprofit parent.",
+    "In November 2023, OpenAI's board briefly removed and then reinstated CEO Sam Altman within the space of about a week, a widely reported governance crisis.",
+    "ChatGPT has been reported to have several hundred million weekly active users through 2025; this brief's customer_count of 700 million is this brief's estimate of continued growth from earlier disclosed figures (roughly 400 million weekly active users reported in early 2025).",
+    "OpenAI's annualized revenue run-rate was reported at approximately $10 billion around mid-2025, with the company reportedly targeting significantly higher run-rate by the end of 2025; this figure is likely understated by the time any interview using this brief takes place.",
+    "OpenAI's annualized run-rate was reported at roughly $3.4 billion around mid-2024; this brief's yoy_growth_pct (194.1%) is this brief's own estimate comparing that earlier reported waypoint to the ~$10 billion mid-2025 figure above, not a percentage OpenAI has disclosed directly.",
+    "OpenAI announced the Stargate project in January 2025, a large-scale US data center and compute infrastructure initiative alongside partners including SoftBank and Oracle, reported to involve commitments in the hundreds of billions of dollars over time.",
+    "OpenAI offers ChatGPT as a free consumer product alongside paid Plus, Team, and Enterprise tiers, plus a separate developer API business.",
+    "OpenAI has released open-weight models in addition to its closed frontier models, a departure from its earlier closed-only approach.",
+    "Employee count, gross margin, and churn figures in this brief are estimates; OpenAI is privately held and does not disclose financials at this level of detail.",
+    "Competition from Chinese AI labs releasing highly capable, low-cost, and sometimes open-weight models (widely discussed following DeepSeek's early 2025 releases) became a significant part of the public competitive narrative during 2025."
+  ],
+  "as_of": "July 2025"
+}
