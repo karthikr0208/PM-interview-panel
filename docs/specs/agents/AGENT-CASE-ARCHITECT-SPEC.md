@@ -1,5 +1,29 @@
 # Agent spec — Case Architect
 
+> **🔴 THIS AGENT NO LONGER RUNS IN PRODUCTION, as of story 3.5.4, 2026-08-06. Read this box before
+> anything below it.**
+>
+> `generate_case_world` in `app/graph/build.py` calls **`select_case_world`** (`app/cases/`), which
+> picks one of **eight hand-written fact sheets about real companies** — Reddit, Duolingo, YouTube,
+> Airbnb, Figma, Cursor, OpenAI, Anthropic. Deterministic Python, no LLM, **zero tokens per
+> interview**. Karthik's call of 2026-08-06, and the reason is the phase's whole point: a candidate
+> has real intuition about a real company and none about an invented one.
+>
+> | | |
+> |---|---|
+> | **The generative agent** | Still in the tree, still tested, **deliberately not deleted** |
+> | **Its 7 golden cases + 47 assertion tests** | Still run — now the more valuable direction: a hand-built world a human considers good, passing these assertions, is a **positive control on the assertions themselves** |
+> | **Everything below about the prompt** | Describes an agent that no longer runs in an interview. Read it as the record of how the generative path was built, not as current runtime behaviour |
+> | **`suits_categories`** | New field on each curated world. It scopes which question shapes a world can take, so nothing can ask a pricing question about Reddit's AI-licensing tension. **Non-empty at runtime for the first time as of this story** |
+>
+> **The round-number assertion now runs against reality**, and that changes what a failure means.
+> `is_round_dollar_amount` was written to catch a model reaching for `$150M`. If a **real** public
+> figure happens to be round, **the assertion is wrong and the data is right** — widen the assertion,
+> do not distort a real number to satisfy a test written for a generative failure mode.
+>
+> The node keeps every side effect it always had: the `agent_events` start/done rows and the
+> `case_worlds` audit insert. `case_world` is still written exactly once and still immutable.
+
 **Written 2026-08-02, before the prompt exists**, per the story 1.3 split. The golden fixtures in
 story 2.2 are written against this document and blind to the prompt, so the prompt cannot be tuned
 against them.

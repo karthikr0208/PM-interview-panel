@@ -1,5 +1,53 @@
 # Agent spec — Interviewer
 
+> **🔴 REWRITTEN IN PART BY STORY 3.5.4, 2026-08-06. Read this box before anything below it.**
+>
+> Sections below are **superseded** and left in place for the audit trail, per CLAUDE.md's rule
+> against rewriting history. This agent changed more than any other in Phase 3.5: it gained a second
+> LLM call, and it lost the constraint that was its strongest result.
+>
+> | Section | What actually holds now |
+> |---|---|
+> | **§2b, refusal** | 🔴 **The refusal branch is DELETED.** `answer_clarification` now **invents** a plausible fact when `case_world` is silent, states it as given, and returns it in a new `improvised_fact` field. Karthik's call, 2026-08-06: a refusal reads as a broken interviewer, and real interviewers say "assume DAU is 50 million" all the time |
+> | **§2b, inputs** | It reads `case_world` **plus `improvised_facts`**, the append-only state list of everything it has already invented this interview. Still no resume, no profile, no level |
+> | **§2c, probing** | 🔴 **Reversed. Probing IS in the product**, as `generate_probe`, added by story 3.5.4. `followup_count` is no longer 0; it is the conduct loop's **primary driver**. The interview is now ONE question probed up to 8 times |
+> | **§3 output schema** | Adds `Probe(probe, angle_used)` and `ClarificationAnswer.improvised_fact`. 🔴 `Probe` deliberately has **no `primary_dimension`** — that is resolved in Python by `resolve_primary_dimension`, never asked of the model |
+> | **§6 the budget** | Recomputed 2026-08-06 with `tiktoken`, against the real curated worlds rather than a chars/token estimate. The finding is unchanged in kind and larger in size: **the naive design still does not fit.** See the new numbers below |
+>
+> **What replaced the refusal assertion.** The 2026-08-05 correct refusal was the only observation of
+> ARCHITECTURE §9's undetectable failure mode *not* happening, and giving it up was deliberate. The
+> property with teeth now is **consistency**: an improvised fact, once recorded, must repeat exactly
+> when asked again. Measured 2026-08-06 — *"Claude.ai has 5 million weekly active users"* came back
+> identical on the second ask. `ungrounded_figures` was **retargeted**, not deleted: it now checks
+> against `case_world ∪ improvised_facts`.
+>
+> 🔴 **`improvised_fact` being non-empty is the ONLY safe signal to append on.** On a repeat ask the
+> model returns `can_answer=True` with an empty `improvised_fact`, because the fact is by then
+> established. A node keyed off `can_answer` would double-record on every repeat.
+>
+> **§6, recomputed.** `tiktoken` `o200k_base`, largest curated world (`openai.json`) = **1,392
+> tokens**, at probe 10 where the transcript is longest:
+>
+> | | typical 250-word answers | verbose 500-word answers |
+> |---|---|---|
+> | full transcript | 7,074 | **10,274 — over the 8,000 ceiling** |
+> | first answer + last 4 turns | 5,154 | **6,754 — fits** |
+>
+> The window is the candidate's **first answer plus the last 4 turns**. The first answer is kept
+> because it is their thesis and every later probe pushes on it. **~47,000 `fast` tokens per
+> interview, so about four a day.**
+>
+> 🔴 **`max_tokens` is a reasoning budget, not an output budget, and this agent is where that bit.**
+> `generate_probe` shipped at 1024, reasoned from output size: `Probe` is two short strings, smaller
+> than `ClarificationAnswer`'s three fields. But gpt-oss emits reasoning tokens against `max_tokens`
+> **before the JSON starts**, and reasoning scales with the **input** — which for a probe grows every
+> turn. The one call in the product whose input grows monotonically had the smallest ceiling, and it
+> failed with `json_validate_failed` at probe 3. Raised to 2048. **That fix is not yet verified.**
+>
+> **`write_bridge` is gone** (2026-08-05, a constant function wearing an LLM call), and the same test
+> was applied to its replacement: four materially different answers produced **4 of 4 distinct**
+> probes, each quoting the candidate.
+
 **Written 2026-08-05, before the prompt exists**, per the story 1.3 split that Phase 2 repeated
 deliberately and that produced four defects there. The golden fixtures in story 3.1 are written
 against this document and blind to the prompt.
