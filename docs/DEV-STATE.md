@@ -1,6 +1,6 @@
 # Development State
 
-**Last updated:** 2026-08-05 · Session 11
+**Last updated:** 2026-08-07 · Session 14
 
 ---
 
@@ -24,6 +24,19 @@ than an assumption:
 | Does Supabase work from Render at all? | Yes. Session pooler, and a checkpoint step costs **~27ms** in production |
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
+
+**🟢 SESSION 14, 2026-08-07: THE PROBE LOOP COMPLETED A LIVE RUN FOR THE FIRST TIME, AND EVERYTHING
+IS DEPLOYED.** All eight probes plus the boundary exit passed in run 1 of `test_conduct_loop.py`,
+which is phase-gate condition #3's central assertion and had never been observed. Twelve commits
+pushed (`e2a2d7f..cbd5ce2`); Netlify proven current by bundle grep.
+
+**🔴 One defect is open and it is NOT what it looks like: `generate_probe` fails intermittently at
+probe 7, with a SHAPE fault, not a size one.** Session 13's `max_tokens` 1024 -> 2048 is now
+verified as real (probes 1-6 are solid where probe 3 used to fail) but it moved the boundary rather
+than closing it. **The next `max_tokens` bump would change nothing** — the body carries the generic
+`"Failed to validate JSON"`, not the truncation message. `cbd5ce2` makes the next failure
+self-diagnosing via a new `llm_schema_failure` log record. **The other run-2 failure was the 8,000
+TPM per-minute ceiling, a test-harness artifact, not a defect.** See § Decisions 2026-08-07.
 
 **🟢 SESSION 13, 2026-08-06: THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world`
 calls `select_case_world`; the generative Case Architect is out of the runtime path, so an interview
@@ -145,7 +158,7 @@ toggle no script can flip.** See Blockers.
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
-| 3.5 Question quality | 🟡 **ALL FIVE STORIES ARE CODE-COMPLETE 2026-08-06. The gap is VERIFICATION, not code: the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
+| 3.5 Question quality | 🟡 **ALL FIVE STORIES CODE-COMPLETE 2026-08-06; VERIFIED IN PART AND DEPLOYED 2026-08-07.** The probe loop **completed a live run for the first time** (all 8 probes + boundary exit, gate condition #3's central assertion). Session 13's `generate_probe` `max_tokens` fix is **verified real but incomplete** — it moved the failure from probe 3 to probe 7. **The probe-7 fault is a SHAPE fault, not truncation; another `max_tokens` bump does nothing.** The other live failure was the 8,000 TPM per-minute ceiling, a test-harness artifact. Neither of two full live runs was green, but **every test passed in at least one**. Twelve commits deployed. See § Decisions 2026-08-07. Prior session-13 notes follow: **the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
 | 4 Evaluator + scorecard | ⬜ not started | — | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -2136,6 +2149,75 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🔴 SESSION 15. THE LOOP WORKS. THE OPEN ITEM IS PROBE 7, AND IT IS A SHAPE FAULT, NOT A SIZE ONE.
+
+**Run these three first (~45s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 374 passed, 103 deselected
+cd frontend && npm test -- --run                                          # expect 139 passed, 15 files
+curl -s https://pmaiinterviewpanel.netlify.app/ | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js'
+   # then curl that bundle and grep "could not load the brief" -- CompanyBrief is NEW since
+   # session 11, so that string is a true deploy marker. The BACKEND has no version endpoint;
+   # `/openapi.json` is byte-identical across 3.5 because no API file changed. Do not read a
+   # matching route list as "the backend is current" -- it cannot distinguish.
+```
+
+**🟢 EVERYTHING IS DEPLOYED as of 2026-08-07.** Twelve commits pushed, `e2a2d7f..cbd5ce2`. Netlify
+confirmed current by bundle grep. **Render was pushed but could not be proven from outside** — see
+the marker note above. The in-product proof is free and takes 30 seconds: **if the interview asks
+ONE question about a REAL company (Anthropic, Figma, Reddit, Cursor...), the new backend is live.
+Three questions about an invented company means it is stale.**
+
+### 🔴 The one open defect: `generate_probe` fails at probe 7, intermittently
+
+**Read § Decisions 2026-08-07 before touching it.** Two things there will otherwise be re-derived
+at the cost of a live run each:
+
+1. **It is NOT truncation.** The body carries the generic `"Failed to validate JSON"`, not
+   `"max completion tokens reached"`. **Raising `max_tokens` a fourth time does nothing.** That is
+   the obvious move and it is wrong.
+2. **Probe depth alone does not reproduce it.** A synthetic probe-7 transcript through the raw
+   runnable went 3/3 clean. It only fails under the real loop, intermittently.
+
+**The next live failure is now self-diagnosing**, which it was not before: `cbd5ce2` logs
+`llm_schema_failure ... failed_generation=...` in full. **Grep any live run or Render log for
+`llm_schema_failure` FIRST** — that record names the actual wrong shape, and no live budget needs
+to be spent guessing at it.
+
+**The live hypothesis worth testing first, and it is free to reason about:** `_append_retry_instruction`
+makes the prompt LONGER on retry. On a call whose reasoning budget is the binding constraint, that is
+the wrong direction, and it fits the evidence — the retry has now failed immediately after the
+attempt at probe 3 (session 13) and probe 7 (session 14). Consider retrying with the *same* prompt,
+or with a *higher* `max_tokens`, rather than a longer one.
+
+### 🟡 The live file needs pacing before it can ever be green
+
+`test_conduct_loop.py -m live` fires ~16 calls back to back and **hits the 8,000 TPM per-minute
+ceiling** (`Used 5567, Requested 2718`, measured). That is a **test-harness artifact, not a product
+defect** — a real interview is paced by a human typing. **Fix it in the test with a sleep between
+turns, never with backoff in `llm.py`**, which re-raises transport errors untouched on purpose.
+
+Without that pacing, a red run cannot be read: run 1 and run 2 failed on **different** tests, and
+across the two runs every test passed at least once.
+
+### Then the owed live files, in this order
+
+1. `tests/test_conduct_loop.py -m live` — green in ONE run, not across two. ~16 calls.
+2. `tests/test_transcript.py -m live` — 6 tests, still never run against the new loop.
+3. The golden interviewer smoke — 3 of 5 cases have never run live.
+
+### Budget, measured this session
+
+~42 `fast` calls consumed on 2026-08-07, roughly **110,000 of 200,000**, at ~2,700 tokens per probe
+request (from the 429 header's own `Requested 2718`). **Two full live runs of `test_conduct_loop.py`
+plus a gate-#4 interview do not fit in one day.** Plan for one live suite run OR one interview, not
+both, unless the suite passes first time.
+
+---
+
+## Superseded — session 13's handoff, kept for the record
+
 ## 🔴 SESSION 14. PHASE 3.5 IS CODE-COMPLETE AND UNVERIFIED. SPEND THE FIRST FRESH TOKENS ON THE PROBE LOOP.
 
 **Run these three first (~45s, free, no LLM):**
@@ -3251,6 +3333,60 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟢🔴 2026-08-07 (session 14) · THE PROBE LOOP COMPLETED A LIVE RUN FOR THE FIRST TIME, AND THE
+`max_tokens` FIX IS HALF RIGHT.**
+
+`tests/test_conduct_loop.py -m live` was run **twice**, in full. Neither run was green, **and every
+one of the four tests passed in at least one of them.**
+
+| Run | Result | Failures |
+|---|---|---|
+| 1 | 2 failed, 2 passed, 251s | tests 2 and 4 (both clarify path) |
+| 2 | 2 failed, 2 passed, 190s | test 1 (probe 7), test 3 (**429**) |
+
+**🟢 The single most important observation: in run 1
+`test_the_loop_asks_the_one_question_then_probes_and_exits_at_the_probe_count_boundary` PASSED.**
+All eight probes, then a clean exit at `_PROBES_THIS_PHASE`'s boundary, across real
+`Command(resume=...)` boundaries. That is phase-gate condition #3's central assertion and it had
+**never once been observed** before today.
+
+**🟢 So session 13's `generate_probe` `max_tokens` 1024 -> 2048 IS real, and is no longer an
+unverified fix.** It was applied blind when the daily cap killed the re-run. Probes 1-6 now succeed
+consistently where probe 3 used to fail.
+
+**🔴 But it did not close the hole, it moved it.** Run 2 failed at **probe 7**, `ask_probe`,
+`StructuredOutputError` after `json_validate_failed` on BOTH the attempt and the retry.
+
+**🔴 AND THE OBVIOUS NEXT FIX IS THE WRONG ONE.** The probe-7 body carries Groq's **generic**
+`"Failed to validate JSON. Please adjust your prompt."` — **not** the truncation variant
+(`"max completion tokens reached before generating a valid document"`) that justified 1024 -> 2048.
+Those two faults share the `json_validate_failed` code and want **opposite** fixes. Raising
+`max_tokens` a third time would change nothing.
+
+**The log could not tell them apart**, because `_attempt` truncated the body at `str(exc)[:200]`,
+which cuts off immediately before `failed_generation`. Fixed this session in `cbd5ce2`: a separate
+`llm_schema_failure` record carries the full message and up to 2,000 characters of
+`failed_generation`. Deliberately **not** prefixed `llm_call`, because `_ok_llm_calls` filters on
+that prefix and the record must not perturb a call count. The 200-char string stays in the retry
+prompt on purpose — **lengthening the prompt is the wrong direction on a call whose reasoning
+budget is what ran out**, and it is a live hypothesis that appending the retry instruction is why
+the retry fails too, at both probe 3 and probe 7.
+
+**🔴 CLASSIFY BEFORE BELIEVING, AGAIN — and it paid off again.** Run 2's other failure was
+`429 ... on tokens per minute (TPM): Limit 8000, Used 5567, Requested 2718`. That is the
+**per-minute** ceiling, not the daily cap, and it is **an artifact of 16 live calls fired back to
+back with no human between them.** A real interview is paced by a candidate typing, so it does not
+hit this. **Not a defect. Do not "fix" it in application code.** If the live file is to be reliably
+green it needs pacing in the TEST, not backoff in `llm.py`.
+
+**Probe depth alone does NOT reproduce it.** A synthetic transcript built to probe-7 depth and sent
+through the raw runnable (no retry wrapper) succeeded **3 times out of 3**, spaced 20s apart. So
+this is not a clean size threshold; it is intermittent, and it belongs to the MoE non-determinism
+class already recorded under 2026-08-01. **It only reproduces under the real loop.**
+
+**What this costs a candidate:** `_PROBES_THIS_PHASE` is 8, so a real interview goes **through**
+probe 7. Karthik was told the odds before choosing to sit gate #4 today anyway (see below).
 
 **🟡 2026-08-06 (session 13) · `tiktoken` WAS AN UNDECLARED DEPENDENCY, IMPORTED AT MODULE LEVEL.**
 
