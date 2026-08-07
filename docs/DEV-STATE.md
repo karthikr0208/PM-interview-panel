@@ -177,7 +177,7 @@ toggle no script can flip.** See Blockers.
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
 | 3.5 Question quality | 🟡 **ALL FIVE STORIES CODE-COMPLETE 2026-08-06; VERIFIED IN PART AND DEPLOYED 2026-08-07.** The probe loop **completed a live run for the first time** (all 8 probes + boundary exit, gate condition #3's central assertion). Session 13's `generate_probe` `max_tokens` fix is **verified real but incomplete** — it moved the failure from probe 3 to probe 7. **The probe-7 fault is a SHAPE fault, not truncation; another `max_tokens` bump does nothing.** The other live failure was the 8,000 TPM per-minute ceiling, a test-harness artifact. Neither of two full live runs was green, but **every test passed in at least one**. Twelve commits deployed. See § Decisions 2026-08-07. Prior session-13 notes follow: **the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
-| 4 Evaluator + scorecard | ⬜ not started | — | — |
+| 4 Evaluator + scorecard | ⬜ not started — **but SPECCED 2026-08-07**, from the live interview of the same day rather than from the plan. Three findings shape it: **2 of 5 rubric dimensions got ZERO evidence** in a real interview, so the Evaluator will be asked to score things nothing was said about; **a single end-of-interview call does not fit the 8,000 TPM ceiling** (the full transcript measured 10,274 tokens on 2026-08-06), so per-answer scoring is forced rather than chosen; and the Interviewer's 4-turn window **must not be reused**, because "sharpens a thesis under pushback" is a property of an arc a keyhole cannot see. The DDL also settles more than expected — `evidence_quote` is `not null` with a length check, so PRD §8's schema-level enforcement is **in Postgres**, and `score` being `not null` means an unassessed dimension is represented by the ABSENCE of a row | [PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
 | 7 Polish & hardening | ⬜ not started | — | — |
@@ -2196,6 +2196,27 @@ market was shrinking against a world stating 8.6% growth. **This passed on 2026-
 refusal branch that made it pass was deleted by 3.5.4.** Fixing it means keeping invent-and-record's
 helpfulness while restoring premise-checking, which is a prompt problem with a real tension in it.
 **Karthik has the verbatim exchange in § Decisions.**
+
+### 🟢 Also done 2026-08-07, all free — do not redo
+
+- **The false-premise prompt is fixed** (three ordered steps, contradiction first) but **NOT
+  validated live**. Validating it is one golden case, not a suite.
+- **`normalize_dashes`** closes the dash hole at the graph boundary, with a Python/TypeScript
+  parity pin.
+- **`test_conduct_loop.py -m live` is paced** at ~21s between calls.
+- **Both UI nits** are fixed: input hints gated on `touched`, and the Case Architect now says
+  "Chose the company" rather than claiming generation it does not do.
+- **[PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) is written**, from the live interview rather than the
+  plan. **Read its § "What the live interview already decided" before planning Phase 4** — all
+  three items are measured and all three would otherwise be found halfway through the build.
+
+### 🔴 The decision Phase 4 needs from Karthik, and it is worth deciding early
+
+**2 of 5 rubric dimensions got ZERO evidence in a real interview** (`market_accuracy` and
+`point_of_view` both 0 after eight probes). So: does an unevidenced dimension render as
+`not assessed`, or does `dimension_coverage` steer the Interviewer so it happens less? **The first
+is required regardless** — coverage can never be guaranteed — but the second is a Phase 3.5 change
+and is cheaper to make before Phase 4 is built around its absence.
 
 ### 🟡 Then, cheap and free
 
