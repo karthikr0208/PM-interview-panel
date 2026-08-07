@@ -71,9 +71,14 @@ const AGENTS: readonly PanelAgent[] = [
     name: 'Case Architect',
     copy: {
       waiting: WAITING_COPY,
-      active: 'Building the case for your interview.',
-      done: 'Built the case for your interview.',
-      error: 'Ran into a problem building the case.',
+      // Must stay byte-identical to build.py's _CASE_WORLD_*_SUMMARY, so a
+      // candidate sees the same sentence whether this fallback or the real
+      // summary renders. "Choosing" since 2026-08-07: the node selects one of
+      // eight curated real companies and makes no LLM call, so "Building"
+      // described work that no longer happens.
+      active: 'Choosing the company for your interview.',
+      done: 'Chose the company for your interview.',
+      error: 'Ran into a problem choosing the company.',
     },
   },
   {

@@ -129,6 +129,8 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
 export function InterviewSurface({ state, onSubmitAnswer, onAskClarification }: InterviewSurfaceProps) {
   const [answerText, setAnswerText] = useState('')
   const [clarifyText, setClarifyText] = useState('')
+  const [answerTouched, setAnswerTouched] = useState(false)
+  const [clarifyTouched, setClarifyTouched] = useState(false)
   // Which control was submitted last, so "Try again" resends the SAME
   // action rather than guessing -- the hook's own error state does not
   // carry this, since it is an input-echo concern, not interview state.
@@ -173,6 +175,15 @@ export function InterviewSurface({ state, onSubmitAnswer, onAskClarification }: 
   const sending = state.kind === 'sending'
   const answerEmpty = answerText.trim().length === 0
   const clarifyEmpty = clarifyText.trim().length === 0
+
+  // Gated on `touched` so an untouched field is not already telling the
+  // candidate what they did wrong. Observed 2026-08-07 in a real interview:
+  // both hints were showing on a freshly served question, before anyone had
+  // clicked anything, which reads as an error state on arrival. The button
+  // is disabled while empty regardless, so the hint's job is only to explain
+  // a disabled button the candidate has actually reached for.
+  const showAnswerHint = answerTouched && answerEmpty
+  const showClarifyHint = clarifyTouched && clarifyEmpty
 
   function handleSubmitAnswer() {
     if (answerEmpty || sending) return
@@ -244,11 +255,12 @@ export function InterviewSurface({ state, onSubmitAnswer, onAskClarification }: 
           id="interview-answer"
           value={answerText}
           onChange={(e) => setAnswerText(e.target.value)}
+          onBlur={() => setAnswerTouched(true)}
           disabled={sending}
           rows={5}
           className="mt-1 w-full rounded-control border border-border bg-surface p-3 text-sm text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
         />
-        {answerEmpty && (
+        {showAnswerHint && (
           <p className="mt-1 text-xs text-text-secondary">Write an answer before submitting.</p>
         )}
         <button
@@ -269,11 +281,12 @@ export function InterviewSurface({ state, onSubmitAnswer, onAskClarification }: 
           id="interview-clarify"
           value={clarifyText}
           onChange={(e) => setClarifyText(e.target.value)}
+          onBlur={() => setClarifyTouched(true)}
           disabled={sending}
           rows={2}
           className="mt-1 w-full rounded-control border border-border bg-surface p-2 text-sm text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
         />
-        {clarifyEmpty && <p className="mt-1 text-xs text-text-secondary">Type a question first.</p>}
+        {showClarifyHint && <p className="mt-1 text-xs text-text-secondary">Type a question first.</p>}
         <button
           type="button"
           onClick={handleAskClarification}

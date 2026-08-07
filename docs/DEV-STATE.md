@@ -3661,6 +3661,23 @@ against a measured ~2,700-token probe request. **In the test, never in `app/llm.
 re-raises transport errors untouched on purpose. Until this runs, a red run in that file is
 unreadable: its two failures were on **different tests each time**.
 
+**4. Both input hints are gated on `touched`.** They were gated only on the field being empty, which
+it always is before anyone types, so a freshly served question arrived already telling the candidate
+what they had done wrong. The submit button is disabled while empty regardless, so the hint's only
+job is explaining a disabled button someone actually reached for. Guarded by a test asserting
+**neither** hint renders on arrival.
+
+**5. The Case Architect's copy says "Choosing"/"Chose the company", not "Building"/"Built the
+case".** That node stopped generating anything on 2026-08-06 — `select_case_world` is deterministic
+Python over eight curated companies and makes zero LLM calls. On a portfolio artifact whose subject
+IS multi-agent orchestration, an agent credited with generation it does not do is the first thing a
+reader would catch. Changed in **both** `build.py` and `OrchestrationColumn.tsx`, which are required
+to stay byte-identical.
+
+**384 offline, 140 vitest** (both were green before at 384/139; the vitest gain is the new
+hints-on-arrival guard). Two frontend tests asserted the old behaviour and were updated with it,
+not around it.
+
 **🟡 2026-08-06 (session 13) · `tiktoken` WAS AN UNDECLARED DEPENDENCY, IMPORTED AT MODULE LEVEL.**
 
 Story 3.5.4's token-budget test does `import tiktoken` at the top of the file, so the whole file

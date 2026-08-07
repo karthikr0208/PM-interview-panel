@@ -144,11 +144,29 @@ describe('InterviewSurface', () => {
     expect(onSubmitAnswer).toHaveBeenCalledWith('My answer.')
   })
 
-  it('disables submit on empty input, and says why', () => {
+  it('disables submit on empty input, and says why once the field is touched', () => {
     const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
     render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
     expect(screen.getByRole('button', { name: /submit answer/i })).toHaveProperty('disabled', true)
+
+    // The hint is gated on `touched` since 2026-08-07. A freshly served
+    // question showed both hints before the candidate had clicked anything,
+    // which reads as an error state on arrival.
+    expect(screen.queryByText(/write an answer before submitting/i)).toBeNull()
+
+    fireEvent.blur(screen.getByLabelText(/your answer/i))
     expect(screen.getByText(/write an answer before submitting/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /submit answer/i })).toHaveProperty('disabled', true)
+  })
+
+  it('never shows either input hint on a freshly served question', () => {
+    // The regression this guards, observed live 2026-08-07: BOTH hints were
+    // rendered on arrival, because each was gated only on the field being
+    // empty, which it always is before anyone types.
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
+    render(<InterviewSurface state={state} onSubmitAnswer={noop} onAskClarification={noop} />)
+    expect(screen.queryByText(/write an answer before submitting/i)).toBeNull()
+    expect(screen.queryByText(/type a question first/i)).toBeNull()
   })
 
   it('disables submit on whitespace-only input', () => {

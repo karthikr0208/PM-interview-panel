@@ -155,7 +155,10 @@ describe('OrchestrationColumn', () => {
       event({ id: 'evt-3', agent: 'planner', status: 'started', summary: null }),
     ])
     render(<OrchestrationColumn sessionId="sess-1" />)
-    expect(row('Case Architect').getByText(/building the case for your interview/i)).toBeTruthy()
+    // "choosing", not "building", since 2026-08-07: this node selects one of
+    // eight curated real companies and makes no LLM call, so the old copy
+    // named work that no longer happens.
+    expect(row('Case Architect').getByText(/choosing the company for your interview/i)).toBeTruthy()
     expect(row('Interview Planner').getByText(/planning interview questions/i)).toBeTruthy()
   })
 

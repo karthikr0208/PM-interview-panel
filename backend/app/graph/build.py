@@ -60,9 +60,16 @@ _STARTED_SUMMARY = "Reading your resume and assessing a level."
 _DONE_SUMMARY = "Read your resume and assessed a level."
 _ERROR_SUMMARY = "Ran into a problem understanding your resume."
 
-_CASE_WORLD_STARTED_SUMMARY = "Building the case for your interview."
-_CASE_WORLD_DONE_SUMMARY = "Built the case for your interview."
-_CASE_WORLD_ERROR_SUMMARY = "Ran into a problem building the case."
+# 🔴 "Choosing", not "Building", since 2026-08-07. This node stopped
+# GENERATING a case world on 2026-08-06: `generate_case_world` calls
+# `select_case_world`, which is deterministic Python picking one of eight
+# curated real companies, and makes ZERO LLM calls. "Built the case for your
+# interview" described work that no longer happens. On a portfolio artifact
+# whose subject IS multi-agent orchestration, an agent credited with
+# generation it does not do is the first thing a reader would catch.
+_CASE_WORLD_STARTED_SUMMARY = "Choosing the company for your interview."
+_CASE_WORLD_DONE_SUMMARY = "Chose the company for your interview."
+_CASE_WORLD_ERROR_SUMMARY = "Ran into a problem choosing the company."
 
 _PLAN_STARTED_SUMMARY = "Planning interview questions."
 _PLAN_DONE_SUMMARY = "Planned interview questions."
