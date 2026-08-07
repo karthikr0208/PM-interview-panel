@@ -191,7 +191,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 | Resume Analyst | ✅ [AGENT-RESUME-ANALYST-SPEC.md](specs/agents/AGENT-RESUME-ANALYST-SPEC.md) — written 2026-07-31, before the prompt | 8 written (1.3a). Best run **37 passed / 1 failed, zero 429s** (2026-08-02). **Not yet a reliable gate — 3 of 8 flap on `deep`: 01 `years_pm_experience`, 02 re-capitalization, 05 level → APM** | 2026-08-01 `27bb749`, validated against a control |
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — **superseded at the top 2026-08-06: this agent no longer runs in production** | 7 written blind 2026-08-02, still running. **The 8 curated worlds now pass them too, which makes them a positive control on the assertions themselves.** 47 offline assertion tests | **N/A — the prompt is not used in an interview.** `select_case_world` is deterministic Python, zero tokens |
 | Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — **§2, §3, §6 superseded 2026-08-06 by story 3.5.3**; see the box at the top of that file | Rewritten for the one-question-plus-ladder contract. **Smoked live on `fast` 2026-08-06, PASS, no retry.** Three new gates asserted on the generated question: `decorative_statistic`, `is_recitation_shaped`, `matches_no_shape` | 2026-08-06 — **the prompt no longer writes the question.** Slots + ladder only; Python formats the bank template. **Runs on `fast` (measured) — the `deep` requirement was about `QuestionPlan`'s size, not this agent** |
-| Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — **§2b, §2c, §3 and §6 superseded 2026-08-06 by story 3.5.4**; see the box at the top of that file. Refusal branch deleted, `generate_probe` added, budget recomputed | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests. **2 of 5 smoked live on `fast` 2026-08-05: `apm_consumer_world` (no retry) and `senior_pm_platform_world` (the refusal branch, retry fired then passed).** Other 3 never run | 2026-08-06 — **invent-and-record replaces refusal**; `_PROBE_SYSTEM_PROMPT` added. `generate_probe` `max_tokens` 1024 -> 2048 after a live `json_validate_failed` at probe 3, **UNVERIFIED**. Runs on `fast` |
+| Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — **a SECOND superseding box added at the top 2026-08-07**, above 3.5.4's. Clarification prompt restructured, `required_angle` added, `select_probe_angle` and `angles_match` new | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests, **+4 for `echoes_false_premise` 2026-08-07**. **2 of 5 ever smoked live** (2026-08-05). 🔴 **`gpm_portfolio_world` — the adversarial leading-question case — is one of the 3 NEVER RUN, and it is the test for the regression found live on 2026-08-07. Run the unrun three before writing new ones** | **2026-08-07 — `_CLARIFICATION_SYSTEM_PROMPT` restructured into THREE ORDERED STEPS, contradiction FIRST**, after it accepted a false premise live. `_PROBE_SYSTEM_PROMPT`'s ANGLE_USED section now honours a `required_angle`. **NEITHER VALIDATED LIVE.** Prior: 2026-08-06 invent-and-record, and `max_tokens` 1024 -> 2048 which is now **verified real but incomplete** (probes 1-6 solid, probe 7 still fails intermittently on a SHAPE fault). Runs on `fast` |
 | Evaluator | ⬜ (Phase 4) | — | — |
 | Coach | ⬜ (Phase 5) | — | — |
 
@@ -2167,19 +2167,72 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🔴 SESSION 15. THE LOOP IS PROVEN. THE QUESTION IS WRONG, AND THE CAUSE IS ONE FUNCTION.
+## 🔴 SESSION 15. EVERYTHING FOUND ON 2026-08-07 IS FIXED. NOTHING FIXED IS VALIDATED LIVE.
 
 **Karthik sat a full interview on the deployed stack on 2026-08-07** — one question, four
-clarifications, eight probes, clean exit. **Read § Decisions 2026-08-07 (session 14) before
-planning anything**; it has the observed state at every step and eleven findings, and every one of
-them cost real budget to obtain.
+clarifications, eight probes, clean exit. It produced **eleven findings**, then the rest of the day
+went on fixing them at zero token cost. **Read § Decisions 2026-08-07 before planning anything**; it
+carries the observed graph state at every step, and every number in it cost real budget.
 
 **The single most important thing to not re-derive:** the loop, invent-and-record, the probe's
-response to the answer, and the ladder all **work**. The interview was wrong because of
-`select_category`, and nothing else.
+response to the candidate's answer, and the ladder all **work** — that is measured, live, with a
+human. Six defects were found around them, and all six are fixed:
 
-**Run these first (~45s, free):** `pytest tests -q -m "not live"` → **377 passed, 103 deselected**;
-`npm test -- --run` → 139 passed, 15 files.
+| Defect | Fix | Live? |
+|---|---|---|
+| Senior PM got a funnel question in a strategy interview | `select_category`: strategy wins, level picks difficulty | ⬜ |
+| GPM wrapped to the APM question | `select_shape` clamps instead of modulo | ⬜ |
+| A false premise was accepted and echoed back | Clarification prompt: three ordered steps, contradiction first | ⬜ |
+| 2 of 5 rubric dimensions got zero evidence | `select_probe_angle` forces the least-covered angle | ⬜ |
+| U+2011 reaching `question_plan` and `transcript_turns` | `normalize_dashes` at the graph boundary | ⬜ |
+| Two UI nits (premature hints, Case Architect credit) | Gated on `touched`; copy says "Chose the company" | 🟢 offline |
+
+**Every ⬜ in that last column is the work of session 15.**
+
+**Run these first (~45s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 389 passed, 103 deselected
+cd frontend && npm test -- --run                                          # expect 140 passed, 15 files
+```
+
+**Everything is committed and pushed.** Eight commits on 2026-08-07, `e2a2d7f..5e34e3f`, tree clean.
+
+**🔴 THE WHOLE DAY'S WORK AFTER THE INTERVIEW IS UNVALIDATED LIVE.** Two agent prompts changed and
+the probe loop was rewired, on **zero** live confirmation, because the `fast` budget was spent. That
+is not a defect, it is the state — but **do not read 389 green as "it works."** Offline cannot see
+any of it.
+
+### 🔴 SPEND THE FIRST FRESH TOKENS IN THIS ORDER. It is a cheap-to-expensive ladder.
+
+**1. `gpm_portfolio_world`, the ONE golden case that matters (~2 calls).**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/golden/interviewer -q -m "live" -k gpm_portfolio
+```
+
+This is the adversarial leading-question fixture. It **has never been run**, and it is the test for
+the regression found live on 2026-08-07. If the three-step prompt works, this passes. **Cheapest
+possible validation of the most important fix.**
+
+**2. The paced live conduct loop (~16 calls, now ~8 minutes).**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/test_conduct_loop.py -q -m "live"
+```
+
+`_paced()` puts ~21s between calls. **This is also the batching hypothesis's experiment:** if it
+goes green, neither of 2026-08-07's two live failures was a product defect. **Grep for
+`llm_schema_failure` if anything reds** — `cbd5ce2` now logs Groq's full `failed_generation`, so the
+probe-7 shape fault names itself instead of needing another day to diagnose.
+
+**3. Karthik re-sits gate #4 (~47,000 tokens).** It now tests **three** things at once: does the
+strategy question read right, does the false-premise fix hold against a leading question he asks
+himself, and **do steered probes still feel like an interviewer following his argument** rather than
+a rubric checklist. That last one is the accepted risk of his 2026-08-07 decision and only he can
+judge it.
+
+**Budget note:** steps 1 and 2 are ~18 calls, well under a fresh day. Step 3 fits after them.
 
 ### 🟢 The category fix is DONE. Do not redo it.
 
@@ -2188,14 +2241,6 @@ calibration (strategy wins; level picks difficulty within it), **plus a second i
 uncovered** — `select_shape`'s modulo wrapped GPM back to the APM question. Three tests added and
 falsified. **The unfixed half is that the change is DEPLOYED NOWHERE and has never been seen live:
 a re-sat interview is the only thing that closes gate #4.**
-
-### 🔴 FIRST: the remaining fix
-
-**The false-premise regression (`_CLARIFICATION_SYSTEM_PROMPT`).** The Interviewer agreed the
-market was shrinking against a world stating 8.6% growth. **This passed on 2026-08-05 and the
-refusal branch that made it pass was deleted by 3.5.4.** Fixing it means keeping invent-and-record's
-helpfulness while restoring premise-checking, which is a prompt problem with a real tension in it.
-**Karthik has the verbatim exchange in § Decisions.**
 
 ### 🟢 Also done 2026-08-07, all free — do not redo
 
@@ -2245,22 +2290,34 @@ probe that used a ladder angle on 2026-08-07 was the best of the interview. **Th
 and the live re-sit is what tests it.** `not_assessed` is still required in Phase 4 regardless —
 coverage can never be guaranteed.
 
-### 🟡 Then, cheap and free
+### 🟡 Still open, and all of it is free
 
-- **Pace `test_conduct_loop.py -m live`** and re-run. See the batching hypothesis under § Decisions
-  2026-08-07 — it may show that **neither** of session 14's live failures was a product defect.
-  **Do this before touching `generate_probe`.**
-- `dimension_coverage` is tracked and never steers: 2 of 5 dimensions got **zero** coverage across
-  eight probes. Phase 4 needs this fixed or it will score two dimensions on nothing.
-- U+2011 is reaching `question_plan` and `transcript_turns`. `stripDashes` covers display only.
-- `airbnb.json` says "2024 relaunch" in three fields; it was **May 2025**. Karthik's call.
-- Two UI nits: validation hints on untouched fields, and the orchestration column crediting the
-  Case Architect with work it no longer does.
+- **`airbnb.json` says "In 2024, Airbnb relaunched" in three fields** (`company.one_line`,
+  `market.description`, `situation.prompt`). Services and Experiences was the **May 2025** Summer
+  Release. Not a stale date, a wrong one, and the whole `situation` rests on it. **Karthik's call** —
+  he accepted stale dates on these sheets, which is a different thing.
+- **`_append_retry_instruction` makes the prompt LONGER on retry**, which is the wrong direction on
+  a call whose reasoning budget is the binding constraint. The retry has now failed immediately
+  after the attempt at probe 3 (session 13) and probe 7 (session 14). **Only worth acting on if the
+  paced run still reds** — if the batching hypothesis holds, there is nothing here to fix.
+- **Phase 4 itself.** [PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) is written and starts at 4.1, which
+  is fixtures and assertions and costs **zero tokens**. It is the right thing to do while waiting on
+  budget.
+
+### Deployment
+
+**Pushed through `5e34e3f`.** Render and Netlify build from `origin/main`, so both should be current.
+**The backend has no version endpoint** and `/openapi.json` is byte-identical across all of 3.5, so
+this is not proven from outside — the free in-product check is in the superseded session-14 handoff
+below, and the 30-second version is: a **strategy** question about a real company means the newest
+build is live, since `select_category` changed on 2026-08-07.
 
 ### Budget
 
 **~110,000 of 200,000 `fast` consumed on 2026-08-07 before the interview**, plus the interview
-itself. Assume the day is spent. The measured rate is **~2,700 tokens per probe request**.
+itself. **Assume the day is spent.** The measured rate is **~2,700 tokens per probe request**.
+The three live items at the top of this handoff are ~18 calls plus one interview, which fits a
+fresh day comfortably.
 
 ---
 

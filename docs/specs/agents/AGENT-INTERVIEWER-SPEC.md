@@ -1,5 +1,33 @@
 # Agent spec — Interviewer
 
+> **🔴 CHANGED AGAIN 2026-08-07, BY A LIVE INTERVIEW. Read this box first, then the 3.5.4 box below it.**
+>
+> Karthik sat a full interview on the deployed stack (DEV-STATE § Decisions 2026-08-07). Two of this
+> agent's contracts changed as a result, and **neither is validated live yet.**
+>
+> | What changed | Why |
+> |---|---|
+> | **`_CLARIFICATION_SYSTEM_PROMPT` is THREE ORDERED STEPS**, contradiction first, then cite, then invent. "Silent" is now defined explicitly as the world saying nothing **either way**, not saying something the question would rather it did not | 🔴 **A REGRESSION.** Asked *"Since the short-term rental market is shrinking..."* against a world stating `growth_rate_pct: 8.6`, it answered *"Yes, the shrinking short-term rental market makes Services and Experiences a more critical growth driver."* It accepted the premise **and** repeated the false claim back, both of which the prompt already banned in those words. It was a two-way decision (cite or invent) with a premise warning bolted on beside it, so a leading question read as a gap to fill and helpfulness won. **The ordering is the fix, not more emphasis** |
+> | **`generate_probe` takes `required_angle`.** When given, the full ladder is left OUT of the prompt and only that angle goes in | `dimension_coverage` was tracked from 3.5.4 and **read by nothing** — `resolve_primary_dimension` inferred coverage positionally, from probe count, never from the counter. A real eight-probe interview left **2 of 5 rubric dimensions at ZERO**, which leaves Phase 4's Evaluator scoring dimensions nothing was said about. Karthik's call, 2026-08-07: force the angle, do not nudge |
+> | **`select_probe_angle`** and **`angles_match`** are new and public | Deterministic Python, ties on ladder order, same rule as `select_case_world`. The caller now knows the dimension **before** the call, so coverage no longer depends on what the model echoed back |
+>
+> **The 2026-08-05 refusal result is now understood as load-bearing, not merely lost.** The 3.5.4 box
+> below records giving it up as deliberate. What 2026-08-07 adds is the cost: **the disposition that
+> makes this agent helpful is the same one that makes it agreeable**, and no suite can see the
+> difference. The consistency property that replaced it **did hold live** — an improvised `3.2%` came
+> back identical two probes later, and did not re-record.
+>
+> 🔴 **The test for the regression ALREADY EXISTED AND HAD NEVER BEEN RUN.** `gpm_portfolio_world` is
+> the adversarial leading-question fixture, written blind 2026-08-05. Only 2 of the 5 interviewer
+> golden cases were ever smoked live. **Running the three unrun cases is worth more than writing new
+> ones.** Its assertion was also widened: it looked for the false claim being *asserted*, and the
+> live failure *conceded* it in a subordinate clause and built on it. `echoes_false_premise` covers
+> that shape.
+>
+> **🔴 KNOWN, UNVALIDATED RISK:** forcing an angle may make probes read as a rubric checklist rather
+> than an interviewer following the argument. On 2026-08-07 the one probe that used a ladder angle
+> was the best of the interview, which argues the other way. **A hypothesis. The re-sit tests it.**
+
 > **🔴 REWRITTEN IN PART BY STORY 3.5.4, 2026-08-06. Read this box before anything below it.**
 >
 > Sections below are **superseded** and left in place for the audit trail, per CLAUDE.md's rule
