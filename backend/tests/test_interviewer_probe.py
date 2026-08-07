@@ -336,3 +336,108 @@ def test_probe_messages_also_fit_with_typical_250_word_answers() -> None:
     total_tokens = sum(len(enc.encode(text)) for _, text in messages)
 
     assert total_tokens < 8000
+
+
+# ==============================================================================
+# select_probe_angle -- 2026-08-07. Karthik's call after the live interview:
+# FORCE the uncovered dimension every probe rather than nudging toward it.
+#
+# 🔴 The defect this fixes was invisible in every suite. `dimension_coverage`
+# had been tracked since story 3.5.4 and read by NOTHING --
+# `resolve_primary_dimension` inferred coverage POSITIONALLY, from how many
+# probes had been asked, never from the counter. Nothing steered.
+# ==============================================================================
+
+
+_FIVE_DIMENSIONS = (
+    "business_model_fluency",
+    "market_accuracy",
+    "decision_quality",
+    "structural_clarity",
+    "point_of_view",
+)
+
+
+def test_select_probe_angle_picks_an_uncovered_dimension_first() -> None:
+    from app.agents.interviewer import select_probe_angle
+
+    covered = {"business_model_fluency": 3, "decision_quality": 2}
+    chosen = select_probe_angle(_LADDER, covered)
+    assert chosen["primary_dimension"] not in covered, (
+        f"picked an already-covered dimension while uncovered ones remain: {chosen!r}"
+    )
+
+
+def test_select_probe_angle_is_deterministic_and_breaks_ties_on_ladder_order() -> None:
+    """Same rule as `select_case_world` and `select_shape_for_world`: a
+    retried request must never mid-flight change which angle a candidate is
+    probed on. With nothing covered, every dimension ties at 0, so the first
+    ladder entry wins."""
+    from app.agents.interviewer import select_probe_angle
+
+    assert select_probe_angle(_LADDER, {}) == select_probe_angle(_LADDER, {})
+    assert select_probe_angle(_LADDER, {}) is _LADDER[0]
+    assert select_probe_angle(_LADDER, None) is _LADDER[0]
+
+
+def test_eight_steered_probes_leave_no_dimension_uncovered() -> None:
+    """🔴 THE REGRESSION, pinned to the observed numbers. Karthik's live
+    interview of 2026-08-07 ran one question and eight probes and ended:
+
+        business_model_fluency 4 · decision_quality 4 · structural_clarity 1
+        market_accuracy 0 · point_of_view 0
+
+    Two of five rubric dimensions with ZERO evidence, which leaves Phase 4's
+    Evaluator scoring dimensions nothing was said about. Steered, the same
+    eight probes must reach every dimension the ladder can reach.
+    """
+    from app.agents.interviewer import select_probe_angle
+
+    coverage: dict[str, int] = {}
+    for _ in range(8):
+        angle = select_probe_angle(_LADDER, coverage)
+        dimension = angle["primary_dimension"]
+        coverage[dimension] = coverage.get(dimension, 0) + 1
+
+    reachable = {entry["primary_dimension"] for entry in _LADDER}
+    uncovered = [d for d in _FIVE_DIMENSIONS if d in reachable and coverage.get(d, 0) == 0]
+    assert uncovered == [], (
+        f"{uncovered} got zero probes across eight steered turns -- the "
+        f"steering is not steering. coverage={coverage}"
+    )
+
+    # And it must SPREAD, not merely touch. The unsteered run put 8 of its 9
+    # counts on two dimensions; nothing may run away like that again.
+    assert max(coverage.values()) - min(coverage.values()) <= 1, (
+        f"steered coverage is lopsided: {coverage}"
+    )
+
+
+def test_the_required_angle_replaces_the_ladder_in_the_prompt() -> None:
+    """When an angle is required, the full ladder is left OUT: only the one
+    angle goes in. Unambiguous for the model, and it shrinks the largest
+    input this agent sends, which matters on a call whose reasoning budget
+    is the binding constraint (the probe-7 failure of 2026-08-07)."""
+    required = _LADDER[1]
+    messages = _build_probe_messages(
+        _OPENAI_WORLD, [], _MAIN_QUESTION, _LADDER, [], required
+    )
+    human = messages[1][1]
+
+    assert "REQUIRED ANGLE" in human
+    assert required["angle"] in human
+    # A ladder entry the model was NOT told to use must not be sitting there.
+    assert _LADDER[0]["angle"] not in human, (
+        "the full ladder is still in the prompt alongside the required angle"
+    )
+
+
+def test_without_a_required_angle_the_full_ladder_is_still_offered() -> None:
+    """The golden suite calls `generate_probe` positionally with no required
+    angle, so the model-chooses path must keep working unchanged."""
+    messages = _build_probe_messages(_OPENAI_WORLD, [], _MAIN_QUESTION, _LADDER, [])
+    human = messages[1][1]
+
+    assert "REQUIRED ANGLE" not in human
+    for entry in _LADDER:
+        assert entry["angle"] in human

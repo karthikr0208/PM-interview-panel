@@ -496,14 +496,22 @@ async def test_ask_probe_node_increments_followup_count_and_resolves_dimension(
     """Drives the real `ask_probe` closure with `generate_probe`
     monkeypatched -- no LLM, no database. Pins the node's own three
     responsibilities beyond the LLM call itself: `followup_count`
-    increments, `dimension_coverage` is updated via
-    `resolve_primary_dimension` (never asked of the model), and the
-    returned message carries `kind: "probe"` (not "followup" -- that is the
-    DB row's kind, a deliberately different word, see the node's own
-    comment)."""
+    increments, `dimension_coverage` is updated, and the returned message
+    carries `kind: "probe"` (not "followup" -- that is the DB row's kind, a
+    deliberately different word, see the node's own comment).
+
+    🔴 REWRITTEN 2026-08-07 for the steered design, and the rewrite makes it
+    a STRONGER test than the version it replaces. The fake returns
+    `ladder[1]`'s angle while `dimension_coverage` is empty, so Python
+    requires `ladder[0]` -- the model DISOBEYS. That is the case worth
+    pinning: the dimension must come from the angle PYTHON REQUIRED, never
+    from what the model echoed back, or a model that ignores its instruction
+    silently re-skews the coverage this steering exists to fix.
+    """
     ladder = QUESTION_PLAN[0]["probe_ladder"]
 
     async def _fake_generate_probe(*args: object, **kwargs: object) -> Probe:
+        # Deliberately NOT the angle Python will require -- see the docstring.
         return Probe(probe="What signal would change your mind?", angle_used=ladder[1]["angle"])
 
     monkeypatch.setattr("app.graph.build.generate_probe", _fake_generate_probe)
@@ -526,7 +534,14 @@ async def test_ask_probe_node_increments_followup_count_and_resolves_dimension(
 
     assert result["followup_count"] == 1
     assert result["messages"][0].additional_kwargs["kind"] == "probe"
-    assert result["dimension_coverage"] == {ladder[1]["primary_dimension"]: 1}
+
+    # Coverage empty -> `select_probe_angle` requires ladder[0] (ties break on
+    # ladder order). The model returned ladder[1]'s angle and is overruled.
+    assert result["dimension_coverage"] == {ladder[0]["primary_dimension"]: 1}, (
+        "dimension_coverage followed the model's angle_used instead of the "
+        "angle Python required -- a disobedient model must not be able to "
+        "re-skew coverage"
+    )
 
     transcript_rows = [payload for table, payload in recorded_inserts_no_db if table == "transcript_turns"]
     assert transcript_rows[-1]["kind"] == "followup", "DB kind must be the DDL's 'followup', not 'probe'"

@@ -33,6 +33,7 @@ THE load-bearing rule for every node in this graph, and especially for
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Literal
@@ -43,7 +44,14 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
 from app.agents.interviewer import answer_clarification as _answer_clarification
-from app.agents.interviewer import compose_question, generate_probe, resolve_primary_dimension, transition_for
+from app.agents.interviewer import (
+    angles_match,
+    compose_question,
+    generate_probe,
+    resolve_primary_dimension,
+    select_probe_angle,
+    transition_for,
+)
 from app.agents.planner import plan_interview as _plan_interview
 from app.agents.resume_analyst import analyse_resume
 from app.cases import select_case_world as _select_case_world
@@ -51,6 +59,12 @@ from app.graph.state import InterviewState
 from app.llm import Role
 from app.supabase_client import rest_insert, rest_select_one, rest_update
 from app.text import normalize_dashes
+
+# 🔴 Deliberately NOT "app.llm". The live tests count records on that logger
+# to assert one LLM call per turn, and a graph-level record landing there
+# would perturb a call count. The message does not begin `llm_call` either,
+# which is the other half of what `_ok_llm_calls` filters on.
+logger = logging.getLogger("app.graph")
 
 # Plain language, never raw JSON (schema comment on agent_events;
 # PHASE-1-SPEC.md 1.6b). Matches OrchestrationColumn.tsx's DEFAULT_COPY
@@ -775,6 +789,13 @@ def _make_ask_probe(
             },
         )
 
+        # 🔴 The angle is CHOSEN HERE, in Python, before the call -- Karthik's
+        # call of 2026-08-07. `dimension_coverage` had been tracked since
+        # story 3.5.4 and read by nothing, so nothing steered toward what was
+        # uncovered and a real interview ended with 2 of 5 rubric dimensions
+        # at ZERO. See `select_probe_angle`.
+        required_angle = select_probe_angle(probe_ladder, state.get("dimension_coverage"))
+
         try:
             result = await generate_probe(
                 state["case_world"],
@@ -783,6 +804,7 @@ def _make_ask_probe(
                 probe_ladder,
                 turns,
                 role=role,
+                required_angle=required_angle,
             )
         except Exception:
             await rest_insert(
@@ -828,7 +850,22 @@ def _make_ask_probe(
             },
         )
 
-        dimension = resolve_primary_dimension(result.angle_used, probe_ladder, turns)
+        # The dimension is known BEFORE the call now, so it is taken from the
+        # angle Python required rather than inferred back out of what the
+        # model returned. `resolve_primary_dimension`'s positional fallback is
+        # exactly what produced the skew this replaces: it inferred "covered"
+        # from how many probes had been asked, never from the counter.
+        #
+        # `result.angle_used` is still the only evidence the model OBEYED, so
+        # a mismatch is logged rather than silently accepted. It is not raised
+        # on: a disobeyed angle is a worse probe, not a broken interview, and
+        # failing a candidate's turn over it would be the wrong trade.
+        dimension = required_angle["primary_dimension"]
+        if not angles_match(result.angle_used, required_angle["angle"]):
+            logger.info(
+                "probe_angle_ignored required=%r returned=%r dimension=%s",
+                required_angle["angle"], result.angle_used, dimension,
+            )
         dimension_coverage = dict(state.get("dimension_coverage") or {})
         dimension_coverage[dimension] = dimension_coverage.get(dimension, 0) + 1
 

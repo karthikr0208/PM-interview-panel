@@ -2210,13 +2210,40 @@ helpfulness while restoring premise-checking, which is a prompt problem with a r
   plan. **Read its § "What the live interview already decided" before planning Phase 4** — all
   three items are measured and all three would otherwise be found halfway through the build.
 
-### 🔴 The decision Phase 4 needs from Karthik, and it is worth deciding early
+### 🟢 DECIDED AND BUILT 2026-08-07: the probe is STEERED. Karthik's call: hard, not soft.
 
-**2 of 5 rubric dimensions got ZERO evidence in a real interview** (`market_accuracy` and
-`point_of_view` both 0 after eight probes). So: does an unevidenced dimension render as
-`not assessed`, or does `dimension_coverage` steer the Interviewer so it happens less? **The first
-is required regardless** — coverage can never be guaranteed — but the second is a Phase 3.5 change
-and is cheaper to make before Phase 4 is built around its absence.
+**The defect:** `dimension_coverage` had been tracked since story 3.5.4 and **read by nothing.**
+`resolve_primary_dimension` inferred coverage **positionally**, from how many probes had been asked,
+never from the counter. Nothing steered, and a real interview ended with 2 of 5 rubric dimensions at
+zero.
+
+**The fix:** `select_probe_angle(probe_ladder, dimension_coverage)` picks the **least-covered**
+ladder entry, ties breaking on ladder order (same determinism rule as `select_case_world` and
+`select_shape_for_world`). `ask_probe` chooses it **before** the call and passes it as
+`required_angle`; the full ladder is then left **out** of the prompt, which is unambiguous and
+shrinks the largest input this agent sends. **The dimension is known before the call**, so coverage
+no longer depends on what the model echoed.
+
+Simulated against the real Airbnb ladder and the same eight probes:
+
+```
+before (measured, live)   bmf 4 · dq 4 · sc 1 · market_accuracy 0 · point_of_view 0
+after  (steered)          bmf 2 · market_accuracy 2 · dq 2 · sc 1 · point_of_view 1
+```
+
+**Zero dimensions uncovered, and the spread is at most 1.** Both are asserted.
+
+**🔴 A disobedient model cannot re-skew coverage.** The dimension comes from the angle Python
+required, never from `result.angle_used`; a mismatch is **logged** (`app.graph`, not `app.llm`,
+so it cannot perturb a call count) rather than raised, because a disobeyed angle is a worse probe,
+not a broken interview. The offline node test was rewritten to make the model return the WRONG
+angle deliberately, which makes it a stronger test than the one it replaces.
+
+**🔴 THE KNOWN COST, so it is not rediscovered as a surprise:** forcing an angle risks probes that
+read as a rubric checklist rather than an interviewer following the argument. Against that, the ONE
+probe that used a ladder angle on 2026-08-07 was the best of the interview. **That is a hypothesis
+and the live re-sit is what tests it.** `not_assessed` is still required in Phase 4 regardless —
+coverage can never be guaranteed.
 
 ### 🟡 Then, cheap and free
 

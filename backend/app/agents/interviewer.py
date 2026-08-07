@@ -437,11 +437,13 @@ the candidate actually said -- a number they cited, a tradeoff they picked, a cl
 probe that would read identically against a completely different answer is not a probe; it is a canned line wearing \
 one, and that failure is exactly why the transcript below exists.
 
-ANGLE_USED: choose the entry from the probe ladder below whose intent this probe most advances, and copy its `angle` \
-text into this field EXACTLY, character for character. If the candidate's own answer opened a thread worth chasing \
-that no ladder entry covers, you may follow that thread instead -- in that case set `angle_used` to the empty string. \
-Never invent a new angle string that merely resembles one on the ladder; that is neither a ladder angle nor a clean \
-signal that you departed from it.
+ANGLE_USED: if the human message names a REQUIRED ANGLE, you MUST advance that angle, and copy its text into this \
+field EXACTLY, character for character. It was chosen for you and you may not substitute another or depart from it, \
+however tempting the candidate's answer is. You still write the probe against WHAT THE CANDIDATE ACTUALLY SAID -- \
+the angle fixes what the probe is for, never whose words it quotes. If no required angle is named, choose the ladder \
+entry whose intent this probe most advances and copy its text in exactly, or set `angle_used` to the empty string if \
+you follow a thread the ladder does not cover. Never invent a new angle string that merely resembles one on the \
+ladder; that is neither a ladder angle nor a clean signal that you departed from it.
 
 GROUNDING: never state a number, company, product, person, or date that is not in the case world below or in the \
 list of facts already improvised this interview (given below, if any). If your probe needs a fact the world does not \
@@ -456,12 +458,65 @@ restate or paraphrase the main question.
 """
 
 
+def angles_match(a: str, b: str) -> bool:
+    """True iff two angle strings are the same under `_normalise_angle`.
+
+    Public so the graph can check whether the model obeyed a required angle
+    without importing a private name. Normalised, not byte-for-byte, for the
+    reason measured on 2026-08-06 and recorded on `resolve_primary_dimension`:
+    the model copied the angle exactly in 1 of 4 live probes and dropped the
+    trailing period the other three times.
+    """
+    return _normalise_angle(a) == _normalise_angle(b)
+
+
+def select_probe_angle(probe_ladder: list[dict], dimension_coverage: dict | None) -> dict:
+    """The LEAST-COVERED ladder entry. Deterministic Python, no LLM call,
+    no state beyond the two arguments (CLAUDE.md § Style).
+
+    🔴 WHY THIS EXISTS, and it is a measured defect, not a refinement.
+    `dimension_coverage` was tracked from story 3.5.4 and READ BY NOTHING.
+    `resolve_primary_dimension` inferred coverage POSITIONALLY, from how
+    many probes had been asked, rather than from the counter -- so nothing
+    in the loop ever steered toward what was actually uncovered. Karthik's
+    live interview of 2026-08-07 ended:
+
+        business_model_fluency 4 · decision_quality 4 · structural_clarity 1
+        market_accuracy 0 · point_of_view 0
+
+    Two of five rubric dimensions with ZERO evidence after eight probes,
+    which leaves Phase 4's Evaluator scoring dimensions nothing was said
+    about. Karthik's call, 2026-08-07: force the uncovered dimension every
+    probe rather than merely nudging toward it.
+
+    Ties break on LADDER ORDER, so the same (ladder, coverage) pair always
+    returns the same entry -- a retried request must never mid-flight change
+    which angle a candidate is probed on, the same rule
+    `select_case_world` and `select_shape_for_world` follow.
+
+    🔴 THE KNOWN COST, recorded so it is not rediscovered as a surprise:
+    forcing an angle risks probes that read as a rubric checklist rather
+    than an interviewer following the argument. Against that, on 2026-08-07
+    the ONE probe that used a ladder angle was the best of the interview --
+    it pulled the conversation out of methodology into business-model
+    territory. The angles are grounded in the real case, so using them more
+    may raise probe quality rather than lower it. **That is a hypothesis and
+    the live re-sit is what tests it.**
+    """
+    coverage = dimension_coverage or {}
+    return min(
+        enumerate(probe_ladder),
+        key=lambda pair: (coverage.get(pair[1]["primary_dimension"], 0), pair[0]),
+    )[1]
+
+
 def _build_probe_messages(
     case_world: dict,
     improvised_facts: list[str],
     main_question: str,
     probe_ladder: list[dict],
     transcript_turns: list[dict],
+    required_angle: dict | None = None,
 ) -> list[tuple[str, str]]:
     """Pure message assembly, split out from `generate_probe` so the token
     budget can be measured offline against `tiktoken`, with no LLM call --
@@ -475,8 +530,13 @@ def _build_probe_messages(
         + (json.dumps(improvised_facts, indent=2) if improvised_facts else "(none yet)")
         + "\n\nThe main question on the table (do not restate it, probe what the candidate said about it): "
         + main_question
-        + "\n\nProbe ladder -- pick the angle this probe advances, or depart from it and set angle_used to \"\":\n"
-        + json.dumps(probe_ladder, indent=2)
+        + (
+            "\n\n🔴 REQUIRED ANGLE -- advance THIS, and copy it into angle_used exactly:\n"
+            + required_angle["angle"]
+            if required_angle
+            else "\n\nProbe ladder -- pick the angle this probe advances, or depart from it and set angle_used to \"\":\n"
+            + json.dumps(probe_ladder, indent=2)
+        )
         + "\n\nTranscript so far (the candidate's first answer, plus the most recent turns):\n"
         + _render_transcript(window)
     )
@@ -491,6 +551,7 @@ async def generate_probe(
     transcript_turns: list[dict],
     *,
     role: Role = "fast",
+    required_angle: dict | None = None,
 ) -> Probe:
     """Writes the next probe against the candidate's most recent answer.
     Pure function: no DB, no session, no side effects -- see module
@@ -507,6 +568,21 @@ async def generate_probe(
     `resolve_primary_dimension(result.angle_used, probe_ladder,
     transcript_turns)` afterward, same split as `planner.py`'s
     `_first_dimension` (the model fills, Python decides).
+
+    🔴 `required_angle` (2026-08-07, Karthik's call) FORCES the angle rather
+    than letting the model choose. Pass `select_probe_angle(probe_ladder,
+    dimension_coverage)` and the dimension is then known BEFORE the call, so
+    the caller increments coverage directly instead of inferring it back out
+    of `angle_used`. When it is given, the full ladder is left OUT of the
+    prompt -- only the one angle goes in, which is unambiguous and happens
+    to shrink the largest input this agent sends.
+
+    `angle_used` is still returned, and still worth reading: it is the only
+    signal that the model actually obeyed. Compare it against the angle you
+    required rather than trusting it.
+
+    Defaults to `None`, which keeps the model-chooses behaviour, because the
+    golden suite calls this function positionally with no such argument.
 
     🔴 `max_tokens=2048`, raised from 1024 on 2026-08-06 BY MEASUREMENT, and
     the reasoning that produced 1024 was wrong in an instructive way. It
@@ -535,6 +611,6 @@ async def generate_probe(
 
     llm = get_llm(role, max_tokens=2048).with_structured_output(Probe)
     messages = _build_probe_messages(
-        case_world, improvised_facts, main_question, probe_ladder, transcript_turns
+        case_world, improvised_facts, main_question, probe_ladder, transcript_turns, required_angle
     )
     return await llm.ainvoke(messages)
