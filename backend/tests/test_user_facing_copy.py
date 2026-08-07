@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import re
+from pathlib import Path
 
 APP_ROOT = pathlib.Path(__file__).resolve().parent.parent / "app"
 
@@ -290,4 +292,105 @@ def test_all_three_suites_dash_variants_agree() -> None:
     assert len(set(map(frozenset, sets.values()))) == 1, (
         "the three golden suites' _DASH_VARIANTS have drifted apart: "
         + ", ".join(f"{name}={sorted(v)!r}" for name, v in sets.items())
+    )
+
+
+# ==============================================================================
+# `app.text.normalize_dashes` -- 2026-08-07. The golden suites DETECT dashes in
+# what an agent generated; this FIXES them on the way to the database and the
+# browser. Both exist because a display-only guard was not enough: a live
+# interview on 2026-08-07 left 3 U+2011 in `question_plan` and 1 at
+# `transcript_turns` idx=16, and Phase 4 renders scorecards from those rows.
+# ==============================================================================
+
+
+def test_normalize_dashes_handles_every_variant_the_suites_know_about() -> None:
+    """Behavioural coverage of both classes, and the two literals below are
+    the STRINGS THAT ACTUALLY REACHED A CANDIDATE on 2026-08-07 -- pinned
+    rather than paraphrased, same reason as the interviewer suite's
+    `echoes_false_premise` regression string."""
+    from app.text import normalize_dashes
+
+    # Hyphen-like -> ASCII hyphen. Both observed live.
+    assert normalize_dashes("post‑booking placement") == "post-booking placement"
+    assert normalize_dashes("short‑term rental market") == "short-term rental market"
+    assert normalize_dashes("state‐of‐the‐art") == "state-of-the-art"
+    assert normalize_dashes("a value of −5") == "a value of -5"
+
+    # Aside/range -> " to " between digits, otherwise a comma.
+    assert normalize_dashes("grew 2019–2023 steadily") == "grew 2019 to 2023 steadily"
+    assert normalize_dashes("the plan — which slipped — shipped") == (
+        "the plan, which slipped, shipped"
+    )
+    # A dash before other punctuation must not leave a stranded comma.
+    assert normalize_dashes("ends with a dash —.") == "ends with a dash."
+
+    # Total: callable on an absent optional field without guarding first.
+    assert normalize_dashes("") == ""
+    assert normalize_dashes(None) == ""  # type: ignore[arg-type]
+
+
+def test_normalize_dashes_covers_exactly_the_family_the_suites_assert_on() -> None:
+    """The fourth arm of the drift guard above, and it is deliberately TWO
+    assertions because the two families are governed by different rules.
+
+    🔴 The golden suites' `_DASH_VARIANTS` holds only the FOUR aside/range
+    dashes, and that is correct, not an oversight. A BAN is right for those:
+    an em dash in generated prose is an AI tell. A ban would be WRONG for
+    the hyphen-like three -- U+2011 in "state-of-the-art" is a hyphen doing
+    a hyphen's job, and the fix is to normalise it to ASCII, not to reject
+    the generation. So `app.text` covers seven and the suites assert on
+    four, by design. (This test asserted a flat equality when first written
+    on 2026-08-07 and failed, which is how the distinction got pinned.)
+    """
+    from app.text import _ASIDE_LIKE, _HYPHEN_LIKE
+    from tests.golden.planner.assertions import _DASH_VARIANTS as planner_variants
+
+    assert set(_ASIDE_LIKE) == set(planner_variants), (
+        "the aside/range dashes the app normalises and the golden suites ban "
+        f"have drifted: app={sorted(set(_ASIDE_LIKE))!r} "
+        f"suites={sorted(set(planner_variants))!r}"
+    )
+    assert set(_HYPHEN_LIKE) | set(_ASIDE_LIKE) == set(DASH_VARIANTS), (
+        "app.text does not cover the same seven characters this module bans "
+        f"in source strings: app={sorted(set(_HYPHEN_LIKE) | set(_ASIDE_LIKE))!r} "
+        f"module={sorted(set(DASH_VARIANTS))!r}"
+    )
+
+
+def test_normalize_dashes_matches_stripDashes_character_classes() -> None:
+    """🔴 The Python/TypeScript parity pin. `app.text.normalize_dashes` and
+    `stripDashes` (`frontend/src/lib/copy.ts`) implement the SAME rules on
+    two runtimes, and nothing but this test stops them diverging -- which is
+    exactly the rot that left `resume_analyst`'s copy behind on 2026-08-06.
+
+    Reads the TypeScript as TEXT and compares the character classes rather
+    than executing it: this suite has no JS runtime, and the classes are
+    where a divergence would actually show up.
+    """
+    from app.text import _ASIDE_LIKE, _HYPHEN_LIKE
+
+    copy_ts = (
+        Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "copy.ts"
+    ).read_text(encoding="utf-8")
+
+    classes = re.findall(r"\[([‐-―−]+)\]", copy_ts)
+    assert classes, (
+        "no dash character class found in frontend/src/lib/copy.ts -- either "
+        "stripDashes was rewritten or this test's pattern has rotted; do NOT "
+        "delete this test to make it pass"
+    )
+
+    ts_family = set("".join(classes))
+    assert ts_family == set(_HYPHEN_LIKE) | set(_ASIDE_LIKE), (
+        "stripDashes and normalize_dashes cover different characters: "
+        f"ts={sorted(ts_family)!r} python={sorted(set(_HYPHEN_LIKE) | set(_ASIDE_LIKE))!r}"
+    )
+
+    # The hyphen-like class must be handled SEPARATELY on both sides. Folding
+    # a non-breaking hyphen in "state-of-the-art" into a comma would be worse
+    # than leaving it, which is why this is two classes and not one.
+    assert set(_HYPHEN_LIKE) in [set(c) for c in classes], (
+        "the TypeScript no longer treats the hyphen-like characters as their "
+        f"own class: classes={[sorted(set(c)) for c in classes]!r}"
     )

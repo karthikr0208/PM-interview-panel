@@ -52,7 +52,9 @@ offline half is the free loop -- `pytest tests -m "not live"`.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterator
@@ -650,6 +652,45 @@ def _initial_state(session_id: str) -> dict:
     }
 
 
+# 🔴 PACING, added 2026-08-07. This file fires ~16 LLM calls back to back and
+# had NEVER produced a green run. Two full runs failed on DIFFERENT tests, and
+# both failures were classified:
+#
+#   429 `tokens per minute (TPM): Limit 8000, Used 5567, Requested 2718`
+#   `json_validate_failed` twice at probe 7, on a shape fault, not truncation
+#
+# The 429 is unambiguously a pacing artifact -- a real interview is paced by a
+# candidate typing and never approaches 8,000 TPM. The probe-7 failure is a
+# HYPOTHESIS: it failed here at 16 calls in 190s, passed 3/3 in a synthetic
+# reproduction spaced 20s apart, and passed in Karthik's human-paced live
+# interview the same day. These are MoE models where expert routing shifts
+# with whatever shares the batch (DEV-STATE § Decisions 2026-08-01), so
+# rapid-fire calls are not the same measurement as spaced ones.
+#
+# 🔴 The fix belongs HERE, never in `app/llm.py`. That module re-raises
+# transport errors untouched on purpose, and adding backoff there would make
+# the product paper over a limit the product does not actually hit.
+#
+# ~21s: the ceiling is 8,000 TPM and a probe request measured ~2,700 tokens
+# (from the 429's own `Requested`), so roughly 3 requests per minute.
+_MIN_SECONDS_BETWEEN_LLM_CALLS = 21.0
+_last_call_at = 0.0
+
+
+async def _paced(graph, payload, config: dict) -> dict:
+    """`graph.ainvoke`, throttled to stay under the per-minute token ceiling.
+
+    Sleeps only as much as needed since the previous call, so a test that
+    pauses on its own for other reasons pays nothing extra.
+    """
+    global _last_call_at
+    wait = _MIN_SECONDS_BETWEEN_LLM_CALLS - (time.monotonic() - _last_call_at)
+    if wait > 0:
+        await asyncio.sleep(wait)
+    _last_call_at = time.monotonic()
+    return await graph.ainvoke(payload, config)
+
+
 async def _start_at_the_loop(graph, config: dict, session_id: str) -> dict:
     """Drives the real graph to its first `await_candidate` pause without
     paying for the three agents upstream of the loop.
@@ -692,7 +733,7 @@ async def test_the_loop_asks_the_one_question_then_probes_and_exits_at_the_probe
 
     result = None
     for probe_number in range(1, 9):  # _PROBES_THIS_PHASE = 8
-        result = await graph.ainvoke(
+        result = await _paced(graph, 
             Command(resume={"type": "answer", "text": f"Answer number {probe_number}."}), config
         )
         assert "__interrupt__" in result, f"expected a probe to follow answer {probe_number}"
@@ -702,7 +743,7 @@ async def test_the_loop_asks_the_one_question_then_probes_and_exits_at_the_probe
     state = await graph.aget_state(config)
     assert state.values["followup_count"] == 8
 
-    final = await graph.ainvoke(Command(resume={"type": "answer", "text": "Final answer."}), config)
+    final = await _paced(graph, Command(resume={"type": "answer", "text": "Final answer."}), config)
     assert "__interrupt__" not in final, "the loop should have exited at the probe count boundary"
 
 
@@ -722,7 +763,7 @@ async def test_a_clarifying_question_does_not_advance_current_q_idx(
     state = await graph.aget_state(config)
     assert state.values["current_q_idx"] == 1
 
-    clarified = await graph.ainvoke(
+    clarified = await _paced(graph, 
         Command(resume={"type": "clarify", "text": "How big is Palewell's customer base?"}), config
     )
     assert "__interrupt__" in clarified
@@ -764,7 +805,7 @@ async def test_await_candidate_produces_exactly_one_llm_call_per_probe_turn(
         assert len(_ok_llm_calls(caplog)) == 0, "the question must cost zero LLM calls"
 
         for turn in range(1, 4):  # a few probe turns -- enough to prove the per-turn count, not all 8
-            await graph.ainvoke(
+            await _paced(graph, 
                 Command(resume={"type": "answer", "text": f"Answer number {turn}."}), config
             )
             calls_so_far = len(_ok_llm_calls(caplog))
@@ -794,12 +835,12 @@ async def test_await_candidate_does_not_redo_the_clarification_call_amid_a_probe
     with caplog.at_level(logging.INFO, logger="app.llm"):
         await _start_at_the_loop(graph, config, session_id)
 
-        await graph.ainvoke(Command(resume={"type": "answer", "text": "Answer number 1."}), config)
-        await graph.ainvoke(Command(resume={"type": "answer", "text": "Answer number 2."}), config)
+        await _paced(graph, Command(resume={"type": "answer", "text": "Answer number 1."}), config)
+        await _paced(graph, Command(resume={"type": "answer", "text": "Answer number 2."}), config)
         calls_before_clarify = len(_ok_llm_calls(caplog))
         assert calls_before_clarify == 2, "expected exactly 2 probe calls before the clarification"
 
-        await graph.ainvoke(
+        await _paced(graph, 
             Command(resume={"type": "clarify", "text": "How big is Palewell's customer base?"}), config
         )
         calls_after_clarify = len(_ok_llm_calls(caplog))
@@ -812,7 +853,7 @@ async def test_await_candidate_does_not_redo_the_clarification_call_amid_a_probe
         # 4 here on the clarification alone -- it must not; the ONLY
         # legitimate increment left is the next `ask_probe` call the answer
         # itself triggers.
-        await graph.ainvoke(Command(resume={"type": "answer", "text": "About 340 customers."}), config)
+        await _paced(graph, Command(resume={"type": "answer", "text": "About 340 customers."}), config)
         calls_after_real_answer = len(_ok_llm_calls(caplog))
         assert calls_after_real_answer == 4, (
             "expected exactly 1 more call (the next probe) -- got "

@@ -3615,6 +3615,52 @@ Planner is not the problem. The category selector is.**
   was the **May 2025** Summer Release. Not a stale date, a wrong one, and the whole situation rests
   on it.
 
+**🟢 2026-08-07 (session 14, later) · THREE MORE FIXES, ALL AT ZERO TOKEN COST. 384 offline passed.**
+
+**1. The false-premise regression is fixed in the prompt — UNVALIDATED LIVE.**
+`_CLARIFICATION_SYSTEM_PROMPT` was a TWO-way decision (cite the world, or invent) with a premise
+warning bolted on beside it, so a leading question read as a gap to fill and helpfulness won. It is
+now **three ordered steps with contradiction FIRST**, and "silent" is defined explicitly as the
+world saying nothing either way rather than saying something the question would rather it did not.
+**The words banning this were already in the prompt and lost anyway** — the ordering is the fix, not
+more emphasis.
+
+**🔴 THE TEST FOR THIS ALREADY EXISTED AND HAD NEVER BEEN RUN.** `gpm_portfolio_world` is the
+adversarial leading-question fixture, written blind on 2026-08-05, asserting the premise is not
+accepted. Per the agent table only `apm_consumer_world` and `senior_pm_platform_world` were ever
+smoked live. **The regression shipped with its own test sitting unexecuted.** Running the three
+never-run interviewer golden cases is now worth more than writing new ones.
+
+Its assertion was also too narrow — it looks for the false claim being ASSERTED ("banking" plus
+"largest"), and the live failure ACCEPTED the premise in a subordinate clause and built on it
+("Yes, the shrinking market makes..."), which that check walks straight past. Added
+`echoes_false_premise(answer, false_terms)`: flags an echo of the premise **with no correcting
+language beside it**. A bare term match would fail correct answers, since a correcting answer has
+to name the false term to deny it. **Pinned to the verbatim live string**, with a correcting-answer
+control, a quiet-acceptance case, and an empty case.
+
+**2. `normalize_dashes` closes the dash hole at the GRAPH BOUNDARY** (`app/text.py`, new). The
+Python twin of `stripDashes`, applied in `build.py` to the question, the clarification answer, the
+probe, **and `improvised_fact`** (which is replayed into every later prompt, so a raw dash there
+kept re-entering the model's input).
+
+**🔴 It is at the boundary, NOT in the agents, and that is load-bearing.** The golden suites assert
+`no_dash_variants` on what the agent FUNCTIONS return; normalising inside them would make every one
+of those assertions pass **vacuously** while generation quietly got worse. `compose_question` also
+guarantees byte-for-byte emission and could not normalise regardless.
+
+**The drift guard grew a fourth arm, and writing it corrected a wrong assumption of mine.** The
+golden suites' `_DASH_VARIANTS` holds only the **four** aside/range dashes, and that is CORRECT: a
+ban is right for an em dash in prose, and wrong for U+2011 in "state-of-the-art", which wants ASCII
+normalisation. So the app covers seven and the suites assert on four, deliberately. My first test
+asserted flat equality and failed, which is how the distinction got pinned. There is now also a
+**Python/TypeScript parity test** that reads `copy.ts` as text and compares character classes.
+
+**3. `test_conduct_loop.py -m live` is PACED** — `_paced()`, ~21s between calls, from 8,000 TPM
+against a measured ~2,700-token probe request. **In the test, never in `app/llm.py`**, which
+re-raises transport errors untouched on purpose. Until this runs, a red run in that file is
+unreadable: its two failures were on **different tests each time**.
+
 **🟡 2026-08-06 (session 13) · `tiktoken` WAS AN UNDECLARED DEPENDENCY, IMPORTED AT MODULE LEVEL.**
 
 Story 3.5.4's token-budget test does `import tiktoken` at the top of the file, so the whole file

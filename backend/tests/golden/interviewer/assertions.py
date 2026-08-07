@@ -15,6 +15,7 @@ eventually check against is even code (AGENT-INTERVIEWER-SPEC.md §3).
 from __future__ import annotations
 
 import re
+from typing import Sequence
 
 # --- vacuity floor -- must be asserted FIRST, before anything it could hide
 # behind (AGENT-INTERVIEWER-SPEC.md §5's ordering: "Vacuity floor is
@@ -294,3 +295,49 @@ def refusal_names_silence(answer: str) -> bool:
     (rather than merely declining to answer)."""
     lowered = (answer or "").lower()
     return any(phrase in lowered for phrase in _SILENCE_PHRASES)
+
+
+# Affirmations that turn an echoed premise into agreement with it. An answer
+# may legitimately REPEAT a false term while correcting it ("the market is
+# not shrinking, it is growing at 8.6%"), so the echo alone is not the
+# failure -- the echo without a correction beside it is.
+_CORRECTION_MARKERS: tuple[str, ...] = (
+    "not ",
+    "n't",
+    "actually",
+    "in fact",
+    "rather than",
+    "instead",
+    "correction",
+    "to be precise",
+    "the brief states",
+    "the world states",
+)
+
+
+def echoes_false_premise(answer: str, false_terms: Sequence[str]) -> bool:
+    """True iff `answer` repeats a term from the candidate's false premise
+    WITHOUT any correcting language beside it.
+
+    🔴 Written 2026-08-07 from an observed live failure, and deliberately
+    more general than the per-fixture check it backs up. The interviewer
+    replied "Yes, the shrinking short-term rental market makes Services and
+    Experiences a more critical growth driver" against a world stating 8.6%
+    growth. The existing `gpm_portfolio_world` check looks for a specific
+    claim ("banking" plus "largest"), which that shape would have walked
+    straight past: the failure was not asserting the false claim outright,
+    it was ACCEPTING it in a subordinate clause and building on it.
+
+    So the proxy is the echo-without-correction, not the claim. A correcting
+    answer nearly always has to name the false term to deny it, which is why
+    a bare term match would flag correct answers as failures.
+
+    `false_terms` are the words the premise turns on ("shrinking",
+    "declining"), lowercased by this function. Empty `false_terms` returns
+    False rather than raising: a fixture with no premise to check simply has
+    nothing to fail.
+    """
+    lowered = (answer or "").lower()
+    if not any(term.lower() in lowered for term in false_terms):
+        return False
+    return not any(marker in lowered for marker in _CORRECTION_MARKERS)

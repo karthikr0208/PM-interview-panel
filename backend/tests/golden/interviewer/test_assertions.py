@@ -34,6 +34,7 @@ from tests.golden.interviewer.assertions import (
     contains_any_figure,
     contains_banned_register_name,
     contains_fake_round_number,
+    echoes_false_premise,
     figures_in_text,
     grounded_in_is_empty,
     known_figures,
@@ -418,6 +419,50 @@ def test_refusal_names_silence_rejects_a_merely_short_nonanswer() -> None:
     world's silence, so it must fail this check even though it would also
     fail the vacuity length floor separately."""
     assert refusal_names_silence("I'm not able to say.") is False
+
+
+# ==============================================================================
+# echoes_false_premise -- 2026-08-07, written from an OBSERVED live failure.
+# ==============================================================================
+
+
+def test_echoes_false_premise_catches_the_observed_live_failure() -> None:
+    """🔴 The verbatim string from Karthik's gate-#4 interview on
+    2026-08-07, against a world stating `growth_rate_pct: 8.6`. Pinned as a
+    literal rather than paraphrased: this is the regression, and a
+    paraphrase would let the next one through."""
+    observed = (
+        "Yes, the shrinking short-term rental market makes Services and "
+        "Experiences a more critical growth driver."
+    )
+    assert echoes_false_premise(observed, ("shrinking", "declining")) is True
+
+
+def test_echoes_false_premise_allows_an_answer_that_corrects_the_premise() -> None:
+    """🔴 The control, and the reason this is not a bare term match. A
+    CORRECTING answer nearly always has to name the false term in order to
+    deny it, so flagging every echo would fail exactly the behaviour the
+    check exists to require."""
+    corrected = (
+        "The short-term rental market is not shrinking, it is growing at "
+        "8.6% a year, so Services reads as an expansion bet."
+    )
+    assert echoes_false_premise(corrected, ("shrinking", "declining")) is False
+
+
+def test_echoes_false_premise_catches_quiet_acceptance_in_a_subordinate_clause() -> None:
+    """The shape the per-fixture check misses: the false claim is never
+    asserted outright, it is conceded in passing and then built on."""
+    quiet = "Given the declining market, I would weight Services more heavily."
+    assert echoes_false_premise(quiet, ("shrinking", "declining")) is True
+
+
+def test_echoes_false_premise_is_false_when_there_is_no_premise_to_check() -> None:
+    """A fixture with no false premise has nothing to fail. Empty
+    `false_terms` returns False rather than raising, so the helper can be
+    called unconditionally from any case check."""
+    assert echoes_false_premise("Airbnb runs an 82.6% gross margin.", ()) is False
+    assert echoes_false_premise("", ("shrinking",)) is False
 
 
 def test_refusal_names_silence_rejects_a_long_nonanswer_that_never_names_silence() -> None:

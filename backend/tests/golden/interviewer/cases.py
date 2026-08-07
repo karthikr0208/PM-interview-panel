@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from tests.golden.interviewer.assertions import (
+    echoes_false_premise,
     grounded_in_is_empty,
     missing_grounding,
     refusal_names_silence,
@@ -147,7 +148,22 @@ def _check_gpm_portfolio_world(result: Any, case_world: dict) -> None:
     presupposing a FALSE fact (business banking is the LARGEST line, when
     the world states it is the smallest at $28M ARR). The answer must not
     accept the premise -- mechanical proxy: it must not claim business
-    banking is the largest/biggest line."""
+    banking is the largest/biggest line.
+
+    🔴 WIDENED 2026-08-07. The original check below looks for the false
+    claim being ASSERTED ("banking" plus "largest"), and the live failure of
+    2026-08-07 shows that is not the shape these take: the interviewer
+    accepted a false premise in a SUBORDINATE CLAUSE and built on it ("Yes,
+    the shrinking market makes..."), never asserting it outright. Against
+    this fixture the equivalent evasion is "to protect business banking's
+    lead, I would..." -- which the original check walks straight past.
+    `echoes_false_premise` covers that shape; both run, because they fail on
+    different things. See DEV-STATE § Decisions 2026-08-07.
+
+    🔴 AND THIS FIXTURE HAS NEVER RUN LIVE. Per the agent table, only
+    `apm_consumer_world` and `senior_pm_platform_world` were ever smoked.
+    The regression shipped with its own test sitting right here, unexecuted
+    -- which is the real lesson, not the narrowness of the assertion."""
     lowered = result.answer.lower()
     accepted_premise = (
         ("business banking" in lowered or "banking" in lowered)
@@ -157,6 +173,12 @@ def _check_gpm_portfolio_world(result: Any, case_world: dict) -> None:
     assert not accepted_premise, (
         f"gpm_portfolio_world: answer appears to accept the false premise "
         f"that business banking is the largest line: {result.answer!r}"
+    )
+    assert not echoes_false_premise(result.answer, ("largest", "most established", "its lead")), (
+        f"gpm_portfolio_world: answer echoes the false premise (business "
+        f"banking being the largest / most established line, or having a "
+        f"'lead' to protect) with no correcting language beside it -- the "
+        f"world states it is the SMALLEST at $28M ARR: {result.answer!r}"
     )
 
 

@@ -50,6 +50,7 @@ from app.cases import select_case_world as _select_case_world
 from app.graph.state import InterviewState
 from app.llm import Role
 from app.supabase_client import rest_insert, rest_select_one, rest_update
+from app.text import normalize_dashes
 
 # Plain language, never raw JSON (schema comment on agent_events;
 # PHASE-1-SPEC.md 1.6b). Matches OrchestrationColumn.tsx's DEFAULT_COPY
@@ -456,7 +457,13 @@ def _make_ask_question(
         # here would be unreachable code pretending to be a guard. The
         # `agent_events` error row it used to write covered the bridge's
         # LLM call, which no longer exists.
-        question_text = compose_question(planned["question"], transition_for(q_idx))
+        # `normalize_dashes` at the BOUNDARY, never inside `compose_question`
+        # -- that function emits the Planner's question byte for byte by
+        # contract, and normalising in the agents would make the golden
+        # suites' `no_dash_variants` assertions vacuous. See `app/text.py`.
+        question_text = normalize_dashes(
+            compose_question(planned["question"], transition_for(q_idx))
+        )
         duration_ms = int((time.perf_counter() - started) * 1000)
 
         idx = len(state.get("messages") or [])
@@ -638,6 +645,13 @@ def _make_answer_clarification_node(
             )
             raise
 
+        # Boundary normalisation -- see `app/text.py` for why it is here and
+        # not in the agent. `improvised_fact` gets it too: it is replayed
+        # into every later clarification prompt, so a raw dash there would
+        # keep re-entering the model's input for the rest of the interview.
+        answer_text = normalize_dashes(result.answer)
+        improvised_fact = normalize_dashes(result.improvised_fact)
+
         duration_ms = int((time.perf_counter() - started) * 1000)
 
         idx = len(state.get("messages") or [])
@@ -652,7 +666,7 @@ def _make_answer_clarification_node(
                 # builds no probe edge) -- "meta" is the honest bucket for
                 # an aside answering a clarification, not advancing the plan.
                 "kind": "meta",
-                "content": result.answer,
+                "content": answer_text,
             },
         )
         await rest_insert(
@@ -667,10 +681,10 @@ def _make_answer_clarification_node(
         )
 
         update: dict = {
-            "messages": [AIMessage(content=result.answer, additional_kwargs={"kind": "clarification"})],
+            "messages": [AIMessage(content=answer_text, additional_kwargs={"kind": "clarification"})],
         }
-        if result.improvised_fact:
-            update["improvised_facts"] = [result.improvised_fact]
+        if improvised_fact:
+            update["improvised_facts"] = [improvised_fact]
         return update
 
     return answer_clarification_node
@@ -775,6 +789,9 @@ def _make_ask_probe(
             )
             raise
 
+        # Boundary normalisation -- see `app/text.py`.
+        probe_text = normalize_dashes(result.probe)
+
         duration_ms = int((time.perf_counter() - started) * 1000)
 
         idx = len(state.get("messages") or [])
@@ -790,7 +807,7 @@ def _make_ask_probe(
                 # as its own separate word deliberately (see that field's
                 # comment).
                 "kind": "followup",
-                "content": result.probe,
+                "content": probe_text,
             },
         )
         await rest_insert(
@@ -813,7 +830,7 @@ def _make_ask_probe(
             # this straight through `additional_kwargs` to the HTTP layer
             # (app/main.py's `next["kind"]`) so the frontend can tell a
             # probe apart from the opening question (story 3.5.5's job).
-            "messages": [AIMessage(content=result.probe, additional_kwargs={"kind": "probe"})],
+            "messages": [AIMessage(content=probe_text, additional_kwargs={"kind": "probe"})],
             "followup_count": state.get("followup_count", 0) + 1,
             "dimension_coverage": dimension_coverage,
         }
