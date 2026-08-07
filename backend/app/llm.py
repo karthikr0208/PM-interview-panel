@@ -160,6 +160,40 @@ def _is_schema_rejection(exc: Exception) -> bool:
     return "json_validate_failed" in str(exc)
 
 
+def _log_schema_failure(role: Role, model: str, exc: Exception) -> None:
+    """Logs Groq's `failed_generation` in full, on its own record.
+
+    🔴 The 200-character truncation in `_attempt` cuts the 400 body off
+    IMMEDIATELY BEFORE `failed_generation`, which is the only field that says
+    what actually went wrong. Two different faults arrive wearing the same
+    `json_validate_failed` code and want opposite fixes:
+
+      truncation   "max completion tokens reached before generating a valid
+                   document"  -> raise max_tokens
+      wrong shape  the generic "Failed to validate JSON"  -> max_tokens is
+                   already sufficient and raising it changes nothing
+
+    On 2026-08-06 `generate_probe` went 1024 -> 2048 on the assumption it was
+    the first; on 2026-08-07 probe 7 failed with the second, and neither run
+    could tell them apart from the log. Truncation stays in the RETRY prompt
+    (a longer prompt is the wrong direction on a reasoning-budget-bound call);
+    the full body goes here instead.
+
+    Deliberately NOT prefixed `llm_call`: `_ok_llm_calls` in the live tests
+    filters on that prefix, and this record must not perturb a call count.
+    """
+    body = getattr(exc, "body", None)
+    generation = ""
+    if isinstance(body, dict):
+        error_obj = body.get("error")
+        if isinstance(error_obj, dict):
+            generation = str(error_obj.get("failed_generation", ""))
+    logger.warning(
+        "llm_schema_failure role=%s model=%s message=%s failed_generation=%r",
+        role, model, str(exc)[:300], generation[:2000],
+    )
+
+
 def _append_retry_instruction(model_input: Any, error: str) -> Any:
     """Appends the failure to the prompt, whatever shape it arrived in.
 
@@ -229,6 +263,7 @@ class _LoggedStructured:
         except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
             if _is_schema_rejection(exc):
                 _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+                _log_schema_failure(self.role, self.model, exc)
                 return None, str(exc)[:200]
             _log_call(self.role, self.model, started, "error", type(exc).__name__)
             raise
@@ -258,6 +293,7 @@ class _LoggedStructured:
         except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
             if _is_schema_rejection(exc):
                 _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+                _log_schema_failure(self.role, self.model, exc)
                 return None, str(exc)[:200]
             _log_call(self.role, self.model, started, "error", type(exc).__name__)
             raise
