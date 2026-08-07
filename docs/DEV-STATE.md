@@ -25,6 +25,24 @@ than an assumption:
 | Does `interrupt()` really resume across separate HTTP requests? | Yes. Proven across two separate OS processes, and against the deployed URL |
 | What is the account's rate model? | 40 RPM, no credits, nothing exhaustible |
 
+**🟢🔴 SESSION 14, 2026-08-07: KARTHIK SAT A FULL INTERVIEW ON THE DEPLOYED STACK.** One question,
+four clarifications, **eight probes, clean exit at the boundary.** **Invent-and-record works end to
+end** — it invented `3.2%`, recorded it, reproduced it exactly two probes later when asked cold, and
+did **not** duplicate the entry. **The probe responded to the candidate's own claim 8 times out of
+8.** The ladder engages. Probe 7 did not crash under human pacing.
+
+**🔴 But the QUESTION was wrong, and the cause is one function.** A Senior PM was asked *"How would
+you increase booking conversion for Airbnb Services and Experiences?"* in a **Product Strategy**
+interview, while the same case world carried Local Law 18, Chesky's platform bet, and Services unit
+economics in its ladder. `select_category` takes `_LEVEL_INDEX` modulo the length of a world's
+category array, so **an APM gets the strategy question and a Senior PM gets funnel optimisation.**
+
+**🔴 And a REGRESSION: the Interviewer accepted a false premise** — it agreed the short-term rental
+market was "shrinking" against a world stating 8.6% growth. **This passed on 2026-08-05; story
+3.5.4 deleted the refusal branch that made it pass.** Blast radius measured and limited: one turn,
+never entered `improvised_facts`, never resurfaced. See § Decisions 2026-08-07 for all eleven
+findings.
+
 **🟢 SESSION 14, 2026-08-07: THE PROBE LOOP COMPLETED A LIVE RUN FOR THE FIRST TIME, AND EVERYTHING
 IS DEPLOYED.** All eight probes plus the boundary exit passed in run 1 of `test_conduct_loop.py`,
 which is phase-gate condition #3's central assertion and had never been observed. Twelve commits
@@ -2149,7 +2167,53 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🔴 SESSION 15. THE LOOP WORKS. THE OPEN ITEM IS PROBE 7, AND IT IS A SHAPE FAULT, NOT A SIZE ONE.
+## 🔴 SESSION 15. THE LOOP IS PROVEN. THE QUESTION IS WRONG, AND THE CAUSE IS ONE FUNCTION.
+
+**Karthik sat a full interview on the deployed stack on 2026-08-07** — one question, four
+clarifications, eight probes, clean exit. **Read § Decisions 2026-08-07 (session 14) before
+planning anything**; it has the observed state at every step and eleven findings, and every one of
+them cost real budget to obtain.
+
+**The single most important thing to not re-derive:** the loop, invent-and-record, the probe's
+response to the answer, and the ladder all **work**. The interview was wrong because of
+`select_category`, and nothing else.
+
+### 🔴 FIRST: the two fixes, in this order
+
+**1. `select_category` is uncalibrated (`app/questions/shapes.py`).** A Senior PM gets a
+conversion-funnel question and an APM gets the strategy question, because `_LEVEL_INDEX` is taken
+modulo the length of a world's `suits_categories` array. **This is the whole reason gate #4's
+question was wrong.** It needs a real level-to-category decision, which is **Karthik's judgment
+call, not an inference** — ask him which category each level should get before writing anything.
+
+**2. The false-premise regression (`_CLARIFICATION_SYSTEM_PROMPT`).** The Interviewer agreed the
+market was shrinking against a world stating 8.6% growth. **This passed on 2026-08-05 and the
+refusal branch that made it pass was deleted by 3.5.4.** Fixing it means keeping invent-and-record's
+helpfulness while restoring premise-checking, which is a prompt problem with a real tension in it.
+**Karthik has the verbatim exchange in § Decisions.**
+
+### 🟡 Then, cheap and free
+
+- **Pace `test_conduct_loop.py -m live`** and re-run. See the batching hypothesis under § Decisions
+  2026-08-07 — it may show that **neither** of session 14's live failures was a product defect.
+  **Do this before touching `generate_probe`.**
+- `dimension_coverage` is tracked and never steers: 2 of 5 dimensions got **zero** coverage across
+  eight probes. Phase 4 needs this fixed or it will score two dimensions on nothing.
+- U+2011 is reaching `question_plan` and `transcript_turns`. `stripDashes` covers display only.
+- `airbnb.json` says "2024 relaunch" in three fields; it was **May 2025**. Karthik's call.
+- Two UI nits: validation hints on untouched fields, and the orchestration column crediting the
+  Case Architect with work it no longer does.
+
+### Budget
+
+**~110,000 of 200,000 `fast` consumed on 2026-08-07 before the interview**, plus the interview
+itself. Assume the day is spent. The measured rate is **~2,700 tokens per probe request**.
+
+---
+
+## Superseded — session 14's opening handoff, kept for the record
+
+## 🔴 SESSION 14 (opening). THE LOOP WORKS. THE OPEN ITEM IS PROBE 7, AND IT IS A SHAPE FAULT, NOT A SIZE ONE.
 
 **Run these three first (~45s, free, no LLM):**
 
@@ -3383,10 +3447,135 @@ green it needs pacing in the TEST, not backoff in `llm.py`.
 **Probe depth alone does NOT reproduce it.** A synthetic transcript built to probe-7 depth and sent
 through the raw runnable (no retry wrapper) succeeded **3 times out of 3**, spaced 20s apart. So
 this is not a clean size threshold; it is intermittent, and it belongs to the MoE non-determinism
-class already recorded under 2026-08-01. **It only reproduces under the real loop.**
+class already recorded under 2026-08-01.
+
+**🔴 THE BATCHING HYPOTHESIS — test this BEFORE spending anything on a `max_tokens` or prompt fix.**
+Three data points, all pointing the same way, and they say probe 7 correlates with **rapid-fire
+batching, not transcript depth**:
+
+| Context | Probe 7 |
+|---|---|
+| Live test file, ~16 calls back to back over 190s | **failed** |
+| Synthetic reproduction, spaced 20s apart | passed 3/3 |
+| **Karthik's real interview, human-paced** | **passed** (session 14, below) |
+
+This fits the mechanism already recorded on 2026-08-01: these are MoE models, and expert routing
+and reduction order **shift with whatever shares the batch**. Sixteen calls fired in three minutes
+share batches that a human-paced interview never does.
+
+**If the hypothesis holds, NEITHER of today's two live failures is a product defect** — the 429 is
+definitely a pacing artifact and the `json_validate_failed` probably is. **The test is cheap: pace
+`test_conduct_loop.py` and re-run it.** Do that before touching `generate_probe`. Do not record it
+as confirmed on three data points; it is the best available explanation, not a measurement.
 
 **What this costs a candidate:** `_PROBES_THIS_PHASE` is 8, so a real interview goes **through**
 probe 7. Karthik was told the odds before choosing to sit gate #4 today anyway (see below).
+
+**🟢🔴 2026-08-07 (session 14) · KARTHIK SAT A FULL INTERVIEW ON THE DEPLOYED STACK. THE LOOP IS
+RIGHT; THE QUESTION IS WRONG FOR A DIAGNOSED, DETERMINISTIC REASON.**
+
+Session `ac569e9b-db6a-4a17-9a73-b5c1ed43e59f`, Airbnb, `assessed_level = 'Senior PM'`. One
+question, four clarifications, **eight probes, clean exit at the boundary** — the ninth answer
+returned no interrupt. Graph state was read directly from the checkpointer at every step, so
+everything below is observed, not inferred.
+
+### 🟢 Verified live, with a human, for the first time
+
+| Property | Evidence |
+|---|---|
+| The full loop runs to the boundary | `followup_count` 8, then answer 9 exits with no interrupt |
+| **Invent-and-record INVENTS** | `3.2%` asked for; neither `3.2` nor `conversion` appears anywhere in `airbnb.json` |
+| **…RECORDS** | `improvised_facts = ['Assume the current booking conversion rate for Experiences is 3.2%.']` |
+| **…REPEATS EXACTLY** | asked cold two probes later in different words, returned `3.2%` |
+| **…and does NOT re-record** | still **1 entry** after the repeat. `improvised_fact` came back empty, so nothing appended |
+| The append signal discriminates | 3 for 3: scope clarification -> no entry, invention -> 1 entry, repeat -> no new entry. `improvised_fact` (not `can_answer`) is the correct signal, confirmed |
+| Clarifications consume no question slot | `current_q_idx` stayed **1** across four clarifications |
+| **The probe responds to the answer** | **8 of 8** quoted the candidate's own specific claim. `write_bridge`'s constant-function failure does NOT occur |
+| The probe ladder engages | probe 4 is ladder angle #1 almost verbatim ("margin contribution of Services bookings versus core lodging") |
+| `stripDashes` works | a **U+2011** in the served probe was normalised for display |
+| 3.5.1's candidate turns | `transcript_turns` holds all 17 rows including every candidate turn |
+
+**🟢 PROBE 7 DID NOT CRASH under human pacing** — see the batching hypothesis in the entry above.
+
+### 🔴 DEFECT 1, the worst: A FALSE PREMISE WAS ACCEPTED, AND IT IS A REGRESSION
+
+Asked *"Since the short-term rental market is shrinking, does that change how much Services
+matters?"* against a world stating `growth_rate_pct: 8.6`, the Interviewer replied:
+
+> `[idx=16 interviewer/meta]` **"Yes, the shrinking short‑term rental market makes Services and
+> Experiences a more critical growth driver."**
+
+`_CLARIFICATION_SYSTEM_PROMPT` contains an explicit rule against this, with a worked example of
+nearly the same shape, and **both halves failed**: it accepted the premise AND repeated the false
+claim back, which the prompt bans in those words.
+
+**🔴 THIS PASSED ON 2026-08-05 AND FAILS NOW.** That test hit the **refusal branch**, which story
+3.5.4 DELETED in favour of invent-and-record. **The disposition that makes the agent helpful (never
+decline, always hand the candidate something) is the same one that makes it agreeable.** That trade
+was not visible when the decision was made, and **no test in any suite can see it.**
+
+**Blast radius is limited, and that was measured, not assumed:** the claim never entered
+`improvised_facts` (still 1 entry), and **it never resurfaced across probes 4 through 8** — a later
+answer asserting the correct 8.6% drew no contradiction and no correction. It is a one-turn lie in
+`transcript_turns`, not a poisoned interview.
+
+### 🔴 DEFECT 2: `select_category` IS UNCALIBRATED, AND IT IS WHY THE QUESTION WAS WRONG
+
+The question served was *"How would you increase booking conversion for Airbnb Services and
+Experiences?"* — a **growth-funnel** question, in a product whose premise is a **Product Strategy**
+interview. Reproduced deterministically:
+
+```
+APM        -> strategy  | What is {company}'s biggest threat over the next three years?
+PM         -> gtm       | How would you launch {product} for {new_segment}?
+Senior PM  -> growth    | How would you increase {conversion_step} for {product}?   <- served
+GPM        -> strategy  | What is {company}'s biggest threat over the next three years?
+```
+
+**The junior level gets the strategy question and the senior level gets funnel optimisation.**
+`_LEVEL_INDEX` is taken modulo however many categories a world happens to list, so which category a
+level receives depends on **the length of that world's JSON array**, not on anything about the
+level. `shapes.py` says so about itself ("arbitrary but fixed… no claim that this ordering is
+calibrated to level difficulty"); **story 3.5.3 shipped the placeholder.**
+
+**The material was all there and was thrown away.** The same case carried
+`situation.prompt` ("how much should Airbnb invest in Services versus defending core lodging
+against regulatory and growth headwinds") and a ladder naming **New York's Local Law 18**, Chesky's
+Amazon-like vision against quarterly investor expectations, and Services unit economics. **The
+Planner is not the problem. The category selector is.**
+
+### 🟡 The rest, all observed this session
+
+- **Two of five dimensions were NEVER covered** in a full eight-probe interview. Final
+  `dimension_coverage = {business_model_fluency: 4, decision_quality: 4, structural_clarity: 1}`;
+  `market_accuracy` and `point_of_view` both **0**. **Coverage is tracked and never steers** —
+  nothing pushes a probe toward what is uncovered. **Phase 4 will have two dimensions with no
+  evidence to score.**
+- **Every probe is double-barrelled, 8 of 8** — two questions in one turn. A property of
+  `_PROBE_SYSTEM_PROMPT`, not a quirk.
+- **Every clarification answer was ONE sentence, 4 of 4**, where the prompt demands 2-4. On the
+  recall question `3.2%` alone is arguably better than the rule; the rule may be what is wrong.
+- **The repeat was NOT verbatim.** Stored as a full sentence, returned as `3.2%`. Same number, same
+  units, different wording. The property that matters held; the prompt's literal "same wording"
+  did not.
+- **The transcript window costs contradiction-catching, and this is the first measurement of that
+  cost.** A deliberate self-contradiction planted four turns apart went uncaught because the
+  earlier turn had **fallen out of** first-answer-plus-last-4. Not a model failure; the price of the
+  2026-08-06 budget decision.
+- **A probe asked for something already stated** — the definition of "attach rate", which sat in the
+  permanently-pinned first answer inside its own context window.
+- **U+2011 reached the durable rows**: 3 in `question_plan`, 1 in the served probe, 1 at
+  `transcript_turns` idx=16. `stripDashes` covers display only. **Phase 4 renders scorecards from
+  these rows** — the item DEV-STATE flagged as "not absorbed" is now observed, not predicted.
+- **UI:** both validation hints ("Write an answer before submitting", "Type a question first") show
+  on untouched fields — an error state before any interaction.
+- **UI:** the orchestration column says *"Case Architect · Built the case for your interview"*, but
+  that agent has made **zero LLM calls** since session 13. Misleading on a portfolio artifact whose
+  subject is multi-agent orchestration.
+- **Fact sheet, Karthik's call:** `airbnb.json` says **"In 2024, Airbnb relaunched"** in three
+  fields (`company.one_line`, `market.description`, `situation.prompt`). Services and Experiences
+  was the **May 2025** Summer Release. Not a stale date, a wrong one, and the whole situation rests
+  on it.
 
 **🟡 2026-08-06 (session 13) · `tiktoken` WAS AN UNDECLARED DEPENDENCY, IMPORTED AT MODULE LEVEL.**
 
