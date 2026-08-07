@@ -30,6 +30,7 @@ from app.questions.shapes import (
     select_category,
     select_shape,
     select_shape_for_world,
+    shapes_by_category,
 )
 from tests.golden.case_architect import assertions as ca_assertions
 from tests.golden.planner.assertions import (
@@ -1066,6 +1067,65 @@ def test_select_category_raises_on_an_unrecognized_category_list() -> None:
     empty list correctly does."""
     with pytest.raises(ValueError):
         select_category("PM", ["not_a_real_category"])
+
+
+# ==============================================================================
+# 2026-08-07 -- the level-to-category calibration, and the seniority
+# inversion it replaced.
+#
+# 🔴 THESE EXIST BECAUSE THE SUITE WAS SILENT. The tests above assert
+# determinism, membership and fallback, but NOTHING asserted WHICH category a
+# level receives -- so the mapping could be, and was, fully inverted while all
+# 374 offline tests stayed green. That inversion is what served a Senior PM
+# "How would you increase booking conversion" in gate #4's live interview on
+# 2026-08-07, in a product that calls itself a Product Strategy interview.
+# See DEV-STATE § Decisions 2026-08-07.
+# ==============================================================================
+
+
+def test_every_level_gets_a_strategy_question_when_the_world_suits_strategy() -> None:
+    """Karthik's calibration, 2026-08-07: the category is NOT a dial to vary
+    by seniority. Level selects difficulty WITHIN strategy, never whether the
+    candidate sits a strategy question at all. All eight curated worlds list
+    `strategy`, so this governs every real interview."""
+    suits = ["strategy", "gtm", "growth"]
+    for level in FOUR_LEVELS:
+        assert select_category(level, suits) == "strategy", (
+            f"{level} did not get a strategy question from a world that suits strategy"
+        )
+
+
+def test_a_more_senior_level_never_gets_an_easier_shape() -> None:
+    """🔴 The invariant the old `% len(candidates)` violated. Shapes are
+    ordered easiest-first, so wrapping handed the MOST senior level the
+    EASIEST question: `strategy`, `gtm` and `pricing` each hold 3 shapes
+    against 4 levels, so GPM (index 3) wrapped to index 0 and drew the APM
+    question. Monotonicity is the property that catches that, for any
+    category, at any future bank size -- an index assertion would not.
+
+    Uses its OWN ordered tuple rather than `FOUR_LEVELS`, which is a `set`
+    and iterates arbitrarily; this assertion is meaningless without a
+    seniority order, and reading one out of a set is how it would rot.
+    """
+    ascending_seniority = ("APM", "PM", "Senior PM", "GPM")
+    assert set(ascending_seniority) == FOUR_LEVELS, "the four levels drifted"
+
+    for category in CATEGORIES:
+        shapes = shapes_by_category(category)
+        picked = [shapes.index(select_shape(level, category)) for level in ascending_seniority]
+        assert picked == sorted(picked), (
+            f"{category}: shape difficulty is not monotonic across "
+            f"{list(ascending_seniority)} -- got indices {picked}"
+        )
+
+
+def test_the_category_fallback_still_reaches_the_other_three_categories() -> None:
+    """Strategy winning must not make the rest of the bank dead code. A world
+    that does NOT suit strategy still resolves into whatever it does suit --
+    otherwise `gtm`, `pricing` and `growth` are unreachable and the bank is
+    lying about its own size."""
+    assert select_category("PM", ["gtm", "pricing"]) in {"gtm", "pricing"}
+    assert select_shape_for_world("PM", ["growth"]).category == "growth"
 
 
 def test_select_shape_for_world_composes_category_and_shape_selection() -> None:

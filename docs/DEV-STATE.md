@@ -2178,15 +2178,20 @@ them cost real budget to obtain.
 response to the answer, and the ladder all **work**. The interview was wrong because of
 `select_category`, and nothing else.
 
-### 🔴 FIRST: the two fixes, in this order
+**Run these first (~45s, free):** `pytest tests -q -m "not live"` → **377 passed, 103 deselected**;
+`npm test -- --run` → 139 passed, 15 files.
 
-**1. `select_category` is uncalibrated (`app/questions/shapes.py`).** A Senior PM gets a
-conversion-funnel question and an APM gets the strategy question, because `_LEVEL_INDEX` is taken
-modulo the length of a world's `suits_categories` array. **This is the whole reason gate #4's
-question was wrong.** It needs a real level-to-category decision, which is **Karthik's judgment
-call, not an inference** — ask him which category each level should get before writing anything.
+### 🟢 The category fix is DONE. Do not redo it.
 
-**2. The false-premise regression (`_CLARIFICATION_SYSTEM_PROMPT`).** The Interviewer agreed the
+`select_category` and `select_shape` were both fixed on 2026-08-07 at zero token cost, to Karthik's
+calibration (strategy wins; level picks difficulty within it), **plus a second inversion the fix
+uncovered** — `select_shape`'s modulo wrapped GPM back to the APM question. Three tests added and
+falsified. **The unfixed half is that the change is DEPLOYED NOWHERE and has never been seen live:
+a re-sat interview is the only thing that closes gate #4.**
+
+### 🔴 FIRST: the remaining fix
+
+**The false-premise regression (`_CLARIFICATION_SYSTEM_PROMPT`).** The Interviewer agreed the
 market was shrinking against a world stating 8.6% growth. **This passed on 2026-08-05 and the
 refusal branch that made it pass was deleted by 3.5.4.** Fixing it means keeping invent-and-record's
 helpfulness while restoring premise-checking, which is a prompt problem with a real tension in it.
@@ -3537,6 +3542,39 @@ GPM        -> strategy  | What is {company}'s biggest threat over the next three
 level receives depends on **the length of that world's JSON array**, not on anything about the
 level. `shapes.py` says so about itself ("arbitrary but fixed… no claim that this ordering is
 calibrated to level difficulty"); **story 3.5.3 shipped the placeholder.**
+
+**🟢 FIXED 2026-08-07, same session, at ZERO token cost** — this is deterministic Python, so the
+whole repair is free. **Karthik's calibration: strategy wins whenever the world suits it, at every
+level, and level selects difficulty WITHIN strategy.** The product is a Product Strategy interview,
+so the category is not a dial to vary by seniority. All eight curated worlds list `strategy`, so
+this governs every real interview. The other three categories stay reachable for worlds that do not
+suit strategy.
+
+```
+Airbnb, after:                          (before: APM strategy / PM gtm / Senior PM growth / GPM strategy)
+  APM        -> strategy | What is {company}'s biggest threat over the next three years?
+  PM         -> strategy | Should {company} enter {adjacent_market}?
+  Senior PM  -> strategy | {company} can make one big bet next year. What should it be?
+  GPM        -> strategy | {company} can make one big bet next year. What should it be?
+```
+
+**🔴 AND THE FIX FOUND A SECOND, INDEPENDENT INVERSION.** `select_shape` used
+`% len(candidates)`. Shapes are ordered easiest-first, and `strategy`, `gtm` and `pricing` each hold
+**3 shapes against 4 levels** — so **GPM (index 3) wrapped to index 0 and drew the APM question.**
+The same seniority inversion, once across categories and once inside them. Now a **clamp**: a level
+past the end saturates at the hardest shape.
+
+**🔴 THE SUITE WAS SILENT ON ALL OF IT, AND THAT IS THE REAL LESSON.** Inverting the category
+mapping for every level left **374 offline tests green**. The existing assertions covered
+determinism, membership and fallback, but **nothing asserted WHICH category a level receives.** The
+behaviour that produced gate #4's wrong question had no test at all. Three added, and **falsified by
+reverting both fixes** — 2 of the 3 fail against the old code and pass against the new. The
+monotonicity one is deliberately not an index assertion, so it keeps working at any future bank
+size. **Its first draft was itself wrong**: it read seniority order out of `FOUR_LEVELS`, which is a
+`set`, so it iterated `APM, Senior PM, GPM, PM` and failed against correct code. It now carries its
+own ordered tuple plus a drift guard.
+
+**377 passed, 103 deselected** (was 374; the three are the new ones).
 
 **The material was all there and was thrown away.** The same case carried
 `situation.prompt` ("how much should Airbnb invest in Services versus defending core lodging

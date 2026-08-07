@@ -146,11 +146,12 @@ SHAPE_BANK: tuple[QuestionShape, ...] = (
 
 CATEGORIES: tuple[Category, ...] = ("strategy", "gtm", "pricing", "growth")
 
-# Deterministic index a level resolves to, when picking among a category's
-# shapes -- arbitrary but fixed, so the SAME (level, category) pair always
-# returns the SAME shape. No claim that this ordering is calibrated to level
-# difficulty; that is a decision for whoever calls this with real judgment
-# behind it (story 3.5.3), not something to infer here.
+# Seniority order, ascending. Each category's shapes are ordered EASIEST
+# FIRST in `SHAPE_BANK`, so this index doubles as a difficulty ladder --
+# calibrated by Karthik on 2026-08-07, replacing the "arbitrary but fixed"
+# placeholder story 3.5.3 shipped. See DEV-STATE § Decisions 2026-08-07.
+#
+# 🔴 Read as a CLAMP, never modulo -- see `select_shape`.
 _LEVEL_INDEX: dict[str, int] = {"APM": 0, "PM": 1, "Senior PM": 2, "GPM": 3}
 
 
@@ -167,13 +168,21 @@ def select_shape(level: str, category: Category) -> QuestionShape:
     caller passing a slightly different level string degrades gracefully
     instead of crashing the interview.
 
+    🔴 CLAMPED, not modulo. Shapes are ordered easiest-first, so wrapping
+    hands the MOST senior level the EASIEST question. That is not
+    hypothetical: `strategy`, `gtm` and `pricing` each hold 3 shapes against
+    4 levels, so GPM (index 3) wrapped to index 0 and got the APM question.
+    Found 2026-08-07 while fixing `select_category`; the two bugs compose
+    into the same seniority inversion, one across categories and one inside
+    them. A level past the end of a category saturates at its hardest shape.
+
     Raises `ValueError` if `category` has no shapes -- a typo'd category
     name should fail loudly here, not silently return nothing to format.
     """
     candidates = shapes_by_category(category)
     if not candidates:
         raise ValueError(f"no shapes registered for category {category!r}")
-    index = _LEVEL_INDEX.get(level, 0) % len(candidates)
+    index = min(_LEVEL_INDEX.get(level, 0), len(candidates) - 1)
     return candidates[index]
 
 
@@ -193,6 +202,29 @@ def select_category(level: str, suits_categories: Sequence[str] | None) -> Categ
     be able to get a question. Curated worlds always set 2-3 entries, so
     this fallback never engages for the eight real companies.
 
+    🔴 STRATEGY WINS WHENEVER THE WORLD SUITS IT, at every level. Karthik's
+    call, 2026-08-07, after sitting gate #4's interview. This product is a
+    Product Strategy interview (PRD, CLAUDE.md), so the category is not a
+    dial to vary by seniority -- LEVEL SELECTS DIFFICULTY WITHIN strategy
+    (`select_shape`), it does not select whether the candidate gets a
+    strategy question at all.
+
+    What it replaces was an inversion, not merely an uncalibrated choice.
+    `_LEVEL_INDEX` was taken modulo the length of each world's own
+    `suits_categories` array, so which category a level received depended on
+    HOW MANY entries that world's JSON happened to list. On Airbnb (three
+    entries) an APM drew the strategy question and a SENIOR PM drew
+    "How would you increase booking conversion" -- observed live, and the
+    whole reason gate #4's interview asked the wrong kind of question. All
+    eight curated worlds list `strategy`, so this makes every real interview
+    a strategy interview.
+
+    The other three categories are NOT dead: they remain reachable for any
+    world that does not suit strategy, which is the generative Case
+    Architect's path (`suits_categories` defaults to `[]` there and falls
+    back to the full tuple, whose first entry is `strategy` -- so that path
+    also lands on strategy, deliberately).
+
     Raises `ValueError` if none of `suits_categories` names a real category
     -- a typo'd category in a curated world's JSON should fail loudly at
     selection time, not silently fall back and mask the typo.
@@ -204,7 +236,9 @@ def select_category(level: str, suits_categories: Sequence[str] | None) -> Categ
             f"suits_categories {list(suits_categories or [])!r} names none of "
             f"the known categories {CATEGORIES}"
         )
-    index = _LEVEL_INDEX.get(level, 0) % len(candidates)
+    if "strategy" in candidates:
+        return "strategy"
+    index = min(_LEVEL_INDEX.get(level, 0), len(candidates) - 1)
     return candidates[index]
 
 
