@@ -69,6 +69,7 @@ from langgraph.types import Command
 from app.agents.interviewer import _TRANSITIONS, ClarificationAnswer, Probe, compose_question, transition_for
 from app.config import settings
 from app.graph.build import (
+    _PROBES_THIS_PHASE,
     _make_answer_clarification_node,
     _make_ask_probe,
     _messages_to_turns,
@@ -177,9 +178,33 @@ def test_messages_to_turns_maps_roles_and_preserves_text() -> None:
     ]
     assert _messages_to_turns(messages) == [
         {"role": "interviewer", "text": "What is Reddit's biggest threat?"},
-        {"role": "candidate", "text": "I'd point to Discord's AI features."},
+        {"role": "candidate", "text": "I'd point to Discord's AI features.", "kind": "answer"},
         {"role": "interviewer", "text": "Say more about Discord specifically."},
     ]
+
+
+def test_messages_to_turns_carries_the_clarifying_question_kind() -> None:
+    """🔴 2026-08-08. The candidate's KIND has to survive the trip from
+    `await_candidate` to `generate_probe`, or the probe cannot tell a
+    question the candidate asked from a claim they made -- which is exactly
+    how a live probe came to say "You said OpenAI is a straightforward
+    for-profit company answerable to shareholders" about a premise the
+    candidate had only ASKED about."""
+    messages = [
+        HumanMessage(
+            content="Given that business banking is the largest line, how do I protect it?",
+            additional_kwargs={"kind": "clarifying_question"},
+        ),
+        HumanMessage(content="I'd put the headcount into payments."),
+    ]
+    turns = _messages_to_turns(messages)
+
+    assert turns[0]["kind"] == "clarifying_question"
+    # An UNTAGGED HumanMessage must read as an answer: checkpoints written
+    # before this date replay through here and carry no `kind` at all.
+    assert turns[1]["kind"] == "answer"
+    # `role` must NOT have changed -- `_covered_probe_count` counts on it.
+    assert [t["role"] for t in turns] == ["candidate", "candidate"]
 
 
 def test_messages_to_turns_text_is_non_empty() -> None:
@@ -238,19 +263,33 @@ def test_decide_next_asks_before_the_question_is_asked() -> None:
 
 
 def test_decide_next_continues_below_the_probe_count_boundary() -> None:
-    state = {"current_q_idx": 1, "followup_count": 7, "dimension_coverage": {}}
+    state = {
+        "current_q_idx": 1,
+        "followup_count": _PROBES_THIS_PHASE - 1,
+        "dimension_coverage": {},
+    }
     assert decide_next(state) == "probe"
 
 
 def test_decide_next_exits_exactly_at_the_probe_count_boundary() -> None:
-    """`_PROBES_THIS_PHASE` is 8 -- pins the boundary itself, not just a
-    value comfortably on either side of it."""
-    state = {"current_q_idx": 1, "followup_count": 8, "dimension_coverage": {}}
+    """Pins the boundary ITSELF, not a value comfortably on either side of
+    it. Reads `_PROBES_THIS_PHASE` rather than repeating its value: the count
+    became a product dial on 2026-08-08 (8 -> 4) and a hardcoded copy would
+    have kept passing while testing a boundary production no longer has."""
+    state = {
+        "current_q_idx": 1,
+        "followup_count": _PROBES_THIS_PHASE,
+        "dimension_coverage": {},
+    }
     assert decide_next(state) == "exit"
 
 
 def test_decide_next_exits_past_the_probe_count_boundary() -> None:
-    state = {"current_q_idx": 1, "followup_count": 9, "dimension_coverage": {}}
+    state = {
+        "current_q_idx": 1,
+        "followup_count": _PROBES_THIS_PHASE + 1,
+        "dimension_coverage": {},
+    }
     assert decide_next(state) == "exit"
 
 
@@ -747,8 +786,8 @@ async def test_the_loop_asks_the_one_question_then_probes_and_exits_at_the_probe
     assert q1["text"] == QUESTION_PLAN[0]["question"], "the question was not emitted verbatim"
 
     result = None
-    for probe_number in range(1, 9):  # _PROBES_THIS_PHASE = 8
-        result = await _paced(graph, 
+    for probe_number in range(1, _PROBES_THIS_PHASE + 1):
+        result = await _paced(graph,
             Command(resume={"type": "answer", "text": f"Answer number {probe_number}."}), config
         )
         assert "__interrupt__" in result, f"expected a probe to follow answer {probe_number}"
@@ -756,7 +795,7 @@ async def test_the_loop_asks_the_one_question_then_probes_and_exits_at_the_probe
         assert probe_payload["kind"] == "probe", f"turn {probe_number} did not surface as a probe"
 
     state = await graph.aget_state(config)
-    assert state.values["followup_count"] == 8
+    assert state.values["followup_count"] == _PROBES_THIS_PHASE
 
     final = await _paced(graph, Command(resume={"type": "answer", "text": "Final answer."}), config)
     assert "__interrupt__" not in final, "the loop should have exited at the probe count boundary"

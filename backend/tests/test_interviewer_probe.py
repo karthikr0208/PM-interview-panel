@@ -29,6 +29,7 @@ from app.agents.interviewer import (
     Probe,
     _build_probe_messages,
     _covered_probe_count,
+    _render_transcript,
     _windowed_transcript,
     generate_probe,
     resolve_primary_dimension,
@@ -135,6 +136,71 @@ def test_windowed_transcript_handles_no_candidate_turns_yet() -> None:
     must not raise)."""
     turns = [{"role": "interviewer", "text": "main question"}]
     assert _windowed_transcript(turns) == turns
+
+
+# ==============================================================================
+# A clarifying question is not a position -- 2026-08-08, from a live probe
+# that quoted a candidate's clarifying question back as their own claim.
+# ==============================================================================
+
+
+def test_windowed_transcript_anchors_on_the_first_ANSWER_not_a_clarifying_question() -> None:
+    """The anchored turn is the one guaranteed to survive windowing for the
+    whole interview. A candidate who opens with a clarifying question used to
+    pin that question there permanently, so the single most durable thing in
+    the probe's view was something they ASKED, never anything they argued."""
+    turns = [
+        {"role": "interviewer", "text": "main question"},
+        {
+            "role": "candidate",
+            "text": "Given that banking is the largest line, how do I protect it?",
+            "kind": "clarifying_question",
+        },
+        {"role": "interviewer", "text": "Banking is the smallest line, at $28M ARR."},
+        {"role": "candidate", "text": "Then I would put the headcount into payments.", "kind": "answer"},
+        *[{"role": "interviewer", "text": f"probe {i}"} for i in range(4)],
+    ]
+    window = _windowed_transcript(turns)
+
+    assert turns[3] in window, "the first real ANSWER was not anchored into the window"
+    assert turns[1] not in window, (
+        "the candidate's clarifying question was anchored as if it were their "
+        "first answer"
+    )
+
+
+def test_windowed_transcript_treats_a_missing_kind_as_an_answer() -> None:
+    """Back-compat: checkpoints written before 2026-08-08 carry no `kind`,
+    and must window exactly as they did before."""
+    turns = [
+        {"role": "interviewer", "text": "main question"},
+        {"role": "candidate", "text": "my first answer"},
+        *[{"role": "interviewer", "text": f"probe {i}"} for i in range(6)],
+    ]
+    assert turns[1] in _windowed_transcript(turns)
+
+
+def test_render_transcript_labels_a_clarifying_question_as_not_a_position() -> None:
+    """The prompt tells the model to quote "a claim they made". Unless the
+    rendering distinguishes them, a question the candidate asked reaches the
+    model looking exactly like a claim, and the rule is unenforceable."""
+    rendered = _render_transcript(
+        [
+            {
+                "role": "candidate",
+                "text": "Given that banking is the largest line, how do I protect it?",
+                "kind": "clarifying_question",
+            },
+            {"role": "candidate", "text": "I would put the headcount into payments.", "kind": "answer"},
+        ]
+    )
+    question_line, answer_line = rendered.split("\n")
+
+    assert "clarifying question" in question_line.lower()
+    assert "NOT their position" in question_line
+    # The candidate's actual ANSWER must stay a plain candidate turn, or the
+    # label stops meaning anything.
+    assert answer_line.startswith("candidate:")
 
 
 # ==============================================================================
@@ -410,6 +476,37 @@ def test_eight_steered_probes_leave_no_dimension_uncovered() -> None:
     # counts on two dimensions; nothing may run away like that again.
     assert max(coverage.values()) - min(coverage.values()) <= 1, (
         f"steered coverage is lopsided: {coverage}"
+    )
+
+
+def test_the_production_probe_count_covers_that_many_distinct_dimensions() -> None:
+    """🔴 Reads `_PROBES_THIS_PHASE` rather than hardcoding it, because the
+    count is now a PRODUCT dial (8 -> 4 on 2026-08-08) and a hardcoded copy
+    of it would silently stop describing production the next time it moves.
+
+    The property that must hold at any count below five: every probe spends
+    itself on a DIFFERENT dimension. That is what makes the cut to four cost
+    exactly one blank dimension rather than several, and it is the whole
+    reason four was chosen over three.
+    """
+    from app.agents.interviewer import select_probe_angle
+    from app.graph.build import _PROBES_THIS_PHASE
+
+    coverage: dict[str, int] = {}
+    for _ in range(_PROBES_THIS_PHASE):
+        dimension = select_probe_angle(_LADDER, coverage)["primary_dimension"]
+        coverage[dimension] = coverage.get(dimension, 0) + 1
+
+    reachable = {entry["primary_dimension"] for entry in _LADDER}
+    expected = min(_PROBES_THIS_PHASE, len(reachable))
+    assert len(coverage) == expected, (
+        f"{_PROBES_THIS_PHASE} probes reached {len(coverage)} distinct "
+        f"dimensions, expected {expected} -- a probe was spent revisiting a "
+        f"dimension while another sat uncovered. coverage={coverage}"
+    )
+    assert max(coverage.values()) == 1 or _PROBES_THIS_PHASE > len(reachable), (
+        f"a dimension was probed twice before every dimension was probed "
+        f"once. coverage={coverage}"
     )
 
 

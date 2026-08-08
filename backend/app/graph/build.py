@@ -560,8 +560,31 @@ def await_candidate(state: InterviewState) -> dict:
             "current_q_idx": state.get("current_q_idx", 0),
         }
     )
+    # 🔴 The candidate's turn carries its KIND, added 2026-08-08 after a live
+    # interview quoted a candidate's CLARIFYING QUESTION back to them as their
+    # own position: "You said OpenAI is a straightforward for-profit company
+    # answerable to shareholders" -- a false premise the candidate had merely
+    # ASKED about, and which `answer_clarification` had already correctly
+    # refused. `route_input` knew the difference; `messages` threw it away, so
+    # every reader downstream saw one undifferentiated candidate turn.
+    #
+    # Same `additional_kwargs["kind"]` channel `ask_question` and
+    # `answer_clarification_node` already use on the interviewer's side, so
+    # this adds a convention rather than inventing one. Still a pure read of
+    # `value` BELOW the interrupt -- no computation moves above that line.
     return {
-        "messages": [HumanMessage(content=value.get("text", ""))],
+        "messages": [
+            HumanMessage(
+                content=value.get("text", ""),
+                additional_kwargs={
+                    "kind": (
+                        "clarifying_question"
+                        if value.get("type") == "clarify"
+                        else "answer"
+                    )
+                },
+            )
+        ],
         "last_input": value,
     }
 
@@ -732,9 +755,25 @@ def _messages_to_turns(messages: list) -> list[dict]:
     filtered or windowed here -- `generate_probe`'s own
     `_windowed_transcript` does that, so this stays a pure, total format
     conversion.
+
+    🔴 `kind` carries "clarifying_question" or "answer" through to the probe,
+    added 2026-08-08. `role` is deliberately UNCHANGED: `_covered_probe_count`
+    counts `role == "interviewer"` turns and would silently mis-count if the
+    candidate's role string started varying, so the new information arrives as
+    an ADDITIONAL key rather than a changed one. Absent on interviewer turns,
+    and readers must treat a missing `kind` as "answer" -- old checkpoints
+    written before this date replay without it.
     """
     return [
-        {"role": "candidate" if isinstance(m, HumanMessage) else "interviewer", "text": m.content}
+        {
+            "role": "candidate" if isinstance(m, HumanMessage) else "interviewer",
+            "text": m.content,
+            **(
+                {"kind": (m.additional_kwargs or {}).get("kind", "answer")}
+                if isinstance(m, HumanMessage)
+                else {}
+            ),
+        }
         for m in messages
     ]
 
@@ -888,13 +927,34 @@ def _make_ask_probe(
 # questions) and `_PROBES_THIS_PHASE` is the new primary boundary.
 _QUESTIONS_THIS_PHASE = 1
 
-# Spec's budget section: 6-10 probes wanted, 8 chosen -- at ~47,000 `fast`
-# tokens per interview (measured against the real curated worlds, see
-# `generate_probe`'s docstring in app/agents/interviewer.py), 8 keeps roughly
-# four interviews inside a 200,000/day budget.
-_PROBES_THIS_PHASE = 8
+# 🔴 CUT 8 -> 4 on 2026-08-08, Karthik's call after sitting the full eight
+# live. Two reasons, one of them a measured defect rather than a preference:
+#
+# 1. Eight is too long for a portfolio demo nobody sits daily.
+# 2. Probes 6, 7 and 8 RECYCLED probes 1, 2 and 3. Observed live: probe 6
+#    reopened probe 1's compute-commitments framing verbatim ("With the
+#    massive compute commitments already signed"), probe 7 reopened probe 2's
+#    Google-TPU subject, probe 8 reopened the governance angle. The cause is
+#    structural, not stylistic: `select_probe_angle` correctly sends the
+#    ladder back for a SECOND visit to a dimension once all five are covered,
+#    and `generate_probe` sees only a 4-turn window, so by probe 6 it cannot
+#    see the probe it is about to repeat. Four probes never reach the second
+#    visit, so the repetition cannot arise.
+#
+# 🔴 THE KNOWN COST: five rubric dimensions, four probes, so exactly ONE
+# dimension gets zero evidence every interview -- by design now, where on
+# 2026-08-07 it was two by accident. Phase 4's Evaluator MUST render that as
+# `not_assessed` rather than a low score; PHASE-4-SPEC.md already requires
+# `not_assessed` for this reason and it is now load-bearing, not defensive.
+# Three probes was the alternative and was rejected: it leaves TWO dimensions
+# blank, which is the exact 2026-08-07 defect the steering fix removed.
+#
+# Cost falls with it: ~47,000 `fast` tokens per interview at 8 probes
+# (measured), so 4 roughly halves an interview and doubles how many fit in a
+# 200,000/day budget.
+_PROBES_THIS_PHASE = 4
 
-# Safety valve, not the primary exit path: at 8 probes this almost never
+# Safety valve, not the primary exit path: at 4 probes this almost never
 # fires, but a candidate who spends a long time on clarifications should not
 # turn a 45-minute interview into an unbounded one.
 _TIME_BUDGET_MINUTES = 40

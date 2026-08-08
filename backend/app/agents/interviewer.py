@@ -362,15 +362,28 @@ def _windowed_transcript(transcript_turns: list[dict]) -> list[dict]:
 
     Turns before the first candidate answer (there should be none -- a probe
     is only ever generated after an answer exists) are silently excluded by
-    construction; this function does not special-case that, it just finds
-    the first `role == "candidate"` turn wherever it is.
+    construction.
+
+    🔴 "First candidate ANSWER", not first candidate turn -- corrected
+    2026-08-08. A candidate who opens with a clarifying question used to
+    anchor this window on that question, so the one turn guaranteed to
+    survive windowing for the whole interview was something they ASKED rather
+    than anything they argued. `kind` is missing on turns from checkpoints
+    written before that date, so absent is read as "answer" and those
+    interviews window exactly as they did before.
     """
     if not transcript_turns:
         return []
     tail_start = max(0, len(transcript_turns) - _TRANSCRIPT_TAIL_TURNS)
     tail = transcript_turns[tail_start:]
     first_answer_idx = next(
-        (i for i, turn in enumerate(transcript_turns) if turn.get("role") == "candidate"), None
+        (
+            i
+            for i, turn in enumerate(transcript_turns)
+            if turn.get("role") == "candidate"
+            and turn.get("kind", "answer") != "clarifying_question"
+        ),
+        None,
     )
     if first_answer_idx is None or first_answer_idx >= tail_start:
         return tail
@@ -379,10 +392,27 @@ def _windowed_transcript(transcript_turns: list[dict]) -> list[dict]:
 
 def _render_transcript(turns: list[dict]) -> str:
     """Flat, readable rendering of a (already windowed) turn list for the
-    prompt. Not JSON -- this is prose the model reads, not data it parses."""
+    prompt. Not JSON -- this is prose the model reads, not data it parses.
+
+    🔴 A clarifying question is LABELLED as one, 2026-08-08. Every candidate
+    turn used to render as a bare "candidate:", so a question the candidate
+    asked was typographically identical to a claim they made, and the probe
+    prompt directly above tells the model to quote "a claim they made". It
+    duly quoted a question: "You said OpenAI is a straightforward for-profit
+    company answerable to shareholders" -- a false premise the candidate had
+    only asked about, and which the clarification path had already refused.
+    The label is what makes the prompt rule enforceable; without it the model
+    is being asked to tell apart two things that reach it looking the same.
+    """
     if not turns:
         return "(no answer yet)"
-    return "\n".join(f"{turn.get('role', '?')}: {turn.get('text', '')}" for turn in turns)
+    lines = []
+    for turn in turns:
+        role = turn.get("role", "?")
+        if role == "candidate" and turn.get("kind") == "clarifying_question":
+            role = "candidate (asked a clarifying question, NOT their position)"
+        lines.append(f"{role}: {turn.get('text', '')}")
+    return "\n".join(lines)
 
 
 def _covered_probe_count(transcript_turns: list[dict]) -> int:
@@ -469,6 +499,13 @@ JSON object; do not deliberate at length before answering.
 the candidate actually said -- a number they cited, a tradeoff they picked, a claim they made -- and push on it. A \
 probe that would read identically against a completely different answer is not a probe; it is a canned line wearing \
 one, and that failure is exactly why the transcript below exists.
+
+🔴 A CLARIFYING QUESTION IS NOT A POSITION. Turns marked "asked a clarifying question" in the transcript are things \
+the candidate ASKED YOU, not claims they made, and a candidate often loads a clarifying question with a premise to \
+see whether you will accept it. NEVER write "You said ..." about one, never treat its premise as the candidate's \
+view, and never build a probe on it. Probe only what the candidate asserted in their own ANSWERS. If a clarifying \
+question asserted something the case world contradicts, that claim is false and it is not the candidate's -- it must \
+not reappear anywhere in your probe.
 
 ANGLE_USED: if the human message names a REQUIRED ANGLE, you MUST advance that angle, and copy its text into this \
 field EXACTLY, character for character. It was chosen for you and you may not substitute another or depart from it, \
