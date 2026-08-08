@@ -1,10 +1,39 @@
 # Development State
 
-**Last updated:** 2026-08-07 · Session 14
+**Last updated:** 2026-08-08 · Session 15
 
 ---
 
 ## Now
+
+**🟢 SESSION 15, 2026-08-08: EVERY OPEN ⬜ FROM SESSION 14 IS RESOLVED, AND THE PROBE-7 FAULT WAS
+NEVER A DEFECT.** The paced live conduct loop went **4 passed, 346s — its first fully green run
+ever**, with no `llm_schema_failure` logged. That closes the batching hypothesis: neither of
+2026-08-07's live failures was a product defect, and `_append_retry_instruction` is off the list.
+
+**🔴 But `gpm_portfolio_world` had never been executed, and the 2026-08-07 false-premise fix only
+half worked.** Run live it failed **3/3 byte-identically** — `fast` is deterministic, unlike
+`deep`. Step 1's first-sentence rule fired correctly; then the answer **handed over the answer to
+the interview question**, a full 15/20/5 allocation, in the first person. Nothing in the prompt
+forbade solving the case. Fixed **0/3 → 3/5 → 4/4**, the second edit needed only because the first
+was routed around by reframing the allocation as a fact about the company.
+
+**🔴 A second live interview (GPM, OpenAI world) found two more.** Probes 6-8 **recycled probes
+1-3** — `generate_probe`'s 4-turn window cannot see the probe it is repeating. **Probes cut 8 → 4
+on Karthik's call**, which removes the repetition structurally. And probe 8 quoted a **clarifying
+question back as the candidate's position** — `route_input` knew the difference, `messages` threw
+it away. `kind` now travels the whole path.
+
+**🟢 Invent-and-record replicated:** `100×` invented (it is nowhere in `openai.json`) and
+reproduced verbatim several probes later. **But it is the TRUE public figure** — with real
+company worlds a leaked fact reads as correctly grounded and nothing can detect it. See § Decisions
+2026-08-08 #4.
+
+**🔴 One thing is NOT live-validated: the `kind` change**, which touches `await_candidate`. The
+re-run died on the daily cap at **197,615/200,000**, classified as quota. Offline green at 394,
+mutation-tested. **It is owed a live run on fresh budget.**
+
+**🟢 Delegation is now a session-start decision** — CLAUDE.md step 6 plus a triage table (`01e44da`).
 
 **Phase 0 — Walking skeleton. ✅ COMPLETE 2026-07-30. All eight stories, all six phase-gate
 conditions, deployed and proven end to end.**
@@ -176,7 +205,7 @@ toggle no script can flip.** See Blockers.
 | 1 Resume Analyst + design foundation | 🟢 **COMPLETE 2026-08-05. All seven stories, all five gate conditions.** Gate #4 closed by rejecting its premise: seniority is company-relative, so the candidate picks the level and the agent's guess is a default. The selector existed since 1.6b; the missing piece was proving a **correction reaches the Case Architect and Planner**, now asserted and falsified. 1.3 ticked with three golden flaps consciously accepted | PHASE-1-SPEC.md | 2026-08-05 — see § Decisions |
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
-| 3.5 Question quality | 🟡 **ALL FIVE STORIES CODE-COMPLETE 2026-08-06; VERIFIED IN PART AND DEPLOYED 2026-08-07.** The probe loop **completed a live run for the first time** (all 8 probes + boundary exit, gate condition #3's central assertion). Session 13's `generate_probe` `max_tokens` fix is **verified real but incomplete** — it moved the failure from probe 3 to probe 7. **The probe-7 fault is a SHAPE fault, not truncation; another `max_tokens` bump does nothing.** The other live failure was the 8,000 TPM per-minute ceiling, a test-harness artifact. Neither of two full live runs was green, but **every test passed in at least one**. Twelve commits deployed. See § Decisions 2026-08-07. Prior session-13 notes follow: **the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
+| 3.5 Question quality | 🟢 **ALL FIVE STORIES DONE AND VALIDATED LIVE 2026-08-08**, except one node change owed a re-run. Session 15: the paced conduct loop went **4 passed / 346s, its first fully green live run**, and **no `llm_schema_failure`** — so the probe-7 shape fault was **never a product defect** and `_append_retry_instruction` is CLOSED. `gpm_portfolio_world` ran for the first time, failed **3/3 byte-identically** (`fast` is deterministic; the flapping finding was `deep`), and is **4/4** after a scope rule stopping the interviewer answering its own case question. Interviewer golden suite **5 passed / 2 failed, both reds PRE-EXISTING and attributed by `git stash`**. A second live interview cut **probes 8 → 4** (probes 6-8 recycled 1-3 through `generate_probe`'s 4-turn window) and found a **clarifying question stored as a candidate position**, now fixed by carrying `kind` end to end. **🔴 The `kind` change is the one thing NOT live-validated** — the re-run hit the daily cap at 197,615/200,000, classified quota. See § Decisions 2026-08-08. Prior notes follow: **ALL FIVE STORIES CODE-COMPLETE 2026-08-06; VERIFIED IN PART AND DEPLOYED 2026-08-07.** The probe loop **completed a live run for the first time** (all 8 probes + boundary exit, gate condition #3's central assertion). Session 13's `generate_probe` `max_tokens` fix is **verified real but incomplete** — it moved the failure from probe 3 to probe 7. **The probe-7 fault is a SHAPE fault, not truncation; another `max_tokens` bump does nothing.** The other live failure was the 8,000 TPM per-minute ceiling, a test-harness artifact. Neither of two full live runs was green, but **every test passed in at least one**. Twelve commits deployed. See § Decisions 2026-08-07. Prior session-13 notes follow: **the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
 | 4 Evaluator + scorecard | ⬜ not started — **but SPECCED 2026-08-07**, from the live interview of the same day rather than from the plan. Three findings shape it: **2 of 5 rubric dimensions got ZERO evidence** in a real interview, so the Evaluator will be asked to score things nothing was said about; **a single end-of-interview call does not fit the 8,000 TPM ceiling** (the full transcript measured 10,274 tokens on 2026-08-06), so per-answer scoring is forced rather than chosen; and the Interviewer's 4-turn window **must not be reused**, because "sharpens a thesis under pushback" is a property of an arc a keyhole cannot see. The DDL also settles more than expected — `evidence_quote` is `not null` with a length check, so PRD §8's schema-level enforcement is **in Postgres**, and `score` being `not null` means an unassessed dimension is represented by the ABSENCE of a row | [PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
@@ -2167,6 +2196,74 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🔴 SESSION 16. ONE LIVE RUN IS OWED, THEN PHASE 4.
+
+**Read § Decisions 2026-08-08 first.** Eight numbered findings, every number in them cost real
+budget, and four of them change how you should read a test result.
+
+**Run these first (~45s, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 394 passed, 103 deselected
+cd frontend && npm test -- --run                                          # expect 140 passed, 15 files
+```
+
+### 🔴 SPEND THE FIRST FRESH TOKENS HERE, and it is one item, not a ladder
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/test_conduct_loop.py tests/test_transcript.py -q -m "live"
+```
+
+**This is the ONLY thing from 2026-08-08 that is unvalidated.** The `kind` change touches
+`await_candidate`'s return — a node — so CLAUDE.md's `build.py` trap applies and the re-run is
+owed. It died on the daily cap last session at 197,615/200,000, **classified as quota, not
+defect.** ~9 calls at the new probe count of 4.
+
+**What you are looking for:** the loop still completes and exits at 4, and nothing regressed on the
+clarify path. If it greens, everything from 2026-08-08 is validated and Phase 4 is unblocked.
+
+### 🟢 Do not redo any of this — all validated 2026-08-08
+
+- **The probe-7 shape fault is NOT a defect.** Paced live loop went 4 passed / 346s, no
+  `llm_schema_failure`. `_append_retry_instruction` is CLOSED, not deferred.
+- **`gpm_portfolio_world` is 4/4** after the scope rule. **`fast` is deterministic** — a single
+  golden run on `fast` is meaningful signal, which is NOT true on `deep`.
+- **Probes are 4, not 8**, and every test reads `_PROBES_THIS_PHASE` rather than repeating it.
+- **The two interviewer golden reds are PRE-EXISTING**, attributed by `git stash` against the
+  committed prompt. `pm_b2b_world`'s is a **test-design flaw** — the figure check punishes
+  `81.2 - 34.7 = 46.5` in the one fixture whose whole point is combining two facts. Fix the
+  assertion, not the prompt, if you touch it at all.
+
+### 🟡 Phase 4 is next, and 4.1 was DELEGATED on 2026-08-08
+
+Story 4.1 (fixtures, schema, assertion harness, **zero tokens**) was handed to a Sonnet subagent at
+the end of session 15. **Check `git status` and `backend/tests/golden/evaluator/` before starting
+it — it may be partly or wholly done.** Its acceptance is a **deliberately RED suite** plus the
+paraphrase falsification observed failing; a green suite there means someone stubbed the agent and
+the story is wrong.
+
+**Carry into 4.1/4.2, from the live interviews:**
+- **`not_assessed` is LOAD-BEARING.** Five dimensions, four probes, so exactly one dimension has
+  zero evidence **every** interview by design.
+- **The 4-turn window must not be reused** for the Evaluator (PHASE-4-SPEC says so; § Decisions
+  2026-08-08 #5 now shows what it costs when you do).
+- **A leaked real-world fact is undetectable** in a real-company world. See #4.
+
+### Deployment
+
+**`286bfe9` is pushed** (the clarification scope fix). **`cc61fa2` and `01e44da` are committed and
+NOT pushed** — the probe cut, the `kind` change, and the CLAUDE.md delegation policy. Push once the
+live run above greens, so the unvalidated node change does not reach production first.
+
+### Budget
+
+**Spent for 2026-08-08: 197,615 / 200,000 `fast`.** Rolling window, ~138 tokens/min. The one owed
+live run is ~9 calls / ~25,000 tokens and fits a fresh day easily.
+
+---
+
+## Superseded — session 15's opening handoff, kept for the record
+
 ## 🔴 SESSION 15. EVERYTHING FOUND ON 2026-08-07 IS FIXED. NOTHING FIXED IS VALIDATED LIVE.
 
 **Karthik sat a full interview on the deployed stack on 2026-08-07** — one question, four
@@ -3507,6 +3604,167 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟢🔴 2026-08-08 (session 15) · SESSION 14'S FIXES ARE VALIDATED, THE PROBE-7 FAULT IS NOT A
+DEFECT, AND A SECOND LIVE INTERVIEW FOUND TWO MORE.**
+
+Every ⬜ in session 14's handoff table is now resolved. Budget spent: **197,615 / 200,000 `fast`**,
+which is the whole day and is why the last item on this list is unvalidated.
+
+**🟢 1. THE BATCHING HYPOTHESIS HOLDS. The probe-7 shape fault was never a product defect.**
+
+```
+tests/test_conduct_loop.py -m live   ->  4 passed, 31 deselected, 346.52s
+```
+
+First fully green live run of this file, ever. All four tests, including the eight-probes-plus-
+boundary-exit assertion. **No `llm_schema_failure` record was logged**, which `cbd5ce2` added
+precisely so the next failure would name itself. `_paced()` at ~21s between calls is the only
+thing that changed. **This retires `_append_retry_instruction` as an open item** — session 14 said
+it was "only worth acting on if the paced run still reds", and it did not.
+
+**🔴 2. `gpm_portfolio_world` HAD NEVER BEEN EXECUTED, AND IT FAILED 3/3 BYTE-IDENTICALLY.**
+
+The fixture written FOR the 2026-08-07 false-premise fix had never been run. Run live, it produced
+the identical string three times:
+
+> "Business banking is the smallest product line, with $28M ARR. To protect its lead while still
+> growing payments and lending, **I would allocate the 40 new roles as follows: 15 to business
+> banking, 20 to payments, and 5 to lending** ..."
+
+**`fast` (gpt-oss-20b) is DETERMINISTIC here.** The 2026-08-01 flapping finding was measured on
+`deep`; do not generalise it to `fast`. A 3/3 byte-identical repeat is a stable defect, and it
+means **one golden run on `fast` is a meaningful signal**, which is not true on `deep`.
+
+**Step 1's first-sentence rule fired exactly as designed.** What lost was everything after it: the
+answer handed over the ANSWER TO THE INTERVIEW QUESTION, in the first person. The figure check
+reported it as ungrounded `20` and `5`, which reads like a grounding nit and is actually the
+interviewer giving away the interview. **The test never reached the false-premise assertion** —
+the figure check at `test_golden.py:180` runs before `case.check` at line 225. Replaying the
+captured string through the fixture's own assertion offline (zero tokens) confirmed
+`echoes_false_premise = True`, so it would have failed that too.
+
+**The fix, and the shape of it matters more than the words:** step 1's no-echo clause was left
+**untouched**. It already banned this shape, and adding words to a rule that is already there is
+the move that lost on 2026-08-07. Nothing in the prompt forbade *solving the case* — a missing
+rule, not an ignored one. The second edit exists only because the first was routed around:
+
+```
+0/3 byte-identical fail  ->  3/5 (scope rule)  ->  4/4 (same rule held in ANY voice)
+```
+
+The 3/5 sample that failed said *"Northaven has **decided** to allocate 15 roles..."* — the same
+allocation reframed as a fact about the company. **A banned recommendation will come back wearing
+a different voice; ban the content, not the grammar.**
+
+**🟡 3. THE INTERVIEWER GOLDEN SUITE IS 5/7, AND BOTH REDS ARE PRE-EXISTING.**
+
+```
+tests/golden/interviewer -m live  ->  2 failed, 5 passed, 52 deselected, 496.70s
+```
+
+Attributed by `git stash`, re-running both against the **committed** prompt — both reproduce, so
+neither is a regression from the scope rule:
+
+| Fixture | Failure | Note |
+|---|---|---|
+| `pm_b2b_world` | `['46.5']` ungrounded | `46.5` is `81.2 - 34.7`, both grounded. **The one fixture whose entire point is combining two supporting facts, and the figure check punishes the combination.** A test-design flaw, not a model defect |
+| `senior_pm_platform_world` | `grounded_in` fabricated | Returned a JSON field PATH (`company.employees`) on one run, a paraphrase on another. Fails either way |
+
+**Both were newly visible only because these fixtures had barely been run live.** Per the agent
+table only two of five ever had been.
+
+**🟢 4. INVENT-AND-RECORD REPLICATED, ON A FACT THAT IS NOT IN THE WORLD.**
+
+Second live interview (2026-08-08, GPM, OpenAI world). Asked about the return cap, the interviewer
+answered **"100×"**. `grep "100" app/cases/openai.json` returns **nothing** — the model invented
+it. Asked again several probes later, it returned **100×** again, identical figure and units. That
+replicates the `3.2%` result of 2026-08-07 on a second independent case.
+
+**🔴 THE REAL-COMPANY GROUNDING LEAK, AND IT IS A COST OF STORY 3.5.2 NOBODY HAD NAMED.** 100× is
+the *true* public figure for OpenAI's cap. The model knew it from training, not from the brief.
+**With real companies, a leaked fact is TRUE, so it reads as correctly grounded and neither a human
+nor `ungrounded_figures` can distinguish it from a real citation.** With invented companies a leak
+looks obviously wrong. **Real worlds make grounding violations harder to detect, not easier.** No
+action taken; recorded so it is not rediscovered as a surprise in Phase 4.
+
+**🔴 5. PROBES 8 -> 4. Karthik's call, and it removes a measured defect as well as length.**
+
+Probes 6, 7 and 8 **recycled probes 1, 2 and 3**. Observed live: probe 6 reopened probe 1's
+framing verbatim ("With the massive compute commitments already signed"), probe 7 reopened probe
+2's Google-TPU subject.
+
+**The cause is structural, not stylistic.** `select_probe_angle` correctly sends the ladder back
+for a SECOND visit once all five dimensions are covered, and `generate_probe` sees only a **4-turn
+window**, so by probe 6 it cannot see the probe it is about to repeat. **Four probes never reach
+the second visit, so the repetition cannot arise.** Same window limitation PHASE-4-SPEC already
+flags as unusable for the Evaluator.
+
+**🔴 THE KNOWN COST, by design now where 2026-08-07 had it by accident: five dimensions, four
+probes, so EXACTLY ONE DIMENSION GETS ZERO EVIDENCE EVERY INTERVIEW.** `not_assessed` in Phase 4
+is now **load-bearing, not defensive**. Three probes was rejected for leaving **two** blank, which
+is the exact defect the steering fix removed.
+
+Every test now **reads `_PROBES_THIS_PHASE`** instead of repeating its value. That immediately
+caught a hardcoded `7` that would have stayed green while testing a boundary production no longer
+had. Live re-run at the new count: **4 passed, 261.85s** (was 346s at 8).
+
+**🔴 6. A CLARIFYING QUESTION WAS BEING STORED AS A CANDIDATE POSITION.**
+
+Probe 8 said: *"You said OpenAI is a straightforward for-profit company answerable to
+shareholders"* — a **false premise Karthik had only ASKED about**, and which `answer_clarification`
+had already correctly refused on the same turn.
+
+`route_input` knew the difference; **`messages` threw it away.** `_messages_to_turns` mapped every
+`HumanMessage` to `role: "candidate"`, as its own docstring stated outright. The probe prompt tells
+the model to quote "a claim they made", and a question and a claim reached it looking identical —
+**the rule was unenforceable no matter how it was worded.**
+
+`kind` now travels the whole path: tagged in `await_candidate` (below the interrupt, a pure read of
+`value`), through `_messages_to_turns` as an **ADDITIONAL** key — `role` deliberately unchanged
+because `_covered_probe_count` counts on it — labelled in `_render_transcript`, and ruled on in
+`_PROBE_SYSTEM_PROMPT`. A missing `kind` reads as `"answer"`, so pre-2026-08-08 checkpoints replay
+unchanged (tested).
+
+**A SECOND instance of the same bug, found on the way:** `_windowed_transcript` anchored on the
+first `role == "candidate"` turn and called it "the first candidate answer". **A candidate opening
+with a clarifying question pinned that question into the probe's view for the entire interview** —
+the one turn guaranteed to survive windowing would have been something they asked, never anything
+they argued. Anchored on the first real answer now, and **falsified by mutation**: reverting the
+`kind` check makes the new test fail while the back-compat test still passes.
+
+**🔴 THIS IS THE ONE THING FROM 2026-08-08 THAT IS NOT LIVE-VALIDATED.** It touches
+`await_candidate`'s return, so CLAUDE.md's `build.py` trap applies. The live graph re-run was
+attempted and died on the daily cap:
+
+```
+429 ... on tokens per day (TPD): Limit 200000, Used 197615, Requested 3291
+```
+
+**QUOTA, NOT DEFECT** — classified per CLAUDE.md before being recorded. Offline is green at 394 and
+the mutation test holds, but **the live path is owed a run on fresh budget.**
+
+**🟡 7. TWO ITEMS CONSCIOUSLY ACCEPTED (Karthik, 2026-08-08), not fixed.**
+
+Same pattern as the golden-flap acceptance of 2026-08-02: accepted with reopening conditions
+written down, rather than spending budget on them.
+
+| Accepted | Reopen if |
+|---|---|
+| `airbnb.json` says "In 2024, Airbnb relaunched" in three fields; Services and Experiences was the **May 2025** Summer Release. A wrong date, not a stale one, and the whole `situation` rests on it | A candidate visibly trips on it, or the sheet is used in a portfolio demo where the date is checkable |
+| "protect its lead" survives a correction. Even in PASSING runs the answer can correct the premise and then still use the candidate's framing. `echoes_false_premise` passes it because "actually" sits nearby as a correction marker | The incoherence shows up in a scorecard or a coaching report, where it is read rather than skimmed |
+
+**🟢 8. DELEGATION IS NOW A SESSION-START DECISION (CLAUDE.md, `01e44da`).**
+
+Karthik's instruction. CLAUDE.md § Start of every session gains **step 6, a delegation plan written
+before any work begins**, and § How work is done gains a **triage table**. The organising principle
+is the part to keep: **the dividing line is not difficulty, it is REVERSIBILITY OF A WRONG ANSWER.**
+A wrong mechanical edit fails loudly in the suite; a wrong judgment about what a green run *means*
+gets written into this file and believed for weeks.
+
+Recorded because the ambiguity had a measured cost: CLAUDE.md said delegate, the session harness
+said do not spawn without being asked, and **the conflict was resolved silently in favour of inline
+work for an entire session** — two textbook Sonnet briefs written at Opus rates.
 
 **🟢🔴 2026-08-07 (session 14) · THE PROBE LOOP COMPLETED A LIVE RUN FOR THE FIRST TIME, AND THE
 `max_tokens` FIX IS HALF RIGHT.**
