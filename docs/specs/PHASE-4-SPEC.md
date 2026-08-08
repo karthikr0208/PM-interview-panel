@@ -119,26 +119,26 @@ inherit it.**
 
 ## Stories
 
-### 4.1 The rubric, golden fixtures, and the assertion harness — ⬜
+### 4.1 The rubric, golden fixtures, and the assertion harness — ✅ DONE 2026-08-08
 
 **Written blind, before the agent**, same as 1.3a and 3.1. The assertions are the deliverable; the
 suite is deliberately RED at the end of this story.
 
-- [ ] `AnswerEvaluation` schema: five `DimensionScore` entries, each `{dimension, score 1-4,
+- [x] `AnswerEvaluation` schema: five `DimensionScore` entries, each `{dimension, score 1-4,
       evidence_quote, reasoning}`, plus `framework_narration: bool` recorded separately, plus
       `not_assessed: list[str]` for dimensions with no evidence.
-- [ ] 6 to 8 golden fixtures at `tests/golden/evaluator/`, each a `(case_world, transcript,
+- [x] 6 to 8 golden fixtures at `tests/golden/evaluator/`, each a `(case_world, transcript,
       assessed_level)` triple with expected properties. **Reuse the planner's `case_world`
       fixtures by pointer, never by copy** — the rule spec §5 already sets for the interviewer suite.
-- [ ] **The corpus is free and it already exists.** Karthik's 2026-08-07 transcript is in
+- [x] **The corpus is free and it already exists.** Karthik's 2026-08-07 transcript is in
       `transcript_turns` for session `ac569e9b-db6a-4a17-9a73-b5c1ed43e59f`: one question, four
       clarifications, eight probes, nine candidate turns, with **known** properties — three
       dimensions evidenced, two not. Lift it as fixture 1.
-- [ ] Assertions: **every score has a non-empty `evidence_quote`** · **every quote appears VERBATIM
+- [x] Assertions: **every score has a non-empty `evidence_quote`** · **every quote appears VERBATIM
       in the transcript it was scored from** (the falsifiable version of PRD §8, and the one
       assertion this suite exists for) · a dimension in `not_assessed` carries **no** score · the
       same answer scores lower at a higher `assessed_level`.
-- [ ] **Falsify the verbatim-quote assertion** against a hand-written evaluation containing a quote
+- [x] **Falsify the verbatim-quote assertion** against a hand-written evaluation containing a quote
       that is *nearly* right (a word changed). If a paraphrase passes, the assertion is decorative.
 
 **Acceptance:** the suite runs, is red, and the quote assertion has been **observed failing** on a

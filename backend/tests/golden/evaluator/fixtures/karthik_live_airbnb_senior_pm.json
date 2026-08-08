@@ -1,0 +1,255 @@
+{
+  "world_fixture": null,
+  "case_world": {
+    "as_of": "August 2025",
+    "market": {
+      "size_usd": "$115.4B",
+      "competitors": [
+        {
+          "name": "Booking.com",
+          "positioning": "Broader inventory spanning hotels and alternative accommodations together, with particular strength in European and international markets.",
+          "relative_strength": "A larger, more hotel-inclusive catalog and a stronger foothold outside the US than Airbnb's more peer-hosted, US-centric roots."
+        },
+        {
+          "name": "Vrbo",
+          "positioning": "Targets whole-home, family-oriented travel more directly than Airbnb's broader mix of private rooms, shared spaces, and whole homes.",
+          "relative_strength": "A simpler, more predictable whole-home-only inventory that some family travelers prefer over Airbnb's wider variety."
+        },
+        {
+          "name": "Marriott",
+          "positioning": "A large, professionally operated hotel network with loyalty programs and guaranteed service standards.",
+          "relative_strength": "Consistent, professionally managed quality and a loyalty program that peer-hosted listings cannot fully replicate."
+        }
+      ],
+      "description": "Online travel and short-term accommodation, spanning both peer-hosted alternative accommodations and, with Airbnb's 2024 relaunch, an expansion into adjacent in-destination services and experiences.",
+      "growth_rate_pct": 8.6
+    },
+    "company": {
+      "name": "Airbnb",
+      "stage": "public",
+      "one_line": "Airbnb is a marketplace connecting travelers with hosts offering short-term stays, and, since a 2024 relaunch, a wider set of in-destination services and experiences.",
+      "employees": 7000,
+      "founded_year": 2008
+    },
+    "metrics": {
+      "arr_usd": "$11.1B",
+      "customer_count": 493000000,
+      "yoy_growth_pct": 12.0,
+      "gross_margin_pct": 82.6,
+      "monthly_churn_pct": 6.7
+    },
+    "situation": {
+      "prompt": "In 2024, Airbnb relaunched with an expanded set of in-destination Services and Experiences, part of CEO Brian Chesky's stated ambition to become a much broader travel platform, even as core lodging growth slows in mature markets and cities like New York effectively ban most short-term rentals. How much should Airbnb invest in this new Services and Experiences expansion versus defending its core lodging business against regulatory and growth headwinds?",
+      "options": [
+        "Go all-in on expansion: fund Services and Experiences aggressively as the next major growth vector, treating slower core lodging growth as the reason the bet is necessary.",
+        "Defend the core: pull back on new-category investment and instead focus product and policy effort on protecting core lodging growth against regulatory headwinds city by city.",
+        "Sequence it: keep Services and Experiences in a small number of proof-of-concept markets while the core lodging team fixes trust, safety, and regulatory relationships first."
+      ],
+      "tension": "Services and Experiences is a genuinely new growth avenue in a market where core lodging growth is decelerating in Airbnb's most mature cities, but it also pulls product, engineering, and marketing attention away from a core lodging business that is under real regulatory pressure (short-term rental restrictions in cities including New York) and where trust and safety issues can still surface publicly. A bet on breadth risks starving the business that still generates almost all of the revenue.",
+      "constraints": [
+        "New York City's Local Law 18, in effect since September 2023, has already removed a large share of previously active listings in one of Airbnb's highest-profile markets, and other cities have proposed similar rules.",
+        "Airbnb's brand and trust have been damaged before by high-profile incidents involving hidden cameras and property damage, and any new category (Experiences, Services) carries its own version of that same trust risk.",
+        "Airbnb is public and under quarterly pressure to show that new-category investment is translating into revenue, not just user experimentation."
+      ],
+      "leadership_belief": "Chesky has publicly described the ambition as building Airbnb into something closer to 'the next version of Amazon,' broader than lodging alone, and has framed Services and Experiences as core to that vision rather than a distraction from it."
+    },
+    "suits_categories": [
+      "strategy",
+      "gtm",
+      "growth"
+    ],
+    "supporting_facts": [
+      "Airbnb is publicly traded on Nasdaq under the ticker ABNB, having gone public in December 2020.",
+      "Full-year 2024 revenue was approximately $11.1 billion.",
+      "Airbnb relaunched its Experiences product and introduced a new Services category (including chefs, personal training, and spa treatments) in a major announcement in May 2024.",
+      "New York City's Local Law 18, effective September 2023, imposed registration requirements that have removed the large majority of previously active short-term rental listings in the city.",
+      "Airbnb reports 'Nights and Experiences Booked' as its primary volume metric each quarter; this brief uses that figure (approximately 493 million for 2024) as its customer_count.",
+      "Airbnb has reported several million active hosts globally.",
+      "CEO Brian Chesky has publicly described wanting Airbnb to expand well beyond lodging, comparing the ambition to Amazon's expansion beyond books.",
+      "Airbnb's core lodging business has faced periodic high-profile trust and safety incidents, including reports of hidden cameras in listings, that have drawn media attention.",
+      "Airbnb's gross margin is among the highest of major travel marketplaces, reflecting its asset-light model of not owning the properties listed on it.",
+      "Monthly churn figures in this brief are an estimate; a two-sided travel marketplace does not have a standard subscription-style churn metric."
+    ]
+  },
+  "assessed_level": "Senior PM",
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "How would you increase booking conversion for Airbnb Services and Experiences?"
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "clarify",
+      "content": "When you say bookings, do you mean bookings by customers (consumers) for properties hosted on airbnb or increasing registration of properties by property owners (suppliers)"
+    },
+    {
+      "idx": 2,
+      "role": "interviewer",
+      "kind": "meta",
+      "content": "Bookings refer to customers booking experiences, not property registrations."
+    },
+    {
+      "idx": 3,
+      "role": "candidate",
+      "kind": "clarify",
+      "content": "What's the current booking conversion rate for Experiences?"
+    },
+    {
+      "idx": 4,
+      "role": "interviewer",
+      "kind": "meta",
+      "content": "The current booking conversion rate for Experiences is 3.2%."
+    },
+    {
+      "idx": 5,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "I'd start by separating the funnel rather than treating conversion as one\nnumber. For Experiences the drop-off is mostly discovery, not checkout.\nPeople arrive with lodging intent, book a stay, and never see Experiences\nas a distinct surface. So 3.2% is really a browse-rate problem wearing a\ncheckout problem's clothes.\n\nI'd prioritize three things, in order. First, inject Experiences into the\npost-booking moment, when we already know the destination and the dates,\nwhich is the highest-intent window we have. Second, fix supply density in\nthe top twenty destinations, because conversion is capped by whether\nanything good is available on the dates someone is actually there. Third,\nand only then, touch the booking flow itself.\n\nI'd measure success on Experiences attach rate per confirmed stay rather\nthan standalone Experiences conversion. I'd expect the post-booking\nplacement alone to move attach rate by a couple of points within a quarter.\n"
+    },
+    {
+      "idx": 6,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "You said you expect the post‑booking placement alone to lift attach rate by a couple of points in a quarter. What specific assumptions about user intent and conversion rates are you making to arrive at that figure, and how would you test whether the lift is truly due to the placement rather than other factors?"
+    },
+    {
+      "idx": 7,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "Three assumptions. First, that post-booking traffic converts at roughly\nthree times the cold-browse rate, because destination and dates are already\nknown. Second, that current attach is low enough that a placement change is\nnot fighting a ceiling. Third, that supply is adequate in the top\ndestinations, which is the thing I said I would verify first.\n\nOn testing it, I would use a geo holdout rather than a user-level A/B.\nExperiences supply and demand are both local, so a user-level split leaks\nacross the boundary. I would hold out twenty comparable metro pairs, run\nfour weeks, and read attach rate per confirmed stay against the holdout.\nThe failure mode I would watch for is cannibalization: if attach rises\nwhile standalone Experiences bookings fall, I have moved demand rather\nthan created it.\n"
+    },
+    {
+      "idx": 8,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "You said you’d hold out twenty comparable metro pairs for four weeks. How did you decide those pairs were comparable, and what specific metrics would you track to guard against seasonal or event‑driven bias in the attach rate measurement?"
+    },
+    {
+      "idx": 9,
+      "role": "candidate",
+      "kind": "clarify",
+      "content": "Remind me, what was the Experiences conversion rate again?\" "
+    },
+    {
+      "idx": 10,
+      "role": "interviewer",
+      "kind": "meta",
+      "content": "The current booking conversion rate for Experiences is 3.2%."
+    },
+    {
+      "idx": 11,
+      "role": "candidate",
+      "kind": "clarify",
+      "content": "Before I go on, what did you say the Experiences conversion rate was?"
+    },
+    {
+      "idx": 12,
+      "role": "interviewer",
+      "kind": "meta",
+      "content": "3.2%"
+    },
+    {
+      "idx": 13,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "I picked pairs on three axes: total nights booked, share of international\nversus domestic travelers, and existing Experiences supply density. Barcelona\nand Lisbon pair well on all three. Austin and Nashville do not, because SXSW\ndistorts one of them for six weeks a year.\n\nAgainst seasonality and events I would not rely on the pairing alone. I would\ntrack attach rate as a ratio to the holdout rather than as an absolute, so a\nshared seasonal swing cancels. I would also pre-register a list of known event\nweeks per metro and exclude them, and watch nights booked in both arms as a\nguardrail. If the treated metro suddenly diverges on bookings, something other\nthan my placement is happening and the attach reading is not trustworthy.\n"
+    },
+    {
+      "idx": 14,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "What exactly do you mean by attach rate here, and how would you compute it against the holdout to cancel shared seasonal swings?"
+    },
+    {
+      "idx": 15,
+      "role": "candidate",
+      "kind": "clarify",
+      "content": "Since the short-term rental market is shrinking, does that change how much Services matters"
+    },
+    {
+      "idx": 16,
+      "role": "interviewer",
+      "kind": "meta",
+      "content": "Yes, the shrinking short‑term rental market makes Services and Experiences a more critical growth driver."
+    },
+    {
+      "idx": 17,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "That is fair, and it is the risk I would want to kill first. I would split\nattach into incremental and captured demand by checking whether the treated\narm produces Experience bookings from stays that had no prior Experiences\npage view. If the lift is concentrated in people who had already visited an\nExperiences page before booking their stay, I have harvested intent rather\nthan created it, and the placement is worth far less than a couple of points\nsuggests.\n\nThe cleanest version is to hold the placement back from a random slice of\nhigh-intent users inside the treated metros, so I can price the incremental\npiece directly.\n"
+    },
+    {
+      "idx": 18,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "You said that lift concentrated in people who had already visited an Experiences page suggests lower incremental value. How would you quantify the incremental margin contribution of those new bookings relative to core lodging, and what threshold would you use to decide if the placement is worth the investment?"
+    },
+    {
+      "idx": 19,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "Experiences carry a take rate rather than full booking value, so the right\ncomparison is contribution margin per confirmed stay, not gross bookings.\nAirbnb runs an 82.6% gross margin overall and Services should be dilutive to\nthat at first, because supply acquisition and trust operations are heavier\nper unit.\n\nMy threshold is contribution margin per stay, net of the engineering and ops\ncost of running the placement, positive within four quarters. If it needs\nlonger, it is a strategic bet and should be argued as one rather than\njustified on placement economics.\n"
+    },
+    {
+      "idx": 20,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "You said the threshold is contribution margin per stay net of engineering and ops cost, positive within four quarters. How would you estimate those per‑stay engineering and ops costs, and what margin figure would you consider acceptable to hit that threshold?"
+    },
+    {
+      "idx": 21,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "If I am being direct, I think the placement is the wrong thing to be arguing\nabout. It is a quarter of work that moves attach a couple of points. The real\nquestion is whether Services is a genuine second business or a retention\nfeature for lodging, and those two answers imply completely different\ninvestment levels and completely different teams.\n"
+    },
+    {
+      "idx": 22,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "You said Services could be a second business or a retention feature; what signals or metrics would you use to decide which it is, and how would that affect how you split engineering resources between the two?"
+    },
+    {
+      "idx": 23,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "I would argue it is a retention feature until proven otherwise. What would\nchange my mind is Experiences driving stays rather than attaching to them,\nso I would look for bookings where the Experience was reserved before the\nstay was. If that cohort stays small, Services is defending lodging rather\nthan replacing it.\n"
+    },
+    {
+      "idx": 24,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "You said you'd look at the cohort where Experiences are booked before stays and consider it small if Services is just a retention feature; how would you define \"small\" in concrete terms, and at what point would you reallocate engineering resources to treat Services as a separate business?"
+    },
+    {
+      "idx": 25,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "Small means under 15% of Experience bookings originating before a stay is\nbooked, measured across a full year to cover seasonality. Below that,\nServices is attaching to lodging demand rather than generating it.\n\nOn reallocation, I would not move engineering until that cohort clears 15%\nand the in-destination market is still growing at something like the 8.6%\nwe are seeing. Growth in the underlying market is what makes a separate\nbusiness defensible. If that rate decays, Services is a feature I staff\nfrom inside lodging, not a business I stand up a team for.\n"
+    },
+    {
+      "idx": 26,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "You set a 15% threshold for pre‑stay Experience bookings; what evidence or analysis led you to that specific cutoff, and how would you adjust resources if the cohort hovered around 12%?"
+    },
+    {
+      "idx": 27,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "Then I would come back with the cohort number and the margin figure before\nasking for headcount, rather than arguing the org change first.\n\n"
+    }
+  ],
+  "source": "REAL, not hand-written. session ac569e9b-db6a-4a17-9a73-b5c1ed43e59f, transcript_turns + case_worlds tables, read 2026-08-08 via backend/scripts/check_db.py connection pattern. Interview conducted 2026-08-07.",
+  "expected_not_assessed": [
+    "market_accuracy",
+    "point_of_view"
+  ],
+  "expected_evidenced": [
+    "business_model_fluency",
+    "decision_quality",
+    "structural_clarity"
+  ]
+}

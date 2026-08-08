@@ -1,0 +1,19 @@
+{
+  "world_fixture": "apm_consumer_world",
+  "assessed_level": "APM",
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "Ferngrove's Discover feed shows new users a mix of trending videos during their first session, but only 11.3% of new signups return on day 2, well below the 19.0% day-2 return rate for users who follow at least three creators in their first session. Would you redesign the first-session flow to push new users toward following creators immediately, or keep the current trending-first feed and improve recommendation quality instead?"
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "I'd redesign the first-session flow, but conditionally, and I'll walk through it in three parts: what's actually broken, what I'd change, and what could go wrong.\n\nFirst, the business case. Ferngrove runs a 76.5% gross margin on $18.3M ARR from 41,000 subscribers, so the marginal cost of retaining an extra subscriber is low; the real lever is retention, and the 19.0% versus 11.3% day-2 gap is the single largest signal I have that a social-graph fix, not a ranking fix, moves that number.\n\nSecond, the competitive picture matters here. Skillet Social has roughly ten times our daily active users but a lower share of cooking-specific watch time, so we're not competing on scale, we're competing on whether users form a habit here specifically. Whisk & Co is about to ship grocery integration, which raises the cost of losing users to them before we've locked in a habit loop. Tablescape is pulling our own creators away with better payouts, which makes the supply side fragile too.\n\nThird, my actual recommendation: force a lightweight follow prompt after the third trending video, not before any content, since the earlier forced-follow experiment on the search surface hurt first-session completion by 6.4 points. That's a middle path between the two options I was given.\n\nIf I'm wrong, it's because the exec team's belief is right and this really is a content-discovery problem, not a social-graph one. I'd hold that possibility seriously, but the 19.0% versus 11.3% gap is too large to be explained by ranking quality alone, and I'd want to see it disproven before I'd back off this recommendation."
+    }
+  ],
+  "note": "Hand-written for story 4.1. Deliberately dense: every rubric dimension has something to point evidence_quote at, so this fixture's expected not_assessed is empty -- the counterweight to fixture 1 and the sparse/extreme fixtures below, per the brief's item 5: not_assessed is load-bearing and must be tested on BOTH sides, not treated as an edge case that only ever fires."
+}

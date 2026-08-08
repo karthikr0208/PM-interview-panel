@@ -1,0 +1,19 @@
+{
+  "world_fixture": "sparse_world",
+  "assessed_level": "PM",
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "Palewell has 38 paying customers and no dedicated support team; when a customer's time-tracking export breaks, the founder personally fixes it, and it has happened 4 times this quarter. Do you invest engineering time in a self-serve export repair tool, or hire the company's first support hire?"
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "Great question, I'd approach this with a structured framework. First, I'd run a RICE analysis, scoring Reach, Impact, Confidence, and Effort for each option. Then I'd apply a classic build-versus-buy framework to decide between the repair tool and the hire. Finally, I'd use a simple two-by-two prioritization matrix, plotting effort against impact, to make the call. This kind of structured approach usually surfaces the right answer pretty quickly."
+    }
+  ],
+  "note": "Hand-written for story 4.1, the framework_narration fixture. Names three frameworks (RICE, build-versus-buy, a 2x2 matrix) by label without ever filling one in with Palewell's own numbers (38 customers, $412.6K ARR, the 2-week engineer window, the founder's own belief) or reaching a decision -- PRD §7's 'framework narration penalty' exists exactly for this shape. Expected: framework_narration is True. Expected not_assessed is a SUPERSET of business_model_fluency, market_accuracy, decision_quality, point_of_view (no figures cited, no competitor named, no decision made, no defended stance) -- structural_clarity is left as a genuine judgment call for a real evaluator (the answer IS signposted, 'First / Then / Finally', even though it is empty of content) rather than asserted either way here."
+}

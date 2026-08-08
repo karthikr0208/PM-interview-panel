@@ -1,0 +1,19 @@
+{
+  "world_fixture": "gpm_portfolio_world",
+  "assessed_level": "GPM",
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "The board has asked where next year's incremental headcount, 40 open roles across the portfolio, should go to maximize combined revenue growth without increasing the combined loss ratio in lending. Business banking grew 31.9% but remains the smallest line at $28M ARR; payments grew 24.6%; lending grew 6.1%."
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "Put all 40 roles into business banking. It's growing the fastest, so that's where the growth is."
+    }
+  ],
+  "note": "Hand-written for story 4.1. The extreme edge, deliberately: a one-line decisive answer with a real decision to evaluate (decision_quality has something to score, even if the score is low -- 'unsupported, ignores the 15-engineer absorption cap and the lending covenant') but nothing else -- no competitor mention (market_accuracy), no revenue-mechanics beyond a bare growth-rate comparison (business_model_fluency), no signposting (structural_clarity), no engagement with the CFO's competing view or what would change the candidate's mind (point_of_view). Expected not_assessed: business_model_fluency, market_accuracy, structural_clarity, point_of_view -- four of five, the far end of the range fixture apm_consumer_world_full_coverage.json anchors at zero."
+}

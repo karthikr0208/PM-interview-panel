@@ -1,0 +1,19 @@
+{
+  "world_fixture": "senior_pm_platform_world",
+  "assessed_level": "GPM",
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "Fluxpoint just announced HIPAA compliance certification, closing the one gap that has kept Ridgeline out of healthcare deals, but Ridgeline's own compliance work is 4 months from complete. Meanwhile, Lanternq is winning greenfield developer teams on setup speed, a segment Ridgeline has historically owned. Where do you focus the platform roadmap for the next two quarters?"
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "My call is to split the 9-person platform-infra team unevenly: 6 engineers on finishing compliance, 3 on cutting setup time, rather than an even split or an all-in bet on either side.\n\nHere's my reasoning. First, the market read: healthcare deals average roughly triple Ridgeline's typical deal size, but the two comparable enterprise sales cycles took 9 and 11 months, so a healthcare push this half doesn't show revenue for a long time regardless of when compliance finishes; Fluxpoint's HIPAA win doesn't close that door faster, it just makes Ridgeline's 4-month gap visible to prospects sooner. Second, Lanternq's 6-minute setup versus our 22 minutes has already cost 3 greenfield deals in two quarters, and that segment is one we've historically owned, so leaving it fully unattended risks a second front opening while we chase healthcare.\n\nI'd defend the position even against the VP of Sales's read that healthcare is the bigger prize: bigger deal size on paper is not the same as bigger near-term revenue once the 9-to-11-month sales cycle is priced in, and the board's growth plan naming healthcare as a target vertical is a next-year bet, not a this-half fire."
+    }
+  ],
+  "note": "Hand-written for story 4.1. Paired with senior_pm_platform_world_level_pair_pm.json -- see that fixture's note for the full rationale. This is the higher-level half of the pair (GPM vs PM): the SAME answer should score AT LEAST AS DEMANDING (PRD §7 anchor-shift rule -- 'the same answer scores lower at a higher assessed_level') once a real evaluate_answer exists. Expected not_assessed: business_model_fluency, same as the PM-level twin."
+}

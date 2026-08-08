@@ -1,0 +1,19 @@
+{
+  "world_fixture": "pm_b2b_world",
+  "assessed_level": "PM",
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "Circuitway's forecasting module is accurate for customers with a single warehouse, but activation drops sharply for customers running more than three sites: only 34.7% of multi-site customers reach their first accurate forecast within 30 days, versus 81.2% of single-site customers. What do you do about the multi-site segment, which is 46% of the pipeline this quarter?"
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "I'd ship the manual override tool this quarter rather than rebuilding the forecasting engine. Circuitway only has 2 backend engineers free and a board commitment to grow logos 25%, so a full model rebuild is too slow and too risky to bet the quarter on, and the override tool gets multi-site customers something usable inside the 30-day window while the $1.2M in booked pipeline is still live. Circuitway's ARR is $6.1M and gross margin is 71.8%, so keeping the 46% of pipeline that's multi-site actually matters to the growth number the board is watching. I'd ship the override tool, staff it with the two available engineers, and revisit a real model rebuild once we know whether the override tool alone moves the 30-day activation number."
+    }
+  ],
+  "note": "Hand-written for story 4.1. Narrow on purpose: a clear decision (decision_quality) backed by real revenue mechanics (business_model_fluency), but the answer never names a competitor (Palletform / Shiftwise / Northtrail Ops -- market_accuracy), is one unsignposted paragraph (structural_clarity), and never takes a position on the CEO's onboarding-not-modeling belief or says what would change the candidate's mind (point_of_view). Expected not_assessed: market_accuracy, point_of_view, structural_clarity."
+}
