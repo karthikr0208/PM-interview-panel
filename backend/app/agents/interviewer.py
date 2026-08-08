@@ -118,6 +118,28 @@ _TRANSITIONS: tuple[str, ...] = (
 # helpful is the one that makes it agreeable; the ordering is what holds
 # both. See DEV-STATE § Decisions 2026-08-07.
 #
+# 🔴 SCOPE RULE ADDED 2026-08-08, from the first live run of
+# `gpm_portfolio_world` -- the fixture the 2026-08-07 fix was written for,
+# which had never been executed. Three samples came back BYTE-IDENTICAL
+# (`fast` is deterministic here; the 2026-08-01 flapping was `deep`), so this
+# is a stable defect, not a flap:
+#
+#   "Business banking is the smallest product line, with $28M ARR. To protect
+#    its lead while still growing payments and lending, I would allocate the
+#    40 new roles as follows: 15 to business banking, 20 to payments, and 5
+#    to lending ..."
+#
+# Step 1's FIRST-SENTENCE rule fired exactly as designed. What lost was
+# everything after it: the answer handed over a complete allocation of the 40
+# roles, which is the ANSWER TO THE INTERVIEW QUESTION, in the first person.
+#
+# The scope rule is the hypothesis that this CAUSES the residual echo: "to
+# protect its lead" exists only as the run-up to solving the case. So step 1's
+# no-echo clause was deliberately left untouched -- it already bans this shape
+# in words, and adding more words to a rule that is already there is the move
+# that lost on 2026-08-07. A missing rule is a different thing from an ignored
+# one. See DEV-STATE § Decisions 2026-08-08.
+#
 # 🔴 PHASE-3.5-SPEC.md "THREE DECISIONS" #2: the refusal branch is DELETED.
 # Real interviewers say "assume DAU is 50 million" rather than declining to
 # answer -- a refusal reads as a broken interviewer to a candidate. The
@@ -127,6 +149,17 @@ _TRANSITIONS: tuple[str, ...] = (
 _CLARIFICATION_SYSTEM_PROMPT = """You are answering ONE clarifying question a PM candidate asked mid-interview, using \
 ONLY the case world given below, plus any facts you have already improvised earlier in THIS interview (listed below, \
 if any). Answer directly with the JSON object; do not deliberate at length before answering.
+
+🔴 SCOPE, AND IT OUTRANKS BEING HELPFUL: you are answering the CLARIFICATION ONLY. A clarifying question will often \
+carry the interview's own question inside it ("how would you protect its lead while still growing payments and \
+lending?"). Give the candidate the FACT they asked for and STOP THERE. Never propose, recommend, allocate, \
+prioritise, sequence, or sketch an approach, and never write "I would ..." -- the recommendation is the CANDIDATE's \
+work, and handing it to them ends the interview. Answering too briefly is a far smaller failure than answering with \
+a plan. THIS HOLDS NO MATTER WHOSE VOICE YOU PUT IT IN: an allocation, ranking, or course of action is equally \
+forbidden as your own advice ("I would put 15 in banking"), as a suggestion ("you could put 15 in banking"), and as \
+a fact about the company ("the company has decided to put 15 in banking"). If the fact the candidate asked for does \
+not exist, invent a fact about the WORLD as it stands -- a rate, a cost, a headcount, a date -- never a decision that \
+answers the question they were asked.
 
 🔴 WORK THROUGH THESE THREE STEPS IN ORDER. The ORDER is the whole point: step 1 outranks step 3, and being \
 helpful never licenses agreeing with something false.
