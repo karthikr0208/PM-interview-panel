@@ -47,9 +47,20 @@ a 429 before calling it a defect. Those are why the numbers in DEV-STATE can be 
 4. Read the **Decisions & deviations** section of DEV-STATE carefully. Reality has diverged
    from the original plan in specific places, and **those entries supersede ARCHITECTURE.md
    wherever they conflict.**
-5. State back: the current phase, the next story, and anything blocking it. Then begin.
-6. Before writing code, skim **§ What to update, and when** below, so you know what this
+5. State back: the current phase, the next story, and anything blocking it.
+6. **Write the DELEGATION PLAN for this session, before doing any of the work.** Split what is
+   ahead into *stays with me* and *goes to Sonnet*, using the triage table in § How work is done.
+   Two lines is enough — this is a routing decision, not a document. Say it out loud alongside
+   step 5's summary, so Karthik can correct the split before tokens are spent rather than after.
+7. Before writing code, skim **§ What to update, and when** below, so you know what this
    story will owe on the way out. Cheaper to know up front than to reconstruct at the end.
+
+**Step 6 is not optional and it is not a formality.** It was added 2026-08-08 after a full session
+ran with **zero** delegation: two textbook Sonnet briefs (a constant change with four test
+rewires, and a four-file mechanical edit to a design the orchestrator had already fully specified)
+were both written inline at Opus rates. Nothing was wrong with the output; it simply cost several
+times what it needed to. **The decision is cheap and the default is expensive, so the plan is made
+UP FRONT, once, not rediscovered per task.**
 
 **Do not re-derive project state by reading source files.** DEV-STATE.md is maintained
 deliberately and is faster and more accurate than inference.
@@ -63,6 +74,36 @@ file that merely sounds authoritative.
 **Delegate implementation to Sonnet subagents. You plan, orchestrate, and verify.** Karthik is
 paying for the reasoning that catches false passes and decides what evidence actually shows, not
 for mechanical file-writing a cheaper model does equally well.
+
+**This is standing permission, granted 2026-08-08. Do not wait to be asked per task, and do not
+ask whether to delegate something the table below already routes.** The objective is explicit:
+**preserve tokens by allocating each task to the cheapest model that can do it correctly.**
+
+### The triage table — apply it in step 6, before any work starts
+
+| Goes to **Sonnet** | Stays with **the orchestrator** |
+|---|---|
+| Mechanical edits to a design already fully specified | Deciding what the design should be |
+| Writing or rewiring tests to a named acceptance | Deciding what the assertion must prove |
+| Fixtures, golden cases, blind test data | Reading a live output and judging whether it is right |
+| Renames, refactors, threading a param through call sites | Anything touching an agent **prompt** |
+| Grep-and-inventory sweeps (use **Explore**, cheapest of all) | Classifying a failure: 429 vs defect vs flap |
+| Applying a fix whose root cause is already diagnosed | **Diagnosing** the root cause |
+| | Running the full suite, and every live run |
+| | `docs/` — DEV-STATE, specs. Agents may never edit these |
+| | Commits, and the evidence written into them |
+| | Anything where being wrong is expensive and invisible |
+
+**The dividing line is not difficulty, it is REVERSIBILITY OF A WRONG ANSWER.** A wrong mechanical
+edit fails loudly in the suite. A wrong judgment about what a green run *means* gets written into
+DEV-STATE and is believed for weeks. Spend the expensive model on the second kind.
+
+**Two sizing rules, both learned the expensive way:**
+
+- **Delegate a whole story, not a step.** Spawning an agent costs a cold start that re-derives
+  context this session already has. Three small briefs cost more than one adequate one.
+- **A task that needs more brief than it saves is not delegable.** If specifying it precisely
+  enough takes as long as doing it, do it inline and stop optimising.
 
 Per story: spawn a Sonnet agent with a precise brief — the files, the acceptance boxes, and the
 **named traps from DEV-STATE § Decisions** that apply. A brief without the traps is how the same
