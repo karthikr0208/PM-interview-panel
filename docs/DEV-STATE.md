@@ -2272,9 +2272,21 @@ against Airbnb / Chesky / Local Law 18 / 82.6 / the session id.
 
 ### Deployment
 
-**`286bfe9` is pushed** (the clarification scope fix). **`cc61fa2` and `01e44da` are committed and
-NOT pushed** — the probe cut, the `kind` change, and the CLAUDE.md delegation policy. Push once the
-live run above greens, so the unvalidated node change does not reach production first.
+**EVERYTHING IS PUSHED through `d4649b0`** (2026-08-08, `286bfe9..d4649b0`). Six commits: the
+clarification scope fix, the probe cut plus the `kind` change, the CLAUDE.md delegation policy,
+two DEV-STATE records, and story 4.1.
+
+**🔴 Karthik's explicit call to ship before the live re-run.** The recommendation had been to hold
+`cc61fa2` until the `kind` change greened live; he chose to ship, so **production is running a node
+change validated only offline.** That does not make the owed live run optional — it makes it the
+first thing to spend fresh budget on, and it is now validating something already serving users
+rather than something waiting to.
+
+**THE FREE DEPLOY MARKER IS THE PROBE COUNT.** The backend still has no version endpoint and
+`/openapi.json` is byte-identical across 3.5, so it cannot be proven from outside. But an interview
+that **exits after FOUR probes is the 2026-08-08 build**; eight means Render is still serving the
+old one. That is a stronger marker than anything used before, because it needs no bundle grep and
+no route list.
 
 ### Budget
 
