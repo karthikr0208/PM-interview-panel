@@ -206,7 +206,7 @@ toggle no script can flip.** See Blockers.
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
 | 3.5 Question quality | 🟢 **ALL FIVE STORIES DONE AND VALIDATED LIVE 2026-08-08**, except one node change owed a re-run. Session 15: the paced conduct loop went **4 passed / 346s, its first fully green live run**, and **no `llm_schema_failure`** — so the probe-7 shape fault was **never a product defect** and `_append_retry_instruction` is CLOSED. `gpm_portfolio_world` ran for the first time, failed **3/3 byte-identically** (`fast` is deterministic; the flapping finding was `deep`), and is **4/4** after a scope rule stopping the interviewer answering its own case question. Interviewer golden suite **5 passed / 2 failed, both reds PRE-EXISTING and attributed by `git stash`**. A second live interview cut **probes 8 → 4** (probes 6-8 recycled 1-3 through `generate_probe`'s 4-turn window) and found a **clarifying question stored as a candidate position**, now fixed by carrying `kind` end to end. **🔴 The `kind` change is the one thing NOT live-validated** — the re-run hit the daily cap at 197,615/200,000, classified quota. See § Decisions 2026-08-08. Prior notes follow: **ALL FIVE STORIES CODE-COMPLETE 2026-08-06; VERIFIED IN PART AND DEPLOYED 2026-08-07.** The probe loop **completed a live run for the first time** (all 8 probes + boundary exit, gate condition #3's central assertion). Session 13's `generate_probe` `max_tokens` fix is **verified real but incomplete** — it moved the failure from probe 3 to probe 7. **The probe-7 fault is a SHAPE fault, not truncation; another `max_tokens` bump does nothing.** The other live failure was the 8,000 TPM per-minute ceiling, a test-harness artifact. Neither of two full live runs was green, but **every test passed in at least one**. Twelve commits deployed. See § Decisions 2026-08-07. Prior session-13 notes follow: **the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
-| 4 Evaluator + scorecard | 🟡 **STARTED 2026-08-08. Story 4.1 DONE (`2231a96`), delegated to a Sonnet subagent and independently re-verified — the first story built under CLAUDE.md's new delegation policy.** Schema, 7 golden fixtures, assertion harness. **429 offline passed (was 394), evaluator suite 35 passed / 8 errors — and the RED is the acceptance**, every error an `ImportError` for the not-yet-existing `evaluate_answer`, with no stub written to fake it. The verbatim-quote assertion was **falsified against a one-word paraphrase** ("runs" → "operates") and observed rejecting it. Fixture 1 is Karthik's **real** 2026-08-07 transcript read from Postgres, spot-checked as genuine. **Two open questions the subagent surfaced: the real transcript has FIVE clarify turns not four (turns 9 and 11 duplicate, possibly a resume replay), and fixture 1's `not_assessed` ground truth is inherited from the spec rather than measured.** Next is 4.2. Prior note: **SPECCED 2026-08-07**, from the live interview of the same day rather than from the plan. Three findings shape it: **2 of 5 rubric dimensions got ZERO evidence** in a real interview, so the Evaluator will be asked to score things nothing was said about; **a single end-of-interview call does not fit the 8,000 TPM ceiling** (the full transcript measured 10,274 tokens on 2026-08-06), so per-answer scoring is forced rather than chosen; and the Interviewer's 4-turn window **must not be reused**, because "sharpens a thesis under pushback" is a property of an arc a keyhole cannot see. The DDL also settles more than expected — `evidence_quote` is `not null` with a length check, so PRD §8's schema-level enforcement is **in Postgres**, and `score` being `not null` means an unassessed dimension is represented by the ABSENCE of a row | [PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) | — |
+| 4 Evaluator + scorecard | 🟡 **4.1 AND 4.2 DONE. 4.2 closed 2026-08-09: the Evaluator scores live.** `439 offline passed, 111 deselected` (was 429/111, deselected unchanged). Smoke green on `fast` for `apm_consumer_world_full_coverage`; **role measured at `deep` 2/2 vs `fast` 1/2 and we stayed on `fast` deliberately** (one `deep` sample is not a measurement, and the single disagreement is a rubric definition question). **Token fit computed at the LAST answer BEFORE the loop was built**, per the spec's own instruction: stress case 5,398 against the 8,000 ceiling, asserted offline by `tests/test_evaluator_budget.py` at zero tokens. **One open rubric question surfaced and deliberately not decided** — whether demonstrating a LOW anchor counts as evidence, or whether `not_assessed` means "did not engage at all"; it is Karthik's, and the spec already named it his. **Both of 4.1's open questions are answered**: the "duplicate" clarify turn is not a replay (two different questions 332s apart, idx contiguous 0..27), and fixture 1's inherited ground truth is wrong on the transcript's own text — `dimension_coverage` counts what the Interviewer PROBED, not what the candidate EVIDENCED. Next is 4.3. Prior note: **STARTED 2026-08-08. Story 4.1 DONE (`2231a96`), delegated to a Sonnet subagent and independently re-verified — the first story built under CLAUDE.md's new delegation policy.** Schema, 7 golden fixtures, assertion harness. **429 offline passed (was 394), evaluator suite 35 passed / 8 errors — and the RED is the acceptance**, every error an `ImportError` for the not-yet-existing `evaluate_answer`, with no stub written to fake it. The verbatim-quote assertion was **falsified against a one-word paraphrase** ("runs" → "operates") and observed rejecting it. Fixture 1 is Karthik's **real** 2026-08-07 transcript read from Postgres, spot-checked as genuine. **Two open questions the subagent surfaced: the real transcript has FIVE clarify turns not four (turns 9 and 11 duplicate, possibly a resume replay), and fixture 1's `not_assessed` ground truth is inherited from the spec rather than measured.** Next is 4.2. Prior note: **SPECCED 2026-08-07**, from the live interview of the same day rather than from the plan. Three findings shape it: **2 of 5 rubric dimensions got ZERO evidence** in a real interview, so the Evaluator will be asked to score things nothing was said about; **a single end-of-interview call does not fit the 8,000 TPM ceiling** (the full transcript measured 10,274 tokens on 2026-08-06), so per-answer scoring is forced rather than chosen; and the Interviewer's 4-turn window **must not be reused**, because "sharpens a thesis under pushback" is a property of an arc a keyhole cannot see. The DDL also settles more than expected — `evidence_quote` is `not null` with a length check, so PRD §8's schema-level enforcement is **in Postgres**, and `score` being `not null` means an unassessed dimension is represented by the ABSENCE of a row | [PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
 | 7 Polish & hardening | ⬜ not started | — | — |
@@ -221,7 +221,7 @@ Specs are written at the top of the phase that builds each agent, not up front.
 | Case Architect | ✅ [AGENT-CASE-ARCHITECT-SPEC.md](specs/agents/AGENT-CASE-ARCHITECT-SPEC.md) — **superseded at the top 2026-08-06: this agent no longer runs in production** | 7 written blind 2026-08-02, still running. **The 8 curated worlds now pass them too, which makes them a positive control on the assertions themselves.** 47 offline assertion tests | **N/A — the prompt is not used in an interview.** `select_case_world` is deterministic Python, zero tokens |
 | Planner | ✅ [AGENT-PLANNER-SPEC.md](specs/agents/AGENT-PLANNER-SPEC.md) — **§2, §3, §6 superseded 2026-08-06 by story 3.5.3**; see the box at the top of that file | Rewritten for the one-question-plus-ladder contract. **Smoked live on `fast` 2026-08-06, PASS, no retry.** Three new gates asserted on the generated question: `decorative_statistic`, `is_recitation_shaped`, `matches_no_shape` | 2026-08-06 — **the prompt no longer writes the question.** Slots + ladder only; Python formats the bank template. **Runs on `fast` (measured) — the `deep` requirement was about `QuestionPlan`'s size, not this agent** |
 | Interviewer | ✅ [AGENT-INTERVIEWER-SPEC.md](specs/agents/AGENT-INTERVIEWER-SPEC.md) — **a SECOND superseding box added at the top 2026-08-07**, above 3.5.4's. Clarification prompt restructured, `required_angle` added, `select_probe_angle` and `angles_match` new | 5 written blind 2026-08-05, **reusing the Planner's case worlds by pointer, never copied**. 40 offline assertion tests, **+4 for `echoes_false_premise` 2026-08-07**. **2 of 5 ever smoked live** (2026-08-05). 🔴 **`gpm_portfolio_world` — the adversarial leading-question case — is one of the 3 NEVER RUN, and it is the test for the regression found live on 2026-08-07. Run the unrun three before writing new ones** | **2026-08-07 — `_CLARIFICATION_SYSTEM_PROMPT` restructured into THREE ORDERED STEPS, contradiction FIRST**, after it accepted a false premise live. `_PROBE_SYSTEM_PROMPT`'s ANGLE_USED section now honours a `required_angle`. **NEITHER VALIDATED LIVE.** Prior: 2026-08-06 invent-and-record, and `max_tokens` 1024 -> 2048 which is now **verified real but incomplete** (probes 1-6 solid, probe 7 still fails intermittently on a SHAPE fault). Runs on `fast` |
-| Evaluator | ⬜ (Phase 4) | — | — |
+| Evaluator | 🟡 spec is PHASE-4-SPEC.md §4.1-4.4; no separate agent spec yet (owed if 4.3 changes the contract) | 7 written blind 2026-08-08, **reusing the planner's case worlds by pointer** except the one documented exception (Karthik's real 2026-08-07 interview, which has nothing to point at). **2 of 7 smoked live 2026-08-09.** `apm_consumer` green on both roles; `sparse_world_framework_narration` green on `deep`, red on `fast` on a **rubric definition disagreement, not a malformed output** — see § Decisions 2026-08-09 #8. 🔴 **fixture 1's ground truth is KNOWN WRONG** and is 4.3's to fix: it describes the whole interview while the call scores one answer, and its `not_assessed` was inherited from the Interviewer's probe ledger | **2026-08-09 — first prompt.** Four ordered steps, decline-to-score made a first-class result, and `framework_narration` strengthened after `fast` returned `False` on an answer that walks RICE's letters out loud. **Runs on `fast`** (measured, not inherited) |
 | Coach | ⬜ (Phase 5) | — | — |
 
 ---
@@ -3637,6 +3637,171 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟢 2026-08-09 (session 16) · THE OWED LIVE RUN IS GREEN, AND BOTH OF STORY 4.1'S OPEN QUESTIONS
+ARE ANSWERED. NEITHER WAS WHAT IT LOOKED LIKE.**
+
+**🟢 1. THE `kind` CHANGE IS VALIDATED LIVE. Session 15's one outstanding item is closed.**
+
+```
+tests/test_conduct_loop.py tests/test_transcript.py -m live  ->  10 passed, 32 deselected, 334.61s
+```
+
+No `llm_schema_failure`, no 429, no red. The `kind` change touches `await_candidate`'s return, so
+CLAUDE.md's `build.py` trap applied and the re-run was owed; it had died on the daily cap at
+197,615/200,000 last session, classified as quota. **Everything from 2026-08-08 is now validated
+live, including the code that was already deployed on Karthik's call.** Baseline before it, free:
+`429 passed, 111 deselected` offline and `140 passed, 15 files` vitest, both matching session 15
+exactly.
+
+**🟢 2. STORY 4.1 OPEN QUESTION #1 — the "duplicate" clarify turn is NOT a replay. Case closed.**
+
+The real transcript (`ac569e9b-db6a-4a17-9a73-b5c1ed43e59f`) has **5 clarify turns, not the 4
+PHASE-4-SPEC claims**, and the suspicion was that turns 9 and 11 were a duplicate written by a
+LangGraph resume replay. Read from Postgres, they are not:
+
+```
+idx=9   'Remind me, what was the Experiences conversion rate again?" '   len=60
+idx=11  'Before I go on, what did you say the Experiences conversion rate was?'  len=69
+BYTE-IDENTICAL: False        created_at delta: 332.60 seconds
+idx list 0..27, count=28, distinct=28, duplicate idx: []   gaps: []
+```
+
+**Karthik asked for the same fact twice, five and a half minutes apart, in different words.** A
+replay duplicate is structurally impossible here anyway: `unique (session_id, idx)` makes it a 409,
+which is what `test_a_replayed_candidate_write_conflicts_rather_than_duplicates` already asserts,
+and that guard only ever catches a same-`idx` collision — it cannot see two similar rows at
+different `idx`. **The spec's count was simply wrong; the data is sound.** The spec also omits **5
+`meta` rows** (the interviewer's clarification replies) entirely — 28 rows total, roles strictly
+alternating.
+
+**🔴 3. STORY 4.1 OPEN QUESTION #2 IS REAL, AND IT IS BIGGER THAN "the ground truth is inherited."**
+
+`_check_karthik_live_airbnb` asserts `not_assessed == {market_accuracy, point_of_view}`, inherited
+from PHASE-4-SPEC's `dimension_coverage` table. Two independent problems, both found by reading the
+real transcript rather than the spec:
+
+- **`dimension_coverage` is the Interviewer's ledger of what it PROBED, not a record of what the
+  candidate EVIDENCED.** They are different objects and the spec conflated them. On the transcript's
+  own text, turn 21 (*"the placement is the wrong thing to be arguing about... the real question is
+  whether Services is a genuine second business or a retention feature"*) and turn 23 (*"I would
+  argue it is a retention feature until proven otherwise"*) are a thesis sharpened under pushback —
+  `point_of_view`, anchor 4. Turn 25 cites *"the 8.6% we are seeing"*, grounded in the world —
+  `market_accuracy`. **Both dimensions the spec calls unevidenced have spontaneous evidence.**
+- **The check is unsatisfiable as wired regardless.** `test_golden.py` calls `evaluate_answer` on the
+  fixture's LAST answer, which for this fixture is idx=27, **28 tokens**: *"Then I would come back
+  with the cohort number and the margin figure before asking for headcount, rather than arguing the
+  org change first."* That one sentence cannot evidence `business_model_fluency` and
+  `structural_clarity`, which the check requires it to score. The ground truth describes the WHOLE
+  interview; the call scores ONE answer.
+
+**Decision: fixture 1's whole-interview ground truth moves to story 4.3**, where the per-answer loop
+accumulates across turns and there is something for it to be true of. **4.2's smoke uses a
+single-answer fixture instead** — `apm_consumer_world_full_coverage` and
+`sparse_world_framework_narration`. Story 4.1's own `test_golden.py` docstring predicted this
+("Story 4.2 should expect to rewrite this call site, not merely un-skip it"). **Whether to correct
+fixture 1's `expected_not_assessed` to match the transcript is Karthik's call, not the
+orchestrator's** — it is a ground-truth judgment about his own interview.
+
+**🟢 4. THE EVALUATOR'S TOKEN FIT IS MEASURED, AND PER-ANSWER SCORING FITS WITH ROOM.**
+
+Computed at the LAST answer before the loop was built, per PHASE-4-SPEC #2's own instruction.
+tiktoken `o200k_base`, `Requested = system + human + max_tokens` against the 8,000 TPM ceiling:
+
+```
+system prompt                                        936
+largest case_world (openai.json)                   1,392
+prior_scores, all five dimensions, long quotes       283
+
+worst case   openai world + longest fixture answer + full prior_scores
+             936 + 2,158 + 2,048 max_tokens =     5,142   headroom 2,858
+stress       openai world + 500-word verbose answer  5,395   headroom 2,605
+```
+
+The full transcript measured **10,274** on 2026-08-06 and is over the ceiling — that is what forces
+per-answer scoring. **This is the arithmetic showing per-answer actually fits.** It fits because
+`prior_scores` is a running summary bounded at five entries, not a transcript, so **this budget does
+not grow with turn count** the way the Interviewer's window does. The numbers live in a comment
+block above `_EVALUATION_SYSTEM_PROMPT` in `app/agents/evaluator.py` and are asserted by
+`tests/test_evaluator_budget.py`, offline, at zero cost.
+
+**🔴 5. `framework_narration` IS NOT PERSISTED IN PHASE 4. `reasoning` GETS A COLUMN.**
+
+PHASE-4-SPEC 4.3 requires this decided before 4.2, not after. `answer_evaluations`' grain is
+`(session_id, turn_idx, dimension)`.
+
+- **`reasoning` fits that grain exactly** and Phase 5's Coach may consume it (the spec's own Handoff
+  lists it as an open question). It gets a nullable `reasoning text` column in a new migration in
+  story 4.3. Near-zero cost, and it cannot weaken anything.
+- **`framework_narration` does NOT fit that grain** — it is one bool per ANSWER, not per dimension.
+  Putting it on the score rows denormalizes it five ways, and there is a case where it would be
+  **silently lost entirely**: an answer where all five dimensions are `not_assessed` writes **zero
+  rows**, because `score` is `not null` and an unassessed dimension is represented by the absence of
+  a row. Nothing in Phase 4 reads it — 4.4's scorecard boxes do not render it. **It stays on
+  `AnswerEvaluation` in memory and gets its own table in Phase 5 if the Coach actually consumes
+  it.** Deliberately not a column, and this is the reason.
+
+**🟢 6. STORY 4.2 IS DONE. The Evaluator scores live, and the smoke is green on `fast`.**
+
+Delegated the mechanical half (module assembly + the offline budget test) to a Sonnet subagent; the
+prompt, the budget arithmetic, the role measurement and every live run stayed with the
+orchestrator. Independently re-verified: `439 passed, 111 deselected` (was 429/111), **deselected
+unchanged**, and the subagent's diff deletes exactly the two docstring paragraphs it was asked to
+rewrite and nothing else — `_EVALUATION_SYSTEM_PROMPT` and the budget block have zero `-` lines,
+and `tests/golden/evaluator/test_golden.py` is untouched.
+
+```
+GOLDEN_ROLE=fast   apm_consumer_world_full_coverage   PASS   retry_fired=True
+                   sparse_world_framework_narration   FAIL   (see #8)
+GOLDEN_ROLE=deep   apm_consumer_world_full_coverage   PASS   retry_fired=True
+                   sparse_world_framework_narration   PASS
+```
+
+**Two contradictions the subagent reported rather than papered over**, both correct and both now
+folded into the comment block: the recorded 5,142 worst case is a synthetic cross-product no
+fixture contains (highest real fixture is 4,783, and the stress case at 5,398 is strictly worse and
+is the row actually asserted), and its `prior_scores` stand-in is 438 tokens against the comment's
+283 because it adds a `reasoning` string — making the executable test **stricter** than the
+arithmetic, not looser. This is the shape of subagent report worth having.
+
+**🔴 7. THE ROLE MEASUREMENT SAYS `deep`, AND WE STAYED ON `fast` ANYWAY. Deliberate.**
+
+PHASE-4-SPEC 4.2 required measuring rather than inheriting PRD §3's `deep` assignment. Measured:
+**`deep` 2/2, `fast` 1/2** on identical input. Staying on `fast`, for three reasons that outweigh
+one sample:
+
+- **One `deep` run is not a measurement.** DEV-STATE 2026-08-08 established `fast` is deterministic
+  and `deep` flaps against identical input. A single green `deep` is exactly the evidence this
+  project has repeatedly learned not to trust.
+- **The single disagreement is a rubric definition question, not a capability gap** (#8). `fast`
+  did not produce a malformed or fabricated answer; it produced a defensible reading of an
+  ambiguous rule.
+- Agents default to `fast` per the 2026-08-02 calibration, and `deep` costs several times the
+  budget on the model whose daily cap is the thing that stops work.
+
+**🔴 8. AN OPEN RUBRIC QUESTION, SURFACED BY `fast` AND NOT DECIDED: does demonstrating a LOW
+anchor count as evidence, or does `not_assessed` mean "did not engage this dimension at all"?**
+
+`sparse_world_framework_narration` is an answer that names RICE, build-versus-buy and a 2x2 and
+**never picks** between the repair tool and the support hire. The fixture expects `decision_quality`
+in `not_assessed` (no decision made, so nothing to score). `fast` instead scored it **2**, quoting
+the RICE sentence.
+
+**`fast` is arguably right.** PRD §7's decision_quality anchor 1 is literally *"Hedges, or picks
+without stating criteria"* — an answer that hedges has directly demonstrated anchor-1 behaviour, and
+it produced a real verbatim quote for it. Scoring it low is more faithful to the written anchor than
+declining to score.
+
+**But it erodes something load-bearing.** If "absence of X" is evidence for a low score on X, then
+`not_assessed` becomes nearly unreachable, and PHASE-4-SPEC #1's central rule — do not put a number
+on a dimension nothing was said about — loses its teeth. The spec already names this as **Karthik's
+call** ("whether an unassessed dimension is acceptable at all"), and it is now a concrete instance
+rather than a hypothetical. **Not decided. Not worked around. The fixture stands as written and the
+disagreement is recorded.**
+
+**One thing NOT attributed:** `apm_consumer` failed before the prompt change and passed after it, but
+the prompt changed between the two runs, so **this does not isolate fix from flap.** Recorded as
+observed, not as a causal claim.
 
 **🟢🔴 2026-08-08 (session 15) · SESSION 14'S FIXES ARE VALIDATED, THE PROBE-7 FAULT IS NOT A
 DEFECT, AND A SECOND LIVE INTERVIEW FOUND TWO MORE.**

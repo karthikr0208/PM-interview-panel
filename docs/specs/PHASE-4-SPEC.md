@@ -144,22 +144,29 @@ suite is deliberately RED at the end of this story.
 **Acceptance:** the suite runs, is red, and the quote assertion has been **observed failing** on a
 paraphrase. Zero tokens.
 
-### 4.2 The Evaluator agent — ⬜
+### 4.2 The Evaluator agent — ✅ DONE 2026-08-09
 
-- [ ] `app/agents/evaluator.py`, `evaluate_answer(case_world, question, answer, assessed_level,
+- [x] `app/agents/evaluator.py`, `evaluate_answer(case_world, question, answer, assessed_level,
       prior_scores, *, role="fast")`. Pure function: no DB, no session, no writes — same contract as
       `answer_clarification` and `generate_probe`.
-- [ ] `prior_scores` is the running summary from § "What the live interview already decided" #3:
+- [x] `prior_scores` is the running summary from § "What the live interview already decided" #3:
       the dimensions already evidenced and their quotes, NOT the raw transcript.
-- [ ] **Measure `fast` against `deep` on two fixtures before assigning a role.** Record the number.
-- [ ] **Compute the token fit at the LAST answer** (nine candidate turns, verbose) before wiring
+- [x] **Measure `fast` against `deep` on two fixtures before assigning a role.** Record the number.
+      **Measured: `deep` 2/2, `fast` 1/2**, same two fixtures, identical input. **Stayed on `fast`
+      anyway** — one `deep` sample is not a measurement (`deep` flaps, `fast` is deterministic,
+      DEV-STATE 2026-08-08), and the single disagreement is a rubric definition question, not a
+      capability gap. See DEV-STATE § Decisions 2026-08-09.
+- [x] **Compute the token fit at the LAST answer** (nine candidate turns, verbose) before wiring
       anything, and write the arithmetic into the docstring the way
-      `_TRANSCRIPT_TAIL_TURNS` does.
-- [ ] A dimension with no supporting evidence goes to `not_assessed`. **The prompt must make
+      `_TRANSCRIPT_TAIL_TURNS` does. Comment block above `_EVALUATION_SYSTEM_PROMPT`, and made
+      executable by `tests/test_evaluator_budget.py` — offline, zero tokens.
+- [x] A dimension with no supporting evidence goes to `not_assessed`. **The prompt must make
       declining to score a first-class success, not a failure** — the false-premise regression of
       2026-08-07 is the standing proof that an agent told only to be helpful will oblige.
 
-**Acceptance:** golden suite green on one fixture as a smoke, not the full set. Role measured.
+**Acceptance:** ✅ `apm_consumer_world_full_coverage` green on `fast`; both fixtures green on
+`deep`. Role measured. **One open rubric question this story surfaced and did not decide** — see
+DEV-STATE § Decisions 2026-08-09 #8.
 
 ### 4.3 The graph edge, and the write — ⬜
 
