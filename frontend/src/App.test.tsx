@@ -40,6 +40,14 @@ vi.mock('./lib/api', async (importOriginal) => {
 // test is about the upload -> assessment handoff and nothing else.
 vi.mock('./lib/agentEvents', () => ({ useAgentEvents: () => [] }))
 
+// Same reason for the evaluation column (story 4.4): it opens its own
+// Realtime subscription on `answer_evaluations`. Stubbed to `empty` so this
+// file stays about the upload -> assessment handoff.
+vi.mock('./lib/evaluations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lib/evaluations')>()
+  return { ...actual, useEvaluations: () => ({ state: { kind: 'empty' }, retry: () => {} }) }
+})
+
 const SESSION_ID = 'sess-from-upload'
 
 function pdf(): File {

@@ -47,6 +47,31 @@ export interface AgentEvent {
 }
 
 /**
+ * Mirrors the `answer_evaluations` table
+ * (`backend/migrations/0001_initial_schema.sql`, plus `reasoning` added by
+ * `0004_evaluation_reasoning.sql`). ONE ROW PER (turn, dimension): the
+ * Evaluator scores once per answer, so a dimension accumulates several rows
+ * across an interview.
+ *
+ * `score` is `not null check (score between 1 and 4)` at the database, so an
+ * unassessed dimension CANNOT be stored as a row. Absence is the
+ * representation of "not assessed", deliberately -- never a zero, never a
+ * sentinel. `lib/evaluations.ts` is the only place that turns absence into
+ * the rendered state.
+ *
+ * `reasoning` is nullable: rows written before `0004` do not have it.
+ */
+export interface AnswerEvaluation {
+  id: string
+  session_id: string
+  turn_idx: number
+  dimension: string
+  score: number
+  evidence_quote: string
+  reasoning: string | null
+}
+
+/**
  * Mirrors `await_candidate`'s `interrupt()` payload in
  * `backend/app/graph/build.py` field-for-field. `kind` and `text` are
  * nullable because that node reads `messages[-1]` and yields `null` for

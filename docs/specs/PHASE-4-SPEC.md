@@ -1,7 +1,12 @@
 # Phase 4 — Evaluator and scorecard: a score that cannot be given without evidence
 
-**Status:** ⬜ not started. Written 2026-08-07, before any code, from the live interview of the
-same day. **Every number in § "What the live interview already decided" is measured, not projected.**
+**Status:** 🟡 **4.1, 4.2 and 4.4 DONE. 4.3 is code-complete and owed ONE live re-run** (the
+conduct loop, which died on the daily cap with zero assertion failures). Written 2026-08-07, before
+any code, from the live interview of the same day. **Every number in § "What the live interview
+already decided" is measured, not projected.**
+
+**Gate status: 1 ✅ · 2 ✅ · 3 ✅ · 4 open (Karthik's).** The only engineering work left in this
+phase is the owed conduct-loop run.
 
 The Evaluator scores a candidate's answers against the PRD §7 rubric — five dimensions, 1 to 4,
 each score carrying a verbatim quote from the transcript. The scorecard renders them. That is the
@@ -223,19 +228,19 @@ evidence_quote text not null check (length(evidence_quote) > 0)
 **Acceptance:** ✅ the single-call assertion **observed failing** against a deliberately wrong graph.
 🔴 The conduct-loop re-run is owed before this story is closed.
 
-### 4.4 The scorecard — ⬜
+### 4.4 The scorecard — ✅ DONE 2026-08-09
 
-- [ ] Horizontal bars, numeric value always visible. **No radar chart** (PRD §8).
-- [ ] Every bar expands to its `evidence_quote`. A score the candidate cannot trace to a sentence
+- [x] Horizontal bars, numeric value always visible. **No radar chart** (PRD §8). Rendered as `3 / 4` so the scale reads without a legend.
+- [x] Every bar expands to its `evidence_quote`, via `<details>`/`<summary>` so it is keyboard accessible with no custom state. A score the candidate cannot trace to a sentence
       they said is the thing this design exists to prevent.
-- [ ] **`not_assessed` dimensions render as "not assessed", never as a zero or an empty bar**, and
-      **no overall score is shown when any dimension is unassessed.**
-- [ ] Blind mode toggle (PRD §8): defaults to scores-visible, swaps to coverage-and-progress only,
+- [x] **`not_assessed` dimensions render as "not assessed", never as a zero or an empty bar**, and
+      **no overall score is shown when any dimension is unassessed.** Dashed unfilled track, no numeral anywhere in the row, not expandable. Suppression **falsified by mutation** — relaxing the completeness condition turns the suite red on the POSITIVE coverage assertion.
+- [x] Blind mode toggle (PRD §8): defaults to scores-visible, swaps to coverage-and-progress only,
       full reveal at the end.
-- [ ] `stripDashes` on every rendered string. **Historical rows carry raw U+2011.**
-- [ ] Full loading / empty / error states. Labels above inputs. Geist + Geist Mono, mono for every
+- [x] `stripDashes` on every rendered string. **Historical rows carry raw U+2011.** Applied to `evidence_quote` and `reasoning`, with a positive control that the surrounding sentence survives.
+- [x] Full loading / empty / error states. Labels above inputs. Geist + Geist Mono, mono for every
       number. Phosphor at `weight="regular"`.
-- [ ] **No em-dashes in any copy.**
+- [x] **No em-dashes in any copy.**
 - [x] 🔴 ~~**Add the Evaluator to `OrchestrationColumn.tsx`'s `AGENTS` whitelist.**~~ **DONE
       2026-08-09, ahead of the rest of 4.4** (`2b87128`), because it was a live defect rather than
       missing polish. **The row was the small half; the guard is the fix** —
@@ -276,7 +281,9 @@ produced a readable red run in this project.
 3. **The verbatim-quote assertion observed FAILING on a paraphrase**, and the single-call assertion
    observed failing against a wrong graph. Neither is inherited.
 4. **A scorecard Karthik reads and believes** — specifically, whether the evidence quotes justify
-   the scores. His judgment, and it cannot be delegated.
+   the scores. His judgment, and it cannot be delegated. **🔴 STILL OPEN.** The scorecard exists as
+   of 2026-08-09 and renders under `make dev-web`, but no interview has been sat against it, so
+   nothing has been read and believed yet.
 
 ---
 

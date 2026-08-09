@@ -132,7 +132,11 @@ function App() {
       <AppShell
         orchestration={<OrchestrationColumn sessionId={sessionId} />}
         conversation={renderConversation()}
-        evaluation={<EvaluationColumn />}
+        // Same session as the orchestration column, for the same reason: both
+        // read the candidate's own rows over Realtime and neither may mint an
+        // id of its own. `revealed` stays unset until Phase 5 owns the end of
+        // the interview -- until then the candidate controls blind mode.
+        evaluation={<EvaluationColumn sessionId={sessionId} />}
       />
     </IconStandard>
   )
