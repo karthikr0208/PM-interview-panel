@@ -20,6 +20,12 @@ inside a loop rather than a single pause-and-resume. See that section's own
 banner comment below for the loop's shape and its `transcript_turns.idx`
 scheme.
 
+Story 4.3 adds `evaluate_answer_node` (the Evaluator) on the edge between
+`decide_next` and its routing conditional, so every answer is scored on the
+way out of its turn INCLUDING the last one. That placement is load-bearing and
+is argued in the node's own docstring; the one thing to carry from here is
+that it is not in `await_candidate` and never may be.
+
 THE load-bearing rule for every node in this graph, and especially for
 `confirm_level` (any node that calls `interrupt()`):
 
@@ -43,6 +49,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
+from app.agents.evaluator import evaluate_answer
 from app.agents.interviewer import answer_clarification as _answer_clarification
 from app.agents.interviewer import (
     angles_match,
@@ -103,6 +110,10 @@ _CLARIFY_ERROR_SUMMARY = "Ran into a problem answering your clarifying question.
 _PROBE_STARTED_SUMMARY = "Following up on your answer."
 _PROBE_DONE_SUMMARY = "Followed up on your answer."
 _PROBE_ERROR_SUMMARY = "Ran into a problem following up on your answer."
+
+_EVALUATE_STARTED_SUMMARY = "Scoring your answer against the rubric."
+_EVALUATE_DONE_SUMMARY = "Scored your answer against the rubric."
+_EVALUATE_ERROR_SUMMARY = "Ran into a problem scoring your answer."
 
 
 def _make_level_candidate(
@@ -1047,6 +1058,192 @@ def decide_next(state: InterviewState) -> Literal["ask", "probe", "exit"]:
     return "probe"
 
 
+def _prior_scores(evaluations: list[dict] | None) -> list[dict]:
+    """The Evaluator's RUNNING SUMMARY, built in Python from
+    `state["answer_evaluations"]` -- never from the raw transcript.
+
+    🔴 This is the whole reason per-answer scoring fits the 8,000 TPM ceiling.
+    The full transcript measured 10,274 tokens at the last answer and did not
+    fit (PHASE-4-SPEC.md § "WHAT THE LIVE INTERVIEW ALREADY DECIDED" #2). This
+    is keyed by DIMENSION, so it is bounded at five entries however long the
+    interview runs -- see the measured budget block above
+    `_EVALUATION_SYSTEM_PROMPT` in `app/agents/evaluator.py`, which sizes the
+    stress case against exactly this shape.
+
+    Later evaluations overwrite earlier ones for the same dimension: a
+    dimension revisited by a later probe is scored on better evidence, and the
+    Evaluator is told to read this as the ARC of the interview, not as a list
+    of every attempt.
+
+    Three keys only. `reasoning` is deliberately dropped: it is the longest
+    field on a `DimensionScore` and the budget block measures it at 438 tokens
+    for five dimensions against 283 without, for context the model is being
+    asked not to re-score.
+    """
+    by_dimension: dict[str, dict] = {}
+    for evaluation in evaluations or []:
+        for score in evaluation.get("dimension_scores") or []:
+            by_dimension[score["dimension"]] = {
+                "dimension": score["dimension"],
+                "score": score["score"],
+                "evidence_quote": score["evidence_quote"],
+            }
+    return list(by_dimension.values())
+
+
+def _make_evaluate_answer_node(
+    role: Role = "fast",
+) -> Callable[[InterviewState], Awaitable[dict]]:
+    """Factory, same reasoning as the others above.
+
+    `fast` is MEASURED, not inherited from the portfolio calibration:
+    `deep` 2/2 against `fast` 1/2 on the same two fixtures, and `fast` was kept
+    anyway because one `deep` sample is not a measurement -- `deep` flaps and
+    `fast` is deterministic. See DEV-STATE § Decisions 2026-08-09 and
+    PHASE-4-SPEC.md §4.2.
+    """
+
+    async def evaluate_answer_node(state: InterviewState) -> dict:
+        """Scores the answer `_decide_next_node` has just written to
+        `transcript_turns`, one `answer_evaluations` row per SCORED dimension.
+
+        🔴 ITS POSITION IN THE GRAPH IS THE DESIGN. It sits on the edge
+        `decide_next -> evaluate_answer_node`, AFTER the answer's own
+        transcript row and BEFORE `decide_next`'s routing conditional, so the
+        FINAL answer is evaluated too. That is the same reason
+        `_decide_next_node` rather than `ask_question` owns the answer write:
+        the nodes that run on the way OUT of a turn never run again after the
+        last one.
+
+        🔴 AND IT IS NOT IN `await_candidate`, ever. LangGraph re-runs that
+        node from the top on resume, so an LLM call there fires TWICE per
+        answer and the duplicate is INVISIBLE in `answer_evaluations` -- the
+        second call overwrites nothing and adds no row a reader could tell
+        apart. Only `app.llm`'s call log would see it, which is where
+        `tests/test_evaluate_answer.py` asserts and
+        `scripts/falsify_evaluate_single_call.py` proves the assertion can
+        fail. See the module docstring and CLAUDE.md.
+
+        Guarded on `last_input`, defensively mirroring `_decide_next_node`
+        immediately upstream: no answer text means no evaluation and NO LLM
+        CALL, rather than scoring a clarifying question or an empty string.
+
+        `turn_idx` is `len(messages) - 1`, the SAME index `_decide_next_node`
+        used for the answer's own `transcript_turns` row. That link is the
+        entire point of the column: a score in the scorecard traces back to the
+        exact turn it was drawn from (0001_initial_schema.sql's own words), so
+        it is computed the same way here rather than re-derived.
+
+        🔴 A dimension in `not_assessed` gets NO ROW. Its absence IS the
+        representation -- `score` is `not null check (score between 1 and 4)`
+        and PHASE-4-SPEC.md §4.3 forbids weakening that for a sentinel. The
+        reader joins against the five known dimensions and treats a missing row
+        as not assessed.
+
+        Returns a ONE-ELEMENT list because `answer_evaluations` carries an
+        `operator.add` reducer (see `app/graph/state.py`). Returning a bare
+        dict, or the full accumulated list, silently corrupts the running
+        summary rather than raising. `turn_idx` rides along inside the dict so
+        a later reader can tell one turn's evaluation from another's.
+        """
+        last_input = state.get("last_input") or {}
+        if last_input.get("type") != "answer" or last_input.get("text") is None:
+            return {}
+
+        session_id = state["session_id"]
+        turn_idx = len(state.get("messages") or []) - 1
+
+        # `current_q_idx - 1`, NOT `current_q_idx`: `ask_question` increments it
+        # the moment it asks, so it already points PAST the question on the
+        # table. Same read as `answer_clarification_node`'s `pending_idx`.
+        # `question_plan` has length 1 today (`_QUESTIONS_THIS_PHASE`), so this
+        # is index 0 for the whole interview; clamped so a defensive
+        # `current_q_idx` of 0 cannot wrap to the end of the list.
+        pending_idx = max(state.get("current_q_idx", 1) - 1, 0)
+        main_question = state["question_plan"][pending_idx]["question"]
+
+        started = time.perf_counter()
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "evaluator",
+                "status": "started",
+                "summary": _EVALUATE_STARTED_SUMMARY,
+            },
+        )
+
+        try:
+            result = await evaluate_answer(
+                state["case_world"],
+                main_question,
+                last_input["text"],
+                state["assessed_level"],
+                _prior_scores(state.get("answer_evaluations")),
+                role=role,
+            )
+        except Exception:
+            await rest_insert(
+                "agent_events",
+                {
+                    "session_id": session_id,
+                    "agent": "evaluator",
+                    "status": "error",
+                    "summary": _EVALUATE_ERROR_SUMMARY,
+                },
+            )
+            raise
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        # Boundary normalisation -- see `app/text.py`. `reasoning` is prose the
+        # candidate reads on the scorecard, so it is cleaned on the way to the
+        # database; `evidence_quote` is NOT, and must never be. It is checked
+        # against the transcript byte for byte, and the transcript row
+        # `_decide_next_node` wrote holds the candidate's text unnormalised --
+        # normalising one side of that comparison and not the other would turn
+        # a faithful quote into a mismatch.
+        scores = [
+            {
+                "dimension": score.dimension,
+                "score": score.score,
+                "evidence_quote": score.evidence_quote,
+                "reasoning": normalize_dashes(score.reasoning),
+            }
+            for score in result.dimension_scores
+        ]
+
+        for score in scores:
+            await rest_insert("answer_evaluations", {"session_id": session_id, "turn_idx": turn_idx, **score})
+
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "evaluator",
+                "status": "done",
+                "summary": _EVALUATE_DONE_SUMMARY,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        return {
+            "answer_evaluations": [
+                {
+                    "turn_idx": turn_idx,
+                    "dimension_scores": scores,
+                    "framework_narration": result.framework_narration,
+                    # Kept in state though it has no column, deliberately: it
+                    # is per-ANSWER and this table's grain is
+                    # (turn_idx, dimension). See 0004's own comment.
+                    "not_assessed": list(result.not_assessed),
+                }
+            ]
+        }
+
+    return evaluate_answer_node
+
+
 def build_graph(
     checkpointer: BaseCheckpointSaver,
     *,
@@ -1054,6 +1251,7 @@ def build_graph(
     case_architect_role: Role = "fast",
     planner_role: Role = "deep",
     interviewer_role: Role = "fast",
+    evaluator_role: Role = "fast",
 ) -> Any:
     """Compiles level_candidate -> confirm_level -> generate_case_world ->
     plan_interview -> ask_question -> await_candidate -> ... -> END (the
@@ -1086,6 +1284,14 @@ def build_graph(
     ARCHITECTURE §4's table and the portfolio calibration agree
     (AGENT-INTERVIEWER-SPEC.md §1/§8): it is the only agent that runs while
     a candidate is watching a cursor.
+
+    `evaluator_role` defaults to `fast`, and that default is MEASURED rather
+    than inherited from the portfolio calibration: `deep` scored 2/2 against
+    `fast`'s 1/2 on the same two fixtures with identical input, and `fast` was
+    kept anyway -- one `deep` sample is not a measurement, `deep` flaps where
+    `fast` is deterministic, and the single disagreement was a rubric
+    definition question rather than a capability gap. See DEV-STATE § Decisions
+    2026-08-09 and PHASE-4-SPEC.md §4.2.
     """
     graph = StateGraph(InterviewState)
     graph.add_node("level_candidate", _make_level_candidate(resume_analyst_role))
@@ -1097,6 +1303,7 @@ def build_graph(
     graph.add_node("await_candidate", await_candidate)
     graph.add_node("answer_clarification_node", _make_answer_clarification_node(interviewer_role))
     graph.add_node("decide_next", _decide_next_node)
+    graph.add_node("evaluate_answer_node", _make_evaluate_answer_node(evaluator_role))
     graph.set_entry_point("level_candidate")
     graph.add_edge("level_candidate", "confirm_level")
     graph.add_edge("confirm_level", "generate_case_world")
@@ -1110,7 +1317,16 @@ def build_graph(
         {"clarify": "answer_clarification_node", "answer": "decide_next"},
     )
     graph.add_edge("answer_clarification_node", "await_candidate")
+    # 🔴 The evaluator sits BETWEEN `_decide_next_node` (which writes the
+    # answer's `transcript_turns` row) and `decide_next`'s routing conditional,
+    # not after it. Routing is where the interview ENDS, so an evaluator hung
+    # off the "probe" branch would never see the final answer -- the same
+    # reason `_decide_next_node` and not `ask_question` owns the answer write.
+    # Do not fold it into `_decide_next_node`, and never into `await_candidate`.
+    graph.add_edge("decide_next", "evaluate_answer_node")
     graph.add_conditional_edges(
-        "decide_next", decide_next, {"ask": "ask_question", "probe": "ask_probe", "exit": END}
+        "evaluate_answer_node",
+        decide_next,
+        {"ask": "ask_question", "probe": "ask_probe", "exit": END},
     )
     return graph.compile(checkpointer=checkpointer)

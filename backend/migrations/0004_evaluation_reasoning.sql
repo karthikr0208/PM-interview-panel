@@ -1,0 +1,38 @@
+-- 0004_evaluation_reasoning.sql — store the Evaluator's per-score reasoning.
+--
+-- Idempotent: `add column if not exists` is safe to re-run via
+-- backend/scripts/migrate.py. Never applied through the Supabase dashboard.
+--
+-- ── WHY THIS EXISTS ────────────────────────────────────────────────────
+-- `DimensionScore` (app/agents/evaluator.py, story 4.1) carries three things
+-- per score: the verbatim quote, the number, and one or two plain sentences
+-- saying what the quote shows and why it lands on that number. 0001's table
+-- stores the first two. Without this column the third is generated on every
+-- answer and then discarded, and the coach report would have to re-derive from
+-- a quote and a digit the judgement the Evaluator already made and wrote down.
+--
+-- NULLABLE, deliberately. Rows written before this migration carry no
+-- reasoning and there is nothing honest to backfill them with; a placeholder
+-- string would be indistinguishable from a real one to every reader
+-- downstream. `evidence_quote` keeps its `length(...) > 0` check and this
+-- column gets none -- the PRD guarantee is that no SCORE ships without
+-- evidence, and that guarantee lives on the quote, not here.
+--
+-- ── WHAT THIS MIGRATION DELIBERATELY DOES NOT DO ───────────────────────
+-- `score` STAYS `not null check (score between 1 and 4)`. An unassessed
+-- dimension is represented by the ABSENCE of a row, never by a null score or a
+-- sentinel value. PHASE-4-SPEC.md §4.3 in its own words: a nullable score
+-- "would silently weaken the constraint that makes this table trustworthy".
+-- The reader joins against the five known dimensions and treats a missing row
+-- as not assessed.
+--
+-- `framework_narration` gets NO column. It is recorded per ANSWER (PRD §7
+-- keeps it separate from the five scores), while this table's grain is
+-- (turn_idx, dimension), one row per SCORED dimension. Storing it here would
+-- copy one boolean across every dimension of a turn with nothing preventing
+-- the copies from disagreeing, and a turn whose dimensions are all
+-- not_assessed has no row to carry it at all. Decided 2026-08-09: not
+-- persisted in Phase 4.
+
+alter table answer_evaluations
+  add column if not exists reasoning text;

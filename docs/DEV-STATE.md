@@ -2196,6 +2196,71 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🔴 SESSION 17. ONE LIVE RUN IS OWED, THEN 4.4.
+
+**Read § Decisions 2026-08-09 first** — nine findings, and #9 is the owed run.
+
+**Run these first (~3 min, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 462 passed, 113 deselected
+cd frontend && npm test -- --run                                          # expect 140 passed, 15 files
+```
+
+### 🔴 SPEND THE FIRST FRESH TOKENS HERE. One item.
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/test_conduct_loop.py tests/test_transcript.py -q -m "live"
+```
+
+**Run it DETACHED or with a long timeout — it now exceeds 10 minutes.** The evaluator node fires
+once per answer, which roughly doubles this file's call count; the pre-change run was 489s.
+
+**This is the ONLY thing from 2026-08-09 unvalidated.** It died on the daily cap at
+`Used 197132, Limit 200000` with **zero assertion failures** — classified quota, not defect. The
+graph gained a node, so CLAUDE.md's `build.py` trap applies and the re-run is owed.
+
+**What you are looking for:** the loop still exits at 4 probes, the transcript still alternates with
+no idx gaps, and `answer_evaluations` rows appear for the scored dimensions. If it greens, 4.3 is
+done and Phase 4 is two stories from complete.
+
+### 🟢 Do not redo any of this — all validated 2026-08-09
+
+- **`test_confirm_level.py` passes after the rewiring.** The story 3.2 trap did not recur.
+- **The single-call assertion is FALSIFIED, not merely green**: the wrong graph logs 2 `outcome=ok`
+  for one answer (`scripts/falsify_evaluate_single_call.py`, exit 0, residue 0).
+- **Migration 0004 is applied.** `reasoning` nullable; `framework_narration` deliberately not
+  persisted, reason in § Decisions #5.
+- **Story 4.2 is done and the `not_assessed` rule is decided** (§ Decisions #8).
+- **The Evaluator runs on `fast`, measured** (`deep` 2/2 vs `fast` 1/2). Do not "upgrade" it without
+  reading #7.
+
+### 🔴 Then 4.4, and it carries a known defect to fix
+
+`OrchestrationColumn.tsx`'s `AGENTS` whitelist has four keys and no evaluator, so the Evaluator's
+`agent_events` rows are written and silently dropped by the UI. It is a ticked box in
+PHASE-4-SPEC 4.4. **The backend is correct; only the column is blind.**
+
+Also in 4.4: `not_assessed` renders as "not assessed", never a zero or an empty bar, and **no
+overall score when any dimension is unassessed.** `stripDashes` on every rendered string —
+historical rows carry raw U+2011.
+
+### Budget
+
+**2026-08-09 is SPENT: 197,132 / 200,000 `fast`** at the moment of the failed run. Rolling window,
+~138 tokens/min. The owed run is the first thing to spend a fresh day on.
+
+### Deployment
+
+**`e631961`, `8e070b7`, `e2158bf` and 4.3's commit are local only. NOT pushed.** Karthik's call was
+to deploy after 4.3 — **hold that until the owed live run greens.** 4.3 adds a node that calls an
+LLM on every answer; shipping it unvalidated would put an unproven graph in front of a candidate,
+which is the one thing the `build.py` trap exists to prevent.
+
+---
+
+## Superseded — session 16's second handoff, kept for the record
+
 ## 🔴 SESSION 17. NOTHING IS OWED. START AT STORY 4.3.
 
 **Read § Decisions 2026-08-09 first** — eight numbered findings, and #8 is a question waiting on
@@ -3908,6 +3973,63 @@ live interview shows it slipping.
 **One thing NOT attributed:** `apm_consumer` failed before the prompt change and passed after it, but
 the prompt changed between the two runs, so **this does not isolate fix from flap.** Recorded as
 observed, not as a causal claim.
+
+**🟡 9. STORY 4.3 IS CODE-COMPLETE AND HALF-VALIDATED. THE CONDUCT-LOOP RE-RUN IS OWED, AND THE RED
+RUN IS QUOTA, NOT A DEFECT.**
+
+The Evaluator is in the graph. `decide_next -> evaluate_answer_node -> {ask, probe, exit}`, so the
+node sits **after** the answer's own `transcript_turns` row and **before** the routing conditional —
+which is what makes the FINAL answer get evaluated, the same reason `_decide_next_node` rather than
+`ask_question` owns the answer write.
+
+```
+offline                              462 passed, 113 deselected   (was 439/111)
+migration 0004                       applied, idempotent, 4/4 ok
+falsify_evaluate_single_call.py      at pause: 1, after resume: 2  -> assertion CAN fail, exit 0
+test_evaluate_answer + confirm_level 11 passed, 23 deselected, 489s, zero rate-limit strings
+```
+
+**🟢 `test_confirm_level.py` STILL PASSES.** That is the specific load-bearing test story 3.2 broke
+by rewiring the graph and re-running only the file it edited, and it was the main risk in this
+change. **The `build.py` trap did not recur.**
+
+**🔴 THE OWED RUN, AND WHY THE RED IS NOT A DEFECT.** `test_conduct_loop.py` +
+`test_transcript.py` went **8 failed, 2 passed** — and the classification is unambiguous:
+
+```
+tokens per day (TPD): Limit 200000, Used 197132, Requested 3506. Please try again in 4m35.616s
+AssertionError count in the whole run: 0
+runtime 123.40s   <- against 489s for the run that actually executed
+```
+
+**Zero assertion failures.** Every failure is the daily cap. The collapsed runtime is the tell:
+calls rejected instantly rather than running. This is the fourth time in this project a mostly-red
+run has been rate limiting rather than defects, which is why CLAUDE.md makes classifying it a
+standing rule. **These two files were green earlier the same day (10 passed, 334.61s) but that was
+BEFORE the graph change**, so the combination is genuinely unvalidated and the re-run is owed.
+
+**The new node roughly doubles the conduct loop's call count** — one evaluator call per answer, on
+top of the probe per turn. That is the budget lesson from this story: a node that fires per-answer
+changes the cost of every live file that drives the loop, not just its own.
+
+**One defect in the ORCHESTRATOR'S OWN BRIEF, caught by the subagent.** The brief specified reading
+the question from `state["question_plan"][state["current_q_idx"]]`. That is an `IndexError` on every
+answer: `ask_question` increments `current_q_idx` the moment it asks, `_QUESTIONS_THIS_PHASE` is 1,
+so the index is 1 against a length-1 list for the entire interview. The subagent used the existing
+`answer_clarification_node` idiom (`max(current_q_idx - 1, 0)`) and said so rather than bending the
+code to the brief. **It would have failed on the first live run and never offline.**
+
+**🔴 A FRONTEND SEAM, found while building the backend and NOT fixed here.**
+`OrchestrationColumn.tsx`'s `AGENTS` array is a four-key whitelist and `deriveAgentStatus` filters
+on it, so the Evaluator's `started` / `done` / `error` rows **land in `agent_events` and are
+silently dropped by the UI.** Backend correct, column blind. Written into PHASE-4-SPEC 4.4 as a box.
+Same shape as session 9's upload seam: two individually-tested components, and the defect lives
+between them where neither suite looks.
+
+**One deliberate addition beyond the brief, and it is right:** `normalize_dashes` is applied to
+`reasoning` but **NOT** to `evidence_quote`. The quote is checked against the transcript byte for
+byte and `_decide_next_node` writes the candidate's answer unnormalised — normalising one side of
+that comparison would turn a faithful quote into a mismatch. Pinned by a test asserting both halves.
 
 **🟢🔴 2026-08-08 (session 15) · SESSION 14'S FIXES ARE VALIDATED, THE PROBE-7 FAULT IS NOT A
 DEFECT, AND A SECOND LIVE INTERVIEW FOUND TWO MORE.**

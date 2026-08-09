@@ -168,11 +168,16 @@ paraphrase. Zero tokens.
 `deep`. Role measured. **One open rubric question this story surfaced and did not decide** — see
 DEV-STATE § Decisions 2026-08-09 #8.
 
-### 4.3 The graph edge, and the write — ⬜
+### 4.3 The graph edge, and the write — 🟡 CODE-COMPLETE 2026-08-09, ONE LIVE RE-RUN OWED
 
-- [ ] `evaluate_answer_node` after the candidate's answer is recorded, **never inside
-      `await_candidate`**.
-- [ ] Writes `answer_evaluations`. **The DDL already decided the shape — read it before designing
+**Everything in this story is built and every box below is ticked except the last, which died on
+the daily cap at 197,132/200,000 and is classified as QUOTA, not defect** — zero assertion failures
+in the output. See DEV-STATE § Decisions 2026-08-09 #9.
+
+- [x] `evaluate_answer_node` after the candidate's answer is recorded, **never inside
+      `await_candidate`**. Sits on `decide_next -> evaluate_answer_node`, before the routing
+      conditional, so **the final answer is evaluated too**.
+- [x] Writes `answer_evaluations`. **The DDL already decided the shape — read it before designing
       one.** From `migrations/0001_initial_schema.sql`:
 
 ```sql
@@ -194,12 +199,29 @@ evidence_quote text not null check (length(evidence_quote) > 0)
     five known dimensions and treats a missing row as not assessed.
   - **`framework_narration` and `reasoning` have NO column.** Either they get a migration, or they
     are not persisted. **Decide before 4.2 writes the schema**, not after.
-- [ ] **Assert exactly one Evaluator LLM call per answer**, on `app.llm`'s log, not on state. Same
+    ✅ **DECIDED 2026-08-09, before 4.2.** `migrations/0004_evaluation_reasoning.sql` adds a
+    **nullable `reasoning text`** — same grain, near-zero cost, and Phase 5's Coach may want it.
+    **`framework_narration` is deliberately NOT persisted**: it is one bool per ANSWER, not per
+    `(turn, dimension)`, so a column here denormalises it five ways — and an answer where all five
+    dimensions are `not_assessed` writes **zero rows**, which would lose it entirely. Nothing in
+    Phase 4 reads it. It gets its own table in Phase 5 if the Coach consumes it.
+- [x] **Assert exactly one Evaluator LLM call per answer**, on `app.llm`'s log, not on state. Same
       rule as `test_confirm_level.py`'s and the probe's — a duplicate is invisible in the table.
-- [ ] **Falsify it** by building the wrong graph, the way `falsify_single_call.py` does.
-- [ ] **Re-run every live test file that builds a graph.**
+      `tests/test_evaluate_answer.py`, and it seeds the FINAL answer so the evaluator is the only
+      call in the cycle — `app.llm`'s log carries `role=` but not the agent, and the probe also runs
+      on `fast`, so a mid-loop `delta == 2` could not tell the two apart.
+- [x] **Falsify it** by building the wrong graph, the way `falsify_single_call.py` does.
+      `scripts/falsify_evaluate_single_call.py`, **observed**: `outcome=ok records at pause: 1,
+      after resume: 2`, exit 0, residue 0.
+- [ ] 🔴 **Re-run every live test file that builds a graph.** **PARTIALLY DONE.**
+      `test_evaluate_answer.py` + `test_confirm_level.py`: **11 passed, 23 deselected, 489s**, and
+      `test_confirm_level.py`'s load-bearing single-call test is the one story 3.2 broke this exact
+      way, so that is the important half. 🔴 **`test_conduct_loop.py` + `test_transcript.py` are
+      OWED** — they hit the daily cap (`Used 197132, Limit 200000`), **8 failed / 2 passed with ZERO
+      assertion failures**, classified quota.
 
-**Acceptance:** the single-call assertion **observed failing** against a deliberately wrong graph.
+**Acceptance:** ✅ the single-call assertion **observed failing** against a deliberately wrong graph.
+🔴 The conduct-loop re-run is owed before this story is closed.
 
 ### 4.4 The scorecard — ⬜
 
@@ -214,6 +236,13 @@ evidence_quote text not null check (length(evidence_quote) > 0)
 - [ ] Full loading / empty / error states. Labels above inputs. Geist + Geist Mono, mono for every
       number. Phosphor at `weight="regular"`.
 - [ ] **No em-dashes in any copy.**
+- [ ] 🔴 **Add the Evaluator to `OrchestrationColumn.tsx`'s `AGENTS` whitelist.** Found 2026-08-09
+      while building 4.3: that array holds four keys (`resume_analyst`, `case_architect`, `planner`,
+      `interviewer`) and `deriveAgentStatus` filters on it, so the Evaluator's `started` / `done` /
+      `error` rows **land in `agent_events` and are silently dropped by the UI.** The backend looks
+      correct and the orchestration column simply never shows the Evaluator working. This is the
+      exact shape of defect DEV-STATE keeps recording: a seam between two individually-correct
+      components, invisible to both test suites.
 
 **Acceptance:** `npm test -- --run` green, including a test that a `not_assessed` dimension shows no
 number and suppresses the overall score.
