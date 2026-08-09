@@ -176,18 +176,51 @@ def _check_gpm_extreme_narrow(result: AnswerEvaluation) -> None:
 def _check_sparse_framework_narration(result: AnswerEvaluation) -> None:
     """See the fixture's own note: three frameworks named, none applied.
     framework_narration must be True, and not_assessed must be AT LEAST the
-    four dimensions with nothing but framework labels behind them --
+    three dimensions with nothing but framework labels behind them --
     structural_clarity is left to the real evaluator's judgment (superset
-    check, not an exact-set check, unlike every other fixture above)."""
+    check, not an exact-set check, unlike every other fixture above).
+
+    🔴 `decision_quality` MOVED OUT of the not_assessed set 2026-08-09, on
+    Karthik's ruling, and this is the one fixture in the suite that pins the
+    rule: **not_assessed means the topic never came up, not that the
+    candidate handled it badly.** This question explicitly asked the
+    candidate to choose (repair tool or support hire) and they named three
+    frameworks without picking either. That is a failure the evaluator
+    WATCHED HAPPEN, not a coverage gap, so it is scored at the bottom of the
+    range rather than declined. The original expectation here was inherited
+    from the "no decision made, so nothing to score" reading, which `fast`
+    contradicted live on 2026-08-09 by scoring it 2 -- and `fast` was right.
+    See DEV-STATE § Decisions 2026-08-09 #8.
+
+    The band, not the exact number, is what is asserted: 2 when the options
+    are laid out but never chosen between, 1 when they are not even laid
+    out. This answer lists three methods and no options, which sits on that
+    boundary, so anything in {1, 2} passes and a 3 or 4 does not.
+    """
     assert result.framework_narration is True, (
         "sparse_world_framework_narration: expected framework_narration=True "
         "-- three named frameworks (RICE, build-versus-buy, a 2x2 matrix), "
         "none applied to Palewell's own numbers"
     )
-    expected_minimum = {"business_model_fluency", "market_accuracy", "decision_quality", "point_of_view"}
+    expected_minimum = {"business_model_fluency", "market_accuracy", "point_of_view"}
     assert expected_minimum <= set(result.not_assessed), (
         f"sparse_world_framework_narration: expected not_assessed to include "
         f"at least {sorted(expected_minimum)}, got {result.not_assessed!r}"
+    )
+
+    assert "decision_quality" not in result.not_assessed, (
+        "sparse_world_framework_narration: decision_quality was declined, but the "
+        "question asked the candidate to choose between the repair tool and the "
+        "support hire. Dodging a question that demanded a choice is scored at the "
+        "bottom, never not_assessed -- see this function's docstring"
+    )
+    decision = next(
+        (ds for ds in result.dimension_scores if ds.dimension == "decision_quality"), None
+    )
+    assert decision is not None and decision.score <= 2, (
+        f"sparse_world_framework_narration: expected decision_quality scored in the "
+        f"bottom band (1 or 2), got "
+        f"{decision.score if decision else 'no score at all'}"
     )
 
 

@@ -2242,12 +2242,20 @@ a thesis sharpened under pushback (`point_of_view`) and turn 25 cites *"the 8.6%
 it describes the whole interview while `test_golden.py` scores a single 28-token answer — 4.3's
 accumulating loop is where a whole-interview expectation belongs.
 
-### 🔴 One question is OPEN and belongs to Karthik, not to 4.3
+### 🟢 The `not_assessed` rule is DECIDED. 4.3 must not drift from it.
 
-Does demonstrating a LOW anchor count as evidence, or does `not_assessed` mean "did not engage this
-dimension at all"? See § Decisions 2026-08-09 #8 for the concrete instance. **4.3 must not decide
-this by accident** — if the loop starts treating hedging as evidence, `not_assessed` quietly stops
-firing and PHASE-4-SPEC #1's central rule loses its teeth.
+Karthik ruled 2026-08-09. **It is not about the dimension, it is about whether the question put the
+topic on the table:**
+
+| The candidate… | Result |
+|---|---|
+| was asked to choose, laid out the options, never picked one | **2** |
+| was asked to choose, did not even lay out the options | **1**, the floor |
+| was never asked, and the topic never came up | **`not_assessed`** |
+
+Scale stays **1-4** — a literal 0 is not representable and no migration was taken. Encoded in the
+prompt and pinned by `_check_sparse_framework_narration`. See § Decisions 2026-08-09 #8, including
+the honest limit on the green run that confirmed it.
 
 ### Budget
 
@@ -3860,12 +3868,42 @@ without stating criteria"* — an answer that hedges has directly demonstrated a
 it produced a real verbatim quote for it. Scoring it low is more faithful to the written anchor than
 declining to score.
 
-**But it erodes something load-bearing.** If "absence of X" is evidence for a low score on X, then
-`not_assessed` becomes nearly unreachable, and PHASE-4-SPEC #1's central rule — do not put a number
-on a dimension nothing was said about — loses its teeth. The spec already names this as **Karthik's
-call** ("whether an unassessed dimension is acceptable at all"), and it is now a concrete instance
-rather than a hypothetical. **Not decided. Not worked around. The fixture stands as written and the
-disagreement is recorded.**
+**But it risks eroding something load-bearing.** If "absence of X" is evidence for a low score on X,
+then `not_assessed` becomes nearly unreachable, and PHASE-4-SPEC #1's central rule — do not put a
+number on a dimension nothing was said about — loses its teeth.
+
+**🔴 DECIDED SAME DAY, BY KARTHIK, AND `fast` WAS RIGHT.** The rule is not about the dimension, it
+is about **whether the question put the topic on the table**:
+
+| The candidate… | Result |
+|---|---|
+| was asked to choose, laid out the options, never picked one to defend | **scored 2** |
+| was asked to choose, did not even lay out the options | **scored 1**, the floor |
+| was never asked, and the topic never came up | **`not_assessed`** |
+
+*"A candidate is expected to make a choice and defend it."* Dodging a question that demanded one is
+**a failure the evaluator watched happen, not a coverage gap.** `not_assessed` survives intact for
+its real case — the dimensions a 4-probe interview never goes near, which is the 2-of-5 problem
+PHASE-4-SPEC #1 was actually written about.
+
+**The scale stays 1-4. No migration, no PRD change.** Karthik's initial phrasing was "scored 0",
+which is not representable — `answer_evaluations.score` is `not null check (score between 1 and 4)`
+and `DimensionScore` is `Field(ge=1, le=4)`. Clarified to mean the floor, which is 1. **Raising this
+before writing anything cost one question and avoided a migration that would have weakened the one
+constraint making that table trustworthy.**
+
+Encoded in `_EVALUATION_SYSTEM_PROMPT` (step 1's distinction plus the decision_quality anchor) and
+pinned by `_check_sparse_framework_narration`, which now asserts `decision_quality` is scored in the
+bottom band rather than declined. Re-run live: **`1 passed`, `fast`, `retry_fired=False`.** Both
+smoke fixtures are now green on `fast`, so the role decision in #7 stands unchanged.
+
+**🔴 One honest limit on that green.** `fast` was ALREADY scoring `decision_quality=2` before either
+edit — the fixture was corrected to match the model, not the model steered to match the fixture. So
+this run confirms **the fixture now encodes the ruling and `fast` satisfies it**; it does **not**
+independently falsify the new prompt rule, because this fixture never exercised the failing
+direction. A fixture where the model *declines* a dimension the question demanded would be needed
+for that, and none exists. Not built — portfolio calibration, and the rule is cheap to revisit if a
+live interview shows it slipping.
 
 **One thing NOT attributed:** `apm_consumer` failed before the prompt change and passed after it, but
 the prompt changed between the two runs, so **this does not isolate fix from flap.** Recorded as

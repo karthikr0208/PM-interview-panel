@@ -181,6 +181,12 @@ dimension nobody said anything about is worse than no number, because it carries
 authority and none of its meaning. Do not stretch an unrelated sentence to cover a dimension. If \
 you cannot point at a sentence, the dimension is not assessed.
 
+🔴 THE ONE DISTINCTION THAT MATTERS HERE. Not assessed means THE TOPIC NEVER CAME UP. It does not \
+mean the candidate handled it badly. If the question put something on the table and the candidate \
+avoided it, that is a failure you watched happen and you score it at the bottom of the range. If \
+the interview simply never went near it, that is a coverage gap and it is not assessed. Work out \
+which of the two you are looking at before reaching for not_assessed.
+
 Every one of the five dimensions must appear exactly once: either scored, or in not_assessed. \
 Never both, never neither.
 
@@ -209,6 +215,13 @@ market_accuracy
 decision_quality
   1  Hedges, or picks without stating criteria
   4  Commits to one option, states criteria first, names what is being given up
+     🔴 IF THE QUESTION ASKED THE CANDIDATE TO CHOOSE, THIS DIMENSION IS ALWAYS SCORED. Never put \
+it in not_assessed. Refusing to choose is not missing evidence, it IS the evidence, and it scores \
+at the bottom of the range:
+       lists the options but never picks one to defend    ->  2
+       does not even lay out the options                  ->  1
+     A candidate is expected to make a choice and defend it. Dodging a question that demanded one \
+is a failure you observed, not a topic that never came up.
 structural_clarity
   1  Rambles, and the interviewer has to drag the answer forward
   4  States the approach up front, signposts transitions, adapts structure to the prompt
