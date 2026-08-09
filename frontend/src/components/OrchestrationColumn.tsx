@@ -104,6 +104,29 @@ const AGENTS: readonly PanelAgent[] = [
       error: 'Ran into a problem answering your clarifying question.',
     },
   },
+  {
+    // Added 2026-08-09, story 4.3. Its absence was a real defect, not an
+    // omission of polish: `evaluate_answer_node` had been writing
+    // `agent_events` rows under this key since the node was built, and
+    // `deriveAgentStatus` filters on `AGENTS`, so every one of them was
+    // silently dropped. The backend looked correct and the column simply
+    // never showed the Evaluator working. `test_every_backend_agent_key_has
+    // _a_row_in_the_orchestration_column` (backend/tests/test_user_facing_
+    // copy.py) now fails when a new agent key reaches `agent_events` without
+    // a row here, which is what makes this unrepeatable for Phase 5's Coach.
+    key: 'evaluator',
+    name: 'Evaluator',
+    copy: {
+      waiting: WAITING_COPY,
+      // Byte-identical to build.py's _EVALUATE_*_SUMMARY, same rule as every
+      // entry above. The Evaluator runs once per ANSWER rather than once per
+      // phase, so this row re-enters `active` several times in one interview
+      // -- the only row in this column that does.
+      active: 'Scoring your answer against the rubric.',
+      done: 'Scored your answer against the rubric.',
+      error: 'Ran into a problem scoring your answer.',
+    },
+  },
 ]
 
 function AgentStatusRow({

@@ -105,11 +105,44 @@ describe('OrchestrationColumn', () => {
   // Story 2.7: the Case Architect and the Interview Planner.
   // ==========================================================================
 
-  it('renders all four agents, in the order the graph runs them', () => {
+  // The Evaluator joined this list 2026-08-09 (story 4.3). It is LAST because
+  // declaration order is render order and it mirrors the graph:
+  // `evaluate_answer_node` runs after `ask_question`, on the way out of every
+  // answered turn. Its absence until then was a real defect, not a missing
+  // row: the backend had been writing `agent_events` under the `evaluator`
+  // key and `deriveAgentStatus` was dropping every one of them. The guard
+  // against a repeat is in the BACKEND suite, where both sides can be read at
+  // once (`test_every_backend_agent_key_has_a_row_in_the_orchestration_column`).
+  it('renders every agent, in the order the graph runs them', () => {
     useAgentEvents.mockReturnValue([])
     render(<OrchestrationColumn sessionId="sess-1" />)
     const names = screen.getAllByRole('status').map((el) => el.getAttribute('aria-label'))
-    expect(names).toEqual(['Resume Analyst', 'Case Architect', 'Interview Planner', 'Interviewer'])
+    expect(names).toEqual([
+      'Resume Analyst',
+      'Case Architect',
+      'Interview Planner',
+      'Interviewer',
+      'Evaluator',
+    ])
+  })
+
+  it('shows the Evaluator working off its own agent_events rows', () => {
+    // The join key is `evaluator`, and this asserts the WHOLE path the defect
+    // broke: a row written under that key reaches the column and renders its
+    // summary verbatim. A test that only counted rows would have passed
+    // against the broken build too, since the row count was never the symptom.
+    useAgentEvents.mockReturnValue([
+      {
+        id: 'e1',
+        agent: 'evaluator',
+        status: 'done',
+        summary: 'Scored your answer against the rubric.',
+        created_at: new Date().toISOString(),
+      },
+    ])
+    render(<OrchestrationColumn sessionId="sess-1" />)
+    expect(row('Evaluator').getByText(/scored your answer against the rubric/i)).toBeTruthy()
+    expect(row('Evaluator').getByText(/^Done$/)).toBeTruthy()
   })
 
   it('drives each agent independently off its OWN events', () => {

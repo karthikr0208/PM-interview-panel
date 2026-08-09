@@ -394,3 +394,106 @@ def test_normalize_dashes_matches_stripDashes_character_classes() -> None:
         "the TypeScript no longer treats the hyphen-like characters as their "
         f"own class: classes={[sorted(set(c)) for c in classes]!r}"
     )
+
+
+# ==============================================================================
+# AGENT-KEY PARITY, backend -> orchestration column. Added 2026-08-09.
+#
+# 🔴 THIS IS A REAL DEFECT'S GUARD, not a hypothetical. Story 4.3 wired
+# `evaluate_answer_node` to write `agent_events` rows under a NEW agent key,
+# `evaluator`. `OrchestrationColumn.tsx`'s `AGENTS` array was a four-key
+# whitelist and `deriveAgentStatus` filters on it, so every one of those rows
+# was written to the database and silently dropped by the UI. The backend was
+# correct, both test suites were green, and the Evaluator simply never appeared
+# in the column.
+#
+# It is the same shape as session 9's upload seam: two individually-tested
+# components, and the defect living in the join between them where neither
+# suite looks. Phase 5's Coach adds a sixth agent key and would have repeated
+# it exactly.
+#
+# Deliberately checks KEYS, not copy. The clarify and probe summaries are also
+# absent from the frontend and that is CORRECT: they share the `interviewer`
+# key, so their row exists and renders the real `agent_events.summary`, with
+# the fallback copy only covering the state before an event arrives. One row
+# per AGENT, not per node -- a copy-parity check would demand fallback strings
+# the design deliberately does not have, and nobody would keep it green.
+# ==============================================================================
+
+ORCHESTRATION_COLUMN = (
+    pathlib.Path(__file__).resolve().parent.parent.parent
+    / "frontend"
+    / "src"
+    / "components"
+    / "OrchestrationColumn.tsx"
+)
+
+
+def _backend_agent_keys() -> set[str]:
+    """Every distinct value written to `agent_events.agent` anywhere in `app/`.
+
+    Matched structurally, on any dict literal carrying both an "agent" and a
+    "status" key, rather than on the enclosing `rest_insert("agent_events",
+    ...)` call: the payload is sometimes built a line or two above the call, and
+    a check keyed to the call site would quietly stop seeing it. Same reasoning
+    as `_agent_event_summaries` matching on the name suffix rather than the
+    location, so a future agent is covered the day it is written.
+    """
+    keys: set[str] = set()
+    for path in sorted(APP_ROOT.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Dict):
+                continue
+            literal_keys = {k.value for k in node.keys if isinstance(k, ast.Constant)}
+            if not {"agent", "status"} <= literal_keys:
+                continue
+            for key_node, value_node in zip(node.keys, node.values):
+                if (
+                    isinstance(key_node, ast.Constant)
+                    and key_node.value == "agent"
+                    and isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, str)
+                ):
+                    keys.add(value_node.value)
+    return keys
+
+
+def _panel_agent_keys() -> set[str]:
+    return set(re.findall(r"key:\s*'([a-z_]+)'", ORCHESTRATION_COLUMN.read_text(encoding="utf-8")))
+
+
+def test_the_agent_key_check_finds_both_sides() -> None:
+    """The vacuity floor, and it runs FIRST -- same ordering rule as every
+    other collector in this file. If either side collects nothing, the parity
+    assertion below passes trivially by comparing two empty sets, which is
+    exactly how a guard rots into decoration."""
+    backend = _backend_agent_keys()
+    frontend = _panel_agent_keys()
+
+    assert ORCHESTRATION_COLUMN.exists(), f"{ORCHESTRATION_COLUMN} not found -- did the path move?"
+    for expected in ("resume_analyst", "planner", "interviewer"):
+        assert expected in backend, f"the backend collector missed {expected!r}: found {sorted(backend)}"
+        assert expected in frontend, f"the frontend collector missed {expected!r}: found {sorted(frontend)}"
+
+
+def test_every_backend_agent_key_has_a_row_in_the_orchestration_column() -> None:
+    """An agent whose `agent_events` rows reach the database but not the panel
+    is invisible to the candidate AND to both suites. See this section's
+    header for the defect this was written after.
+
+    Backend must be a SUBSET of frontend, not equal to it: a row declared in
+    the column before its node exists is a harmless placeholder that renders as
+    "Waiting", while the reverse is silent data loss.
+    """
+    backend = _backend_agent_keys()
+    frontend = _panel_agent_keys()
+
+    dropped = backend - frontend
+    assert not dropped, (
+        f"agent key(s) {sorted(dropped)} are written to agent_events by app/ but have no "
+        f"entry in OrchestrationColumn.tsx's AGENTS array. deriveAgentStatus filters on "
+        f"that array, so those rows are written and silently discarded: the candidate "
+        f"never sees that agent work. Add a PanelAgent with a matching `key`. "
+        f"backend={sorted(backend)} frontend={sorted(frontend)}"
+    )
