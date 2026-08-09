@@ -2196,6 +2196,74 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🔴 SESSION 17. NOTHING IS OWED. START AT STORY 4.3.
+
+**Read § Decisions 2026-08-09 first** — eight numbered findings, and #8 is a question waiting on
+Karthik that 4.3 should not silently decide for him.
+
+**Run these first (~3 min, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 439 passed, 111 deselected
+cd frontend && npm test -- --run                                          # expect 140 passed, 15 files
+```
+
+### 🟢 Session 16 left NOTHING unvalidated. Do not redo any of this.
+
+- **The `kind` change is validated live.** `10 passed, 32 deselected, 334.61s`. Session 15's one
+  owed item is closed and every 2026-08-08 change is now confirmed against a live graph.
+- **Story 4.2 is DONE (`e631961`).** `evaluate_answer` exists, scores live, runs on `fast`.
+- **The role is MEASURED, not inherited**: `deep` 2/2 vs `fast` 1/2, and `fast` was kept
+  deliberately. Do not "upgrade" it to `deep` without reading § Decisions #7 first.
+- **The token budget is settled and executable.** `tests/test_evaluator_budget.py`, offline, zero
+  tokens. If a prompt edit breaks the fit, that file fails instead of a live candidate seeing a 429.
+- **Both of story 4.1's open questions are answered.** Neither was what it looked like.
+
+### 🔴 START HERE: story 4.3, the graph edge and the write
+
+`PHASE-4-SPEC.md` §4.3 has the full box list. The three things that will bite:
+
+1. **`evaluate_answer_node` goes AFTER the answer is recorded, NEVER inside `await_candidate`.**
+   That node contains only `interrupt()` and its return. On resume LangGraph re-runs it from the
+   top, so a call there fires twice per answer and **the duplicate is invisible in
+   `answer_evaluations`** — only `app.llm`'s call log would see it. Assert exactly one call, on the
+   log, and **falsify it against a deliberately wrong graph** the way `falsify_single_call.py` does.
+2. **Re-run EVERY live test file that builds a graph**, not just the one you edited. Story 3.2 broke
+   `test_confirm_level.py` exactly this way and it shipped.
+3. **The migration is already decided** (§ Decisions 2026-08-09 #5): `reasoning` gets a nullable
+   column on `answer_evaluations`; **`framework_narration` is deliberately NOT persisted** and the
+   reason is written down. Do not add a nullable `score` or a sentinel to make `not_assessed`
+   storable — its absence IS the representation.
+
+**And fix fixture 1 as part of 4.3.** Karthik's call, taken 2026-08-09: correct
+`_check_karthik_live_airbnb`'s ground truth to what the transcript actually evidences. Turn 21/23 is
+a thesis sharpened under pushback (`point_of_view`) and turn 25 cites *"the 8.6% we are seeing"*
+(`market_accuracy`). Its current expectation also cannot be satisfied by the call as wired, because
+it describes the whole interview while `test_golden.py` scores a single 28-token answer — 4.3's
+accumulating loop is where a whole-interview expectation belongs.
+
+### 🔴 One question is OPEN and belongs to Karthik, not to 4.3
+
+Does demonstrating a LOW anchor count as evidence, or does `not_assessed` mean "did not engage this
+dimension at all"? See § Decisions 2026-08-09 #8 for the concrete instance. **4.3 must not decide
+this by accident** — if the loop starts treating hedging as evidence, `not_assessed` quietly stops
+firing and PHASE-4-SPEC #1's central rule loses its teeth.
+
+### Budget
+
+Session 16 spent roughly **13 live calls**: ~9 on the owed conduct-loop re-run, 4 on the evaluator
+smoke across both roles. Well inside the day. The evaluator golden suite is **9 calls** if run whole
+(7 fixtures + the level-anchor test's 2), and `_PACE_SECONDS = 60` means it takes ~9 minutes.
+
+### Deployment
+
+**`e631961` is committed and NOT pushed.** Everything through `d4649b0` is live. 4.2 adds no route
+and no graph node, so production behaviour is unchanged by it — but the tree is ahead of Render.
+
+---
+
+## Superseded — session 16's opening handoff, kept for the record
+
 ## 🔴 SESSION 16. ONE LIVE RUN IS OWED, THEN PHASE 4.
 
 **Read § Decisions 2026-08-08 first.** Eight numbered findings, every number in them cost real
