@@ -2203,8 +2203,8 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 **Run these first (~3 min, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 462 passed, 113 deselected
-cd frontend && npm test -- --run                                          # expect 140 passed, 15 files
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 464 passed, 113 deselected
+cd frontend && npm test -- --run                                          # expect 141 passed, 15 files
 ```
 
 ### 🔴 SPEND THE FIRST FRESH TOKENS HERE. One item.
@@ -2237,9 +2237,9 @@ done and Phase 4 is two stories from complete.
 
 ### 🔴 Then 4.4, and it carries a known defect to fix
 
-`OrchestrationColumn.tsx`'s `AGENTS` whitelist has four keys and no evaluator, so the Evaluator's
-`agent_events` rows are written and silently dropped by the UI. It is a ticked box in
-PHASE-4-SPEC 4.4. **The backend is correct; only the column is blind.**
+🟢 **The orchestration-column seam is already FIXED** (`2b87128`) and guarded by
+`test_every_backend_agent_key_has_a_row_in_the_orchestration_column`, observed failing before it was
+trusted. Nothing to do there.
 
 Also in 4.4: `not_assessed` renders as "not assessed", never a zero or an empty bar, and **no
 overall score when any dimension is unassessed.** `stripDashes` on every rendered string —
@@ -4019,12 +4019,41 @@ so the index is 1 against a length-1 list for the entire interview. The subagent
 `answer_clarification_node` idiom (`max(current_q_idx - 1, 0)`) and said so rather than bending the
 code to the brief. **It would have failed on the first live run and never offline.**
 
-**🔴 A FRONTEND SEAM, found while building the backend and NOT fixed here.**
-`OrchestrationColumn.tsx`'s `AGENTS` array is a four-key whitelist and `deriveAgentStatus` filters
-on it, so the Evaluator's `started` / `done` / `error` rows **land in `agent_events` and are
-silently dropped by the UI.** Backend correct, column blind. Written into PHASE-4-SPEC 4.4 as a box.
-Same shape as session 9's upload seam: two individually-tested components, and the defect lives
-between them where neither suite looks.
+**🟢 A FRONTEND SEAM, found while building the backend and FIXED SAME DAY (`2b87128`).**
+`OrchestrationColumn.tsx`'s `AGENTS` array was a four-key whitelist and `deriveAgentStatus` filters
+on it, so the Evaluator's `started` / `done` / `error` rows **landed in `agent_events` and were
+silently dropped by the UI.** Backend correct, column blind. Same shape as session 9's upload seam:
+two individually-tested components, and the defect living between them where neither suite looks.
+
+**The row was the small half. The guard is the fix**, because Phase 5's Coach adds a sixth agent key
+and would have repeated this exactly:
+
+```
+test_every_backend_agent_key_has_a_row_in_the_orchestration_column
+  backend keys, from any dict literal carrying both "agent" and "status" in app/
+  frontend keys, from AGENTS in OrchestrationColumn.tsx
+  asserts backend ⊆ frontend
+```
+
+**Falsified rather than trusted** — with the key temporarily changed to `evaluatorX`:
+
+```
+AssertionError: agent key(s) ['evaluator'] are written to agent_events by app/ but have no
+entry in OrchestrationColumn.tsx's AGENTS array
+```
+
+**It checks KEYS, not copy, and that is deliberate.** The clarify and probe summaries are ALSO
+absent from the frontend and that is **correct**: they share the `interviewer` key, so their row
+exists and renders the real `agent_events.summary`, with the fallback copy only covering the gap
+before an event arrives. **One row per AGENT, not per node.** A copy-parity check would demand
+fallback strings the design deliberately does not have, and nobody would keep it green. Subset
+rather than equality for the same reason: a row declared before its node exists renders as
+"Waiting" and is harmless, while the reverse is silent data loss.
+
+```
+backend offline    464 passed, 113 deselected   (was 462/113)
+frontend           141 passed, 15 files         (was 140)
+```
 
 **One deliberate addition beyond the brief, and it is right:** `normalize_dashes` is applied to
 `reasoning` but **NOT** to `evidence_quote`. The quote is checked against the transcript byte for

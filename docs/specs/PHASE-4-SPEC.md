@@ -236,7 +236,13 @@ evidence_quote text not null check (length(evidence_quote) > 0)
 - [ ] Full loading / empty / error states. Labels above inputs. Geist + Geist Mono, mono for every
       number. Phosphor at `weight="regular"`.
 - [ ] **No em-dashes in any copy.**
-- [ ] 🔴 **Add the Evaluator to `OrchestrationColumn.tsx`'s `AGENTS` whitelist.** Found 2026-08-09
+- [x] 🔴 ~~**Add the Evaluator to `OrchestrationColumn.tsx`'s `AGENTS` whitelist.**~~ **DONE
+      2026-08-09, ahead of the rest of 4.4** (`2b87128`), because it was a live defect rather than
+      missing polish. **The row was the small half; the guard is the fix** —
+      `test_every_backend_agent_key_has_a_row_in_the_orchestration_column` asserts every agent key
+      written to `agent_events` anywhere in `app/` has an entry in the array, and was **observed
+      failing** against a deliberately broken key before being trusted. Phase 5's Coach adds a sixth
+      key and would have repeated this exactly. Found 2026-08-09
       while building 4.3: that array holds four keys (`resume_analyst`, `case_architect`, `planner`,
       `interviewer`) and `deriveAgentStatus` filters on it, so the Evaluator's `started` / `done` /
       `error` rows **land in `agent_events` and are silently dropped by the UI.** The backend looks
