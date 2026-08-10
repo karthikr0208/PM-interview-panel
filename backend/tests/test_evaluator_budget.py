@@ -196,3 +196,57 @@ def test_an_empty_prior_scores_is_said_out_loud_not_rendered_as_an_empty_list() 
 
     assert "(none yet - this is the first answer being scored)" in human
     assert "[]" not in human
+
+
+# ==============================================================================
+# `is_followup` -- the notice that tells the Evaluator whether `main_question`
+# above is the opening question or a probe answering it again. Diagnosed
+# defect: every answer (opening AND probe) was scored against `main_question`
+# with no signal distinguishing the two, so `decision_quality`'s "the question
+# demanded a choice" guard fired on every probe answer as if it were fresh.
+# ==============================================================================
+
+
+def test_default_is_the_opening_answer_notice() -> None:
+    """`is_followup` defaults to False, matching `evaluate_answer`'s own
+    default -- a caller that forgets the keyword gets the opening-answer
+    behaviour, not a silent follow-up misread."""
+    messages = _build_evaluation_messages(
+        _OPENAI_WORLD, "Question?", "Answer.", "PM", []
+    )
+    human = messages[1][1]
+
+    assert "THIS IS THE OPENING ANSWER to the question above." in human
+    assert "THIS IS A FOLLOW-UP ANSWER" not in human
+
+
+def test_is_followup_true_swaps_in_the_followup_notice() -> None:
+    messages = _build_evaluation_messages(
+        _OPENAI_WORLD, "Question?", "Answer.", "PM", [], is_followup=True
+    )
+    human = messages[1][1]
+
+    assert (
+        "THIS IS A FOLLOW-UP ANSWER. The candidate already answered the main question "
+        "earlier in this interview and committed to a choice, and the interviewer then "
+        "probed. Do not expect a fresh choice here."
+    ) in human
+    assert "THIS IS THE OPENING ANSWER" not in human
+
+
+def test_the_notice_sits_immediately_before_the_answer_not_folded_into_it() -> None:
+    """Placed right before the candidate's text, never inside it -- otherwise
+    the model could read the notice as something the candidate said."""
+    answer = "I would ship the mobile web view first."
+    messages = _build_evaluation_messages(
+        _OPENAI_WORLD, "Question?", answer, "PM", [], is_followup=True
+    )
+    human = messages[1][1]
+
+    notice_at = human.index("THIS IS A FOLLOW-UP ANSWER")
+    answer_label_at = human.index("The candidate's answer to score:")
+    answer_at = human.index(answer)
+    assert notice_at < answer_label_at < answer_at, (
+        "the follow-up notice must come before the answer label, which comes "
+        "before the answer text itself"
+    )

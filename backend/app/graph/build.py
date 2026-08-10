@@ -1174,6 +1174,13 @@ def _make_evaluate_answer_node(
         )
 
         try:
+            # `followup_count > 0` is the correct opening/follow-up signal:
+            # `ask_probe` is the only place that increments it, so it reads 0
+            # on the opening answer and non-zero on every probe answer that
+            # follows. Without this, the Evaluator was given `main_question`
+            # for every answer including probes, so its decision_quality
+            # "the question demanded a choice" guard fired every time and
+            # scored every follow-up at the bottom of the range.
             result = await evaluate_answer(
                 state["case_world"],
                 main_question,
@@ -1181,6 +1188,7 @@ def _make_evaluate_answer_node(
                 state["assessed_level"],
                 _prior_scores(state.get("answer_evaluations")),
                 role=role,
+                is_followup=state.get("followup_count", 0) > 0,
             )
         except Exception:
             await rest_insert(

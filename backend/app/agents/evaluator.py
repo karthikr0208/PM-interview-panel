@@ -215,13 +215,22 @@ market_accuracy
 decision_quality
   1  Hedges, or picks without stating criteria
   4  Commits to one option, states criteria first, names what is being given up
-     🔴 IF THE QUESTION ASKED THE CANDIDATE TO CHOOSE, THIS DIMENSION IS ALWAYS SCORED. Never put \
-it in not_assessed. Refusing to choose is not missing evidence, it IS the evidence, and it scores \
-at the bottom of the range:
+     🔴 THE OPENING ANSWER ONLY: if the question asked the candidate to choose, this dimension is \
+ALWAYS SCORED. Never put it in not_assessed. Refusing to choose is not missing evidence, it IS the \
+evidence, and it scores at the bottom of the range:
        lists the options but never picks one to defend    ->  2
        does not even lay out the options                  ->  1
      A candidate is expected to make a choice and defend it. Dodging a question that demanded one \
 is a failure you observed, not a topic that never came up.
+     🔴 ON A FOLLOW-UP, THAT RULE DOES NOT APPLY. You are told above which one this is. The choice \
+was made earlier and the probe did not ask for a new one. Score what the follow-up does WITH the \
+decision:
+       4  defends it with new reasoning, revises it and says why, or names what would change it
+       3  holds the decision and adds substance, but nothing new about the decision itself
+       2  restates the earlier decision without advancing it
+       1  abandons the decision under pressure with no reason, or contradicts it unknowingly
+     Restating the original choice is NOT required on a follow-up, and its absence is NOT a \
+failure.
 structural_clarity
   1  Rambles, and the interviewer has to drag the answer forward
   4  States the approach up front, signposts transitions, adapts structure to the prompt
@@ -277,19 +286,42 @@ def _render_prior_scores(prior_scores: list[dict]) -> str:
     return json.dumps(prior_scores, indent=2)
 
 
+_OPENING_ANSWER_NOTICE = "THIS IS THE OPENING ANSWER to the question above."
+_FOLLOWUP_ANSWER_NOTICE = (
+    "THIS IS A FOLLOW-UP ANSWER. The candidate already answered the main question earlier in "
+    "this interview and committed to a choice, and the interviewer then probed. Do not expect a "
+    "fresh choice here."
+)
+
+
 def _build_evaluation_messages(
     case_world: dict,
     question: str,
     answer: str,
     assessed_level: str,
     prior_scores: list[dict],
+    *,
+    is_followup: bool = False,
 ) -> list[tuple[str, str]]:
     """Pure message assembly, split out from `evaluate_answer` so the token
     budget can be measured offline against `tiktoken`, with no LLM call --
     same reason `_build_probe_messages` is split out in
     `app/agents/interviewer.py`. `tests/test_evaluator_budget.py` calls this
     directly; the numbers it reproduces are the ones in the budget comment
-    above."""
+    above.
+
+    `is_followup` decides which of the two notices below is placed immediately
+    before the candidate's answer -- not appended after it, and never folded
+    into the answer text itself, so the model cannot mistake the notice for
+    something the candidate said. This is what fixes the bug where every
+    probe answer was scored as if it were a fresh opening answer: the
+    `decision_quality` rubric's "the question demanded a choice" guard fires
+    on the phrasing of `question` alone, which is the SAME `main_question` for
+    every probe in an interview, so without this notice the guard is
+    permanently true and every follow-up that elaborates an already-made
+    decision scores at the bottom of the range.
+    """
+    notice = _FOLLOWUP_ANSWER_NOTICE if is_followup else _OPENING_ANSWER_NOTICE
     human = (
         "Case world (read only, the ground truth the answer is scored against):\n"
         + json.dumps(case_world, indent=2)
@@ -299,6 +331,8 @@ def _build_evaluation_messages(
         + assessed_level
         + "\n\nScores already assigned earlier in this interview:\n"
         + _render_prior_scores(prior_scores)
+        + "\n\n"
+        + notice
         + "\n\nThe candidate's answer to score:\n"
         + answer
     )
@@ -313,8 +347,15 @@ async def evaluate_answer(
     prior_scores: list[dict],
     *,
     role: Role = "fast",
+    is_followup: bool = False,
 ) -> AnswerEvaluation:
     """Scores ONE candidate answer against the five-dimension rubric.
+
+    `is_followup`: False for the opening answer to a question, True for a
+    probe answer. `build.py`'s `evaluate_answer_node` derives this from
+    `followup_count > 0`, since `ask_probe` is what increments it -- see that
+    node's docstring. Threaded straight through to `_build_evaluation_messages`,
+    which is where the actual notice text lives.
 
     Pure function: no DB, no session, no `agent_events` row, no side effects
     -- same contract as `answer_clarification` and `generate_probe`. The
@@ -370,5 +411,7 @@ async def evaluate_answer(
     # before. The test suite never caught it because its fixtures answer with
     # "Answer number 1." See DEV-STATE § Decisions 2026-08-10.
     llm = get_llm(role, max_tokens=4096, agent="evaluator").with_structured_output(AnswerEvaluation)
-    messages = _build_evaluation_messages(case_world, question, answer, assessed_level, prior_scores)
+    messages = _build_evaluation_messages(
+        case_world, question, answer, assessed_level, prior_scores, is_followup=is_followup
+    )
     return await llm.ainvoke(messages)

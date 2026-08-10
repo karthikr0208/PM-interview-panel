@@ -29,19 +29,33 @@ export type DimensionStanding =
   | { dimension: Dimension; kind: 'not_assessed' }
 
 /**
- * LATEST ROW PER DIMENSION WINS.
+ * HIGHEST SCORE PER DIMENSION WINS, TIE-BROKEN TO THE EARLIER ROW.
  *
  * The Evaluator scores once per ANSWER, so a dimension revisited by a later
  * probe has several rows in `answer_evaluations`. The scorecard shows the
- * CURRENT STANDING, not every attempt: rows are read in `turn_idx` order and
- * a later row overwrites an earlier one for the same dimension.
+ * candidate's BEST demonstrated standing on each dimension, not the most
+ * recent attempt -- a probe answered worse than the opening answer (nerves, a
+ * rushed follow-up) must not erase evidence of the stronger showing the
+ * candidate already put on the record.
  *
- * This deliberately mirrors `_prior_scores` in `backend/app/graph/build.py`,
- * which builds the Evaluator's own running summary by keying on dimension and
- * letting later evaluations overwrite earlier ones. Both ends of the system
- * therefore mean the same thing by "the score" -- if this reduced differently
- * (an average, or the first row), the candidate would read a number the model
- * was never shown.
+ * Rows are read in `turn_idx` order and the HIGHEST score for a dimension
+ * wins. On a tie, the EARLIER row wins (first time they demonstrated it):
+ * iterating ascending and only replacing the held row on a STRICTLY greater
+ * score means a later row scoring the same never displaces it.
+ *
+ * 🔴 THE WINNING ROW IS RETURNED, never a score computed apart from where it
+ * came from. `evidence_quote` and `reasoning` on the returned standing always
+ * belong to the SAME row as the score -- a scorecard whose quote traces back
+ * to a different row than the number it sits beside would break this
+ * product's central promise, that every score can be traced to the sentence
+ * that earned it.
+ *
+ * `_prior_scores` in `backend/app/graph/build.py` still lets the LATEST
+ * evaluation win, deliberately: it feeds the Evaluator the ARC of the
+ * interview, where "what changed most recently" is exactly what belongs in
+ * context. This function answers a different question -- what earns the
+ * candidate the most credit on the scorecard -- so the two are allowed to
+ * disagree, and they do on purpose.
  *
  * A dimension with NO ROW comes back `not_assessed`. `score` is
  * `not null check (score between 1 and 4)` in the schema, so absence is the
@@ -50,19 +64,26 @@ export type DimensionStanding =
  * Pure, and separate from the hook on purpose: it is the part with real logic
  * in it, and it is tested against plain arrays with no React and no Supabase.
  */
-export function latestPerDimension(rows: readonly AnswerEvaluation[]): DimensionStanding[] {
-  const latest = new Map<string, AnswerEvaluation>()
+export function highestPerDimension(rows: readonly AnswerEvaluation[]): DimensionStanding[] {
+  const best = new Map<string, AnswerEvaluation>()
 
   // Sorted rather than assuming the query's ordering: rows also arrive over
   // realtime, in delivery order, and a re-scored dimension must not depend on
-  // which path its row took to get here.
+  // which path its row took to get here. Ascending order is also what makes
+  // the tie-break work for free -- see the STRICTLY-greater check below.
   const ordered = [...rows].sort((a, b) => a.turn_idx - b.turn_idx)
   for (const row of ordered) {
-    latest.set(row.dimension, row)
+    const current = best.get(row.dimension)
+    // Strictly greater, not >=: on a tie, `current` is already the earlier
+    // row (we are walking ascending), and leaving it in place IS the
+    // tie-break to the earlier row.
+    if (!current || row.score > current.score) {
+      best.set(row.dimension, row)
+    }
   }
 
   return DIMENSIONS.map((dimension) => {
-    const evaluation = latest.get(dimension)
+    const evaluation = best.get(dimension)
     return evaluation ? { dimension, kind: 'scored', evaluation } : { dimension, kind: 'not_assessed' }
   })
 }

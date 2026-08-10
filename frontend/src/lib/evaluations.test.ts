@@ -48,7 +48,7 @@ vi.mock('./supabase', () => {
   }
 })
 
-const { DIMENSIONS, latestPerDimension, useEvaluations } = await import('./evaluations')
+const { DIMENSIONS, highestPerDimension, useEvaluations } = await import('./evaluations')
 
 function makeRow(overrides: Partial<AnswerEvaluation> = {}): AnswerEvaluation {
   return {
@@ -66,9 +66,9 @@ function makeRow(overrides: Partial<AnswerEvaluation> = {}): AnswerEvaluation {
 // ============================================================================
 // The pure reduction. No React, no Supabase -- plain arrays in, standings out.
 // ============================================================================
-describe('latestPerDimension', () => {
+describe('highestPerDimension', () => {
   it('returns all five dimensions in PRD order, whatever order the rows arrive in', () => {
-    const standings = latestPerDimension([
+    const standings = highestPerDimension([
       makeRow({ id: 'a', dimension: 'point_of_view', score: 2 }),
       makeRow({ id: 'b', dimension: 'business_model_fluency', score: 4 }),
     ])
@@ -83,7 +83,7 @@ describe('latestPerDimension', () => {
   })
 
   it('marks a dimension with NO ROW as not_assessed, never as a zero', () => {
-    const standings = latestPerDimension([makeRow({ dimension: 'decision_quality', score: 1 })])
+    const standings = highestPerDimension([makeRow({ dimension: 'decision_quality', score: 1 })])
     const missing = standings.filter((s) => s.kind === 'not_assessed')
     expect(missing.map((s) => s.dimension)).toEqual([
       'business_model_fluency',
@@ -98,37 +98,85 @@ describe('latestPerDimension', () => {
     }
   })
 
-  it('LETS THE LATEST turn_idx WIN for a dimension scored more than once', () => {
-    // Mirrors `_prior_scores` in backend/app/graph/build.py: later
-    // evaluations overwrite earlier ones for the same dimension, so both ends
-    // of the system mean the same thing by "the score". A reducer that took
-    // the first row, or averaged, would show the candidate a number the model
-    // was never given.
-    const standings = latestPerDimension([
-      makeRow({ id: 'first', dimension: 'market_accuracy', turn_idx: 0, score: 2 }),
-      makeRow({ id: 'later', dimension: 'market_accuracy', turn_idx: 4, score: 4 }),
+  it('LETS THE HIGHEST SCORE WIN for a dimension scored more than once, even when it came earlier', () => {
+    // A probe that goes worse than the opening answer must not erase the
+    // stronger showing already on the record. If this reduced by latest
+    // turn_idx instead, the later (weaker) row would win here.
+    const standings = highestPerDimension([
+      makeRow({ id: 'first', dimension: 'market_accuracy', turn_idx: 0, score: 4 }),
+      makeRow({ id: 'later', dimension: 'market_accuracy', turn_idx: 4, score: 2 }),
     ])
     const market = standings.find((s) => s.dimension === 'market_accuracy')
     expect(market?.kind).toBe('scored')
     expect(market?.kind === 'scored' && market.evaluation.score).toBe(4)
-    expect(market?.kind === 'scored' && market.evaluation.id).toBe('later')
+    expect(market?.kind === 'scored' && market.evaluation.id).toBe('first')
   })
 
-  it('sorts by turn_idx rather than trusting arrival order', () => {
+  it('sorts by turn_idx rather than trusting arrival order when comparing scores', () => {
     // Realtime delivers in insertion order, the fetch in query order, and the
-    // two are merged. A reducer that just took the last element of the array
-    // would pass the test above and fail this one.
-    const standings = latestPerDimension([
+    // two are merged. A reducer that just scanned the array in whatever order
+    // it arrived could pick the wrong row on a tie (see the test below).
+    const standings = highestPerDimension([
       makeRow({ id: 'later', dimension: 'decision_quality', turn_idx: 6, score: 1 }),
       makeRow({ id: 'earlier', dimension: 'decision_quality', turn_idx: 2, score: 4 }),
     ])
     const decision = standings.find((s) => s.dimension === 'decision_quality')
-    expect(decision?.kind === 'scored' && decision.evaluation.id).toBe('later')
-    expect(decision?.kind === 'scored' && decision.evaluation.score).toBe(1)
+    expect(decision?.kind === 'scored' && decision.evaluation.id).toBe('earlier')
+    expect(decision?.kind === 'scored' && decision.evaluation.score).toBe(4)
+  })
+
+  it('TIE-BREAKS TO THE EARLIER ROW when two rows score the same dimension identically', () => {
+    const standings = highestPerDimension([
+      makeRow({ id: 'earlier', dimension: 'structural_clarity', turn_idx: 1, score: 3 }),
+      makeRow({ id: 'later', dimension: 'structural_clarity', turn_idx: 5, score: 3 }),
+    ])
+    const clarity = standings.find((s) => s.dimension === 'structural_clarity')
+    expect(clarity?.kind === 'scored' && clarity.evaluation.id).toBe('earlier')
+    // Same result regardless of the array's arrival order.
+    const reversed = highestPerDimension([
+      makeRow({ id: 'later', dimension: 'structural_clarity', turn_idx: 5, score: 3 }),
+      makeRow({ id: 'earlier', dimension: 'structural_clarity', turn_idx: 1, score: 3 }),
+    ])
+    const clarityReversed = reversed.find((s) => s.dimension === 'structural_clarity')
+    expect(clarityReversed?.kind === 'scored' && clarityReversed.evaluation.id).toBe('earlier')
+  })
+
+  it('the evidence_quote and reasoning on the winning standing come from the WINNING ROW, never a different one', () => {
+    // The named trap: a score traced to a sentence that did not earn it would
+    // break the product's central promise. Two rows for the same dimension,
+    // each with its own quote -- the higher-scoring row's own quote must be
+    // the one that surfaces, not the other row's, and not some third value.
+    const standings = highestPerDimension([
+      makeRow({
+        id: 'weak',
+        dimension: 'point_of_view',
+        turn_idx: 0,
+        score: 1,
+        evidence_quote: 'It depends on a lot of factors.',
+        reasoning: 'Restates the prompt, no thesis.',
+      }),
+      makeRow({
+        id: 'strong',
+        dimension: 'point_of_view',
+        turn_idx: 3,
+        score: 4,
+        evidence_quote: 'We should exit the SMB tier because the CAC never pays back.',
+        reasoning: 'Defensible thesis, sharpened under pushback.',
+      }),
+    ])
+    const pov = standings.find((s) => s.dimension === 'point_of_view')
+    expect(pov?.kind === 'scored' && pov.evaluation.id).toBe('strong')
+    expect(pov?.kind === 'scored' && pov.evaluation.score).toBe(4)
+    expect(pov?.kind === 'scored' && pov.evaluation.evidence_quote).toBe(
+      'We should exit the SMB tier because the CAC never pays back.',
+    )
+    expect(pov?.kind === 'scored' && pov.evaluation.reasoning).toBe(
+      'Defensible thesis, sharpened under pushback.',
+    )
   })
 
   it('ignores a dimension name the rubric does not contain', () => {
-    const standings = latestPerDimension([makeRow({ dimension: 'vibes', score: 4 })])
+    const standings = highestPerDimension([makeRow({ dimension: 'vibes', score: 4 })])
     expect(standings.every((s) => s.kind === 'not_assessed')).toBe(true)
   })
 })

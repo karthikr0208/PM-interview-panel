@@ -3,7 +3,7 @@ import { Eye, EyeSlash, Quotes, WarningCircle } from '@phosphor-icons/react'
 import { stripDashes } from '../lib/copy'
 import {
   DIMENSIONS,
-  latestPerDimension,
+  highestPerDimension,
   useEvaluations,
   type Dimension,
   type DimensionStanding,
@@ -281,7 +281,7 @@ function ScorecardBody({
   if (state.kind === 'empty') return <EmptyState />
   if (state.kind === 'error') return <ErrorState message={state.message} onRetry={onRetry} />
 
-  const standings = latestPerDimension(state.rows)
+  const standings = highestPerDimension(state.rows)
 
   return (
     <>

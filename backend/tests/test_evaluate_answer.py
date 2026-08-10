@@ -518,7 +518,57 @@ async def test_the_running_summary_reaches_the_agent(
     assert args[2] == ANSWER_TEXT
     assert args[3] == "PM"
     assert args[4] == [{"dimension": "point_of_view", "score": 2, "evidence_quote": "earlier"}]
-    assert kwargs == {"role": "fast"}
+    assert kwargs == {"role": "fast", "is_followup": False}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# `is_followup` -- diagnosed defect fix. `main_question` is handed to the
+# Evaluator for EVERY answer, opening and probe alike, so the node must tell
+# it which kind of answer this is via `is_followup` rather than leaving the
+# Evaluator to infer it from `main_question` alone (the same string every
+# time). `ask_probe` is the only place `followup_count` is incremented, so it
+# reads 0 on the opening answer and non-zero on every probe answer after it.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+async def test_is_followup_is_false_on_the_opening_answer(
+    recorded_inserts_no_db: list[tuple[str, dict]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _stub_evaluator(
+        monkeypatch, _evaluation([("market_accuracy", 3, "churn at 4.6%")],
+                                 ["business_model_fluency", "structural_clarity",
+                                  "point_of_view", "decision_quality"])
+    )
+
+    await _make_evaluate_answer_node()(_answer_state(followup_count=0))
+
+    _, kwargs = calls[0]
+    assert kwargs["is_followup"] is False
+
+
+@pytest.mark.parametrize("followup_count", [1, 2, 3])
+async def test_is_followup_is_true_on_every_probe_answer(
+    followup_count: int,
+    recorded_inserts_no_db: list[tuple[str, dict]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """🔴 The exact bug being fixed: without this, `evaluate_answer_node` gave
+    the Evaluator no way to tell a probe answer from the opening one, so
+    `decision_quality`'s "the question demanded a choice" guard fired on every
+    probe as if it were fresh -- observed live as scores 4, 4, 1, 1, 1 across
+    one interview."""
+    calls = _stub_evaluator(
+        monkeypatch, _evaluation([("market_accuracy", 3, "churn at 4.6%")],
+                                 ["business_model_fluency", "structural_clarity",
+                                  "point_of_view", "decision_quality"])
+    )
+
+    await _make_evaluate_answer_node()(_answer_state(followup_count=followup_count))
+
+    _, kwargs = calls[0]
+    assert kwargs["is_followup"] is True, (
+        f"followup_count={followup_count} must be treated as a follow-up answer"
+    )
 
 
 @pytest.mark.parametrize(
