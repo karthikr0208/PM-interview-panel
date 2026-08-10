@@ -361,6 +361,6 @@ async def evaluate_answer(
             f"unknown level has no anchors to score against"
         )
 
-    llm = get_llm(role, max_tokens=2048).with_structured_output(AnswerEvaluation)
+    llm = get_llm(role, max_tokens=2048, agent="evaluator").with_structured_output(AnswerEvaluation)
     messages = _build_evaluation_messages(case_world, question, answer, assessed_level, prior_scores)
     return await llm.ainvoke(messages)

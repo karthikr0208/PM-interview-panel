@@ -165,7 +165,7 @@ async def generate_case_world(
     if not assessed_level or not assessed_level.strip():
         raise ValueError("generate_case_world requires a non-empty assessed_level")
 
-    llm = get_llm(role).with_structured_output(CaseWorld)
+    llm = get_llm(role, agent="case_architect").with_structured_output(CaseWorld)
     messages = [
         ("system", _SYSTEM_PROMPT),
         (

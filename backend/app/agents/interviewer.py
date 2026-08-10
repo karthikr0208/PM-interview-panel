@@ -287,7 +287,7 @@ async def answer_clarification(
     if not clarifying_question or not clarifying_question.strip():
         raise ValueError("answer_clarification requires a non-empty clarifying_question")
 
-    llm = get_llm(role, max_tokens=2048).with_structured_output(ClarificationAnswer)
+    llm = get_llm(role, max_tokens=2048, agent="interviewer").with_structured_output(ClarificationAnswer)
     messages = [
         ("system", _CLARIFICATION_SYSTEM_PROMPT),
         (
@@ -679,7 +679,7 @@ async def generate_probe(
     if not probe_ladder:
         raise ValueError("generate_probe requires a non-empty probe_ladder")
 
-    llm = get_llm(role, max_tokens=2048).with_structured_output(Probe)
+    llm = get_llm(role, max_tokens=2048, agent="interviewer").with_structured_output(Probe)
     messages = _build_probe_messages(
         case_world, improvised_facts, main_question, probe_ladder, transcript_turns, required_angle
     )

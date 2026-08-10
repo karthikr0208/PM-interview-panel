@@ -33,19 +33,33 @@ _MODEL_BY_ROLE: dict[Role, str] = {
 }
 
 
-def _log_call(role: Role, model: str, started: float, outcome: str, error: str = "") -> None:
+def _log_call(
+    role: Role, model: str, started: float, outcome: str, error: str = "", agent: str = ""
+) -> None:
     elapsed_ms = (time.perf_counter() - started) * 1000
     timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     if error:
-        logger.info(
-            "llm_call ts=%s role=%s model=%s elapsed_ms=%.0f outcome=%s error=%s",
-            timestamp, role, model, elapsed_ms, outcome, error,
-        )
+        if agent:
+            logger.info(
+                "llm_call ts=%s role=%s model=%s elapsed_ms=%.0f outcome=%s error=%s agent=%s",
+                timestamp, role, model, elapsed_ms, outcome, error, agent,
+            )
+        else:
+            logger.info(
+                "llm_call ts=%s role=%s model=%s elapsed_ms=%.0f outcome=%s error=%s",
+                timestamp, role, model, elapsed_ms, outcome, error,
+            )
     else:
-        logger.info(
-            "llm_call ts=%s role=%s model=%s elapsed_ms=%.0f outcome=%s",
-            timestamp, role, model, elapsed_ms, outcome,
-        )
+        if agent:
+            logger.info(
+                "llm_call ts=%s role=%s model=%s elapsed_ms=%.0f outcome=%s agent=%s",
+                timestamp, role, model, elapsed_ms, outcome, agent,
+            )
+        else:
+            logger.info(
+                "llm_call ts=%s role=%s model=%s elapsed_ms=%.0f outcome=%s",
+                timestamp, role, model, elapsed_ms, outcome,
+            )
 
 
 class LoggingChatClient:
@@ -59,9 +73,10 @@ class LoggingChatClient:
     place regardless of which entry point a node uses.
     """
 
-    def __init__(self, role: Role, client: ChatOpenAI) -> None:
+    def __init__(self, role: Role, client: ChatOpenAI, agent: str = "") -> None:
         self.role = role
         self.model = _MODEL_BY_ROLE[role]
+        self.agent = agent
         self._client = client
 
     def invoke(self, *args: Any, **kwargs: Any) -> Any:
@@ -69,9 +84,9 @@ class LoggingChatClient:
         try:
             result = self._client.invoke(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 — logged, then re-raised unchanged
-            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            _log_call(self.role, self.model, started, "error", type(exc).__name__, agent=self.agent)
             raise
-        _log_call(self.role, self.model, started, "ok")
+        _log_call(self.role, self.model, started, "ok", agent=self.agent)
         return result
 
     async def ainvoke(self, *args: Any, **kwargs: Any) -> Any:
@@ -79,9 +94,9 @@ class LoggingChatClient:
         try:
             result = await self._client.ainvoke(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 — logged, then re-raised unchanged
-            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            _log_call(self.role, self.model, started, "error", type(exc).__name__, agent=self.agent)
             raise
-        _log_call(self.role, self.model, started, "ok")
+        _log_call(self.role, self.model, started, "ok", agent=self.agent)
         return result
 
     def stream(self, *args: Any, **kwargs: Any) -> Iterator[Any]:
@@ -90,10 +105,10 @@ class LoggingChatClient:
             for chunk in self._client.stream(*args, **kwargs):
                 yield chunk
         except Exception as exc:  # noqa: BLE001
-            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            _log_call(self.role, self.model, started, "error", type(exc).__name__, agent=self.agent)
             raise
         else:
-            _log_call(self.role, self.model, started, "ok")
+            _log_call(self.role, self.model, started, "ok", agent=self.agent)
 
     async def astream(self, *args: Any, **kwargs: Any) -> AsyncIterator[Any]:
         started = time.perf_counter()
@@ -101,10 +116,10 @@ class LoggingChatClient:
             async for chunk in self._client.astream(*args, **kwargs):
                 yield chunk
         except Exception as exc:  # noqa: BLE001
-            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            _log_call(self.role, self.model, started, "error", type(exc).__name__, agent=self.agent)
             raise
         else:
-            _log_call(self.role, self.model, started, "ok")
+            _log_call(self.role, self.model, started, "ok", agent=self.agent)
 
     def with_structured_output(self, *args: Any, **kwargs: Any) -> "_LoggedStructured":
         """Returns a *logged* runnable, not the client's raw one.
@@ -119,6 +134,7 @@ class LoggingChatClient:
             role=self.role,
             model=self.model,
             runnable=self._client.with_structured_output(*args, **kwargs),
+            agent=self.agent,
         )
 
 
@@ -160,7 +176,7 @@ def _is_schema_rejection(exc: Exception) -> bool:
     return "json_validate_failed" in str(exc)
 
 
-def _log_schema_failure(role: Role, model: str, exc: Exception) -> None:
+def _log_schema_failure(role: Role, model: str, exc: Exception, agent: str = "") -> None:
     """Logs Groq's `failed_generation` in full, on its own record.
 
     🔴 The 200-character truncation in `_attempt` cuts the 400 body off
@@ -188,10 +204,16 @@ def _log_schema_failure(role: Role, model: str, exc: Exception) -> None:
         error_obj = body.get("error")
         if isinstance(error_obj, dict):
             generation = str(error_obj.get("failed_generation", ""))
-    logger.warning(
-        "llm_schema_failure role=%s model=%s message=%s failed_generation=%r",
-        role, model, str(exc)[:300], generation[:2000],
-    )
+    if agent:
+        logger.warning(
+            "llm_schema_failure role=%s model=%s message=%s failed_generation=%r agent=%s",
+            role, model, str(exc)[:300], generation[:2000], agent,
+        )
+    else:
+        logger.warning(
+            "llm_schema_failure role=%s model=%s message=%s failed_generation=%r",
+            role, model, str(exc)[:300], generation[:2000],
+        )
 
 
 def _append_retry_instruction(model_input: Any, error: str) -> Any:
@@ -232,9 +254,10 @@ class _LoggedStructured:
     rate-limit log instead of vanishing.
     """
 
-    def __init__(self, role: Role, model: str, runnable: Any) -> None:
+    def __init__(self, role: Role, model: str, runnable: Any, agent: str = "") -> None:
         self.role = role
         self.model = model
+        self.agent = agent
         self._runnable = runnable
 
     def _outcome(self, result: Any) -> str:
@@ -258,16 +281,16 @@ class _LoggedStructured:
         try:
             result = self._runnable.invoke(model_input, *args, **kwargs)
         except ValidationError as exc:
-            _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+            _log_call(self.role, self.model, started, "invalid", type(exc).__name__, agent=self.agent)
             return None, str(exc)[:200]
         except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
             if _is_schema_rejection(exc):
-                _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
-                _log_schema_failure(self.role, self.model, exc)
+                _log_call(self.role, self.model, started, "invalid", type(exc).__name__, agent=self.agent)
+                _log_schema_failure(self.role, self.model, exc, agent=self.agent)
                 return None, str(exc)[:200]
-            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            _log_call(self.role, self.model, started, "error", type(exc).__name__, agent=self.agent)
             raise
-        _log_call(self.role, self.model, started, self._outcome(result))
+        _log_call(self.role, self.model, started, self._outcome(result), agent=self.agent)
         return result, "" if result is not None else "the response was empty"
 
     async def ainvoke(self, model_input: Any, *args: Any, **kwargs: Any) -> Any:
@@ -288,23 +311,23 @@ class _LoggedStructured:
         try:
             result = await self._runnable.ainvoke(model_input, *args, **kwargs)
         except ValidationError as exc:
-            _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
+            _log_call(self.role, self.model, started, "invalid", type(exc).__name__, agent=self.agent)
             return None, str(exc)[:200]
         except Exception as exc:  # noqa: BLE001 — transport, not schema. Re-raised.
             if _is_schema_rejection(exc):
-                _log_call(self.role, self.model, started, "invalid", type(exc).__name__)
-                _log_schema_failure(self.role, self.model, exc)
+                _log_call(self.role, self.model, started, "invalid", type(exc).__name__, agent=self.agent)
+                _log_schema_failure(self.role, self.model, exc, agent=self.agent)
                 return None, str(exc)[:200]
-            _log_call(self.role, self.model, started, "error", type(exc).__name__)
+            _log_call(self.role, self.model, started, "error", type(exc).__name__, agent=self.agent)
             raise
-        _log_call(self.role, self.model, started, self._outcome(result))
+        _log_call(self.role, self.model, started, self._outcome(result), agent=self.agent)
         return result, "" if result is not None else "the response was empty"
 
 
 DEFAULT_MAX_TOKENS = 4096
 
 
-def get_llm(role: Role, *, max_tokens: int = DEFAULT_MAX_TOKENS) -> LoggingChatClient:
+def get_llm(role: Role, *, max_tokens: int = DEFAULT_MAX_TOKENS, agent: str = "") -> LoggingChatClient:
     """Factory: 'fast' | 'deep' | 'backup' -> a logged chat client.
 
     Model ids come from `app/config.py` (Groq since 2026-07-31), not from the
@@ -364,4 +387,4 @@ def get_llm(role: Role, *, max_tokens: int = DEFAULT_MAX_TOKENS) -> LoggingChatC
         max_tokens=max_tokens,
         temperature=0,
     )
-    return LoggingChatClient(role=role, client=client)
+    return LoggingChatClient(role=role, client=client, agent=agent)

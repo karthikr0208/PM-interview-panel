@@ -225,7 +225,7 @@ async def plan_interview(
 
     shape = select_shape_for_world(assessed_level, case_world.get("suits_categories"))
 
-    llm = get_llm(role, max_tokens=2048).with_structured_output(_PlannerFill)
+    llm = get_llm(role, max_tokens=2048, agent="planner").with_structured_output(_PlannerFill)
     messages = [
         ("system", _SYSTEM_PROMPT),
         (

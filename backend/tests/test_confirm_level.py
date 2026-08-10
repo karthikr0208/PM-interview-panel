@@ -109,7 +109,7 @@ def _config(session_id: str) -> dict:
     return {"configurable": {"thread_id": session_id}}
 
 
-def _ok_llm_calls(caplog: pytest.LogCaptureFixture) -> list[str]:
+def _ok_llm_calls(caplog: pytest.LogCaptureFixture, agent: str | None = None) -> list[str]:
     """Only `outcome=ok` records -- never every `llm_call` line.
 
     A legitimate validate-retry inside `analyse_resume` logs `outcome=empty`
@@ -119,6 +119,12 @@ def _ok_llm_calls(caplog: pytest.LogCaptureFixture) -> list[str]:
     correct retry; counting only `ok` records still catches a doubled node
     execution, because a genuine double-call produces two `ok` records
     (or one `ok` plus a second failure), never one.
+
+    `agent`, added for story 4.3 (see `test_conduct_loop.py`'s copy of this
+    helper): when given, additionally requires `agent=<agent>` in the
+    message. Default `None` keeps every call site in this file
+    byte-identical to before the parameter existed -- this file's live
+    tests are not being re-run as part of that change.
     """
     return [
         record.getMessage()
@@ -126,6 +132,7 @@ def _ok_llm_calls(caplog: pytest.LogCaptureFixture) -> list[str]:
         if record.name == "app.llm"
         and record.getMessage().startswith("llm_call")
         and "outcome=ok" in record.getMessage()
+        and (agent is None or f"agent={agent}" in record.getMessage())
     ]
 
 

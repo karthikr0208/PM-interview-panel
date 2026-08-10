@@ -669,16 +669,22 @@ def eval_sessions() -> Iterator[Callable[[], str]]:
         conn.close()
 
 
-def _ok_llm_calls(caplog: pytest.LogCaptureFixture) -> list[str]:
+def _ok_llm_calls(caplog: pytest.LogCaptureFixture, agent: str | None = None) -> list[str]:
     """Copied from `test_conduct_loop.py`'s helper of the same name -- only
     `outcome=ok` records, so a legitimate validate-retry does not read as a
-    duplicate call."""
+    duplicate call.
+
+    `agent`, added for story 4.3: when given, additionally requires
+    `agent=<agent>` in the message. Default `None` keeps every call site in
+    this file byte-identical to before the parameter existed -- this file's
+    live tests are not being re-run as part of that change."""
     return [
         record.getMessage()
         for record in caplog.records
         if record.name == "app.llm"
         and record.getMessage().startswith("llm_call")
         and "outcome=ok" in record.getMessage()
+        and (agent is None or f"agent={agent}" in record.getMessage())
     ]
 
 

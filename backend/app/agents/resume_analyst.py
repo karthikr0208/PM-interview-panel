@@ -204,7 +204,7 @@ async def analyse_resume(resume_text: str, *, role: Role = "deep") -> ResumeAnal
     if not resume_text or not resume_text.strip():
         raise ValueError("analyse_resume requires non-empty resume_text")
 
-    llm = get_llm(role, max_tokens=_MAX_OUTPUT_TOKENS).with_structured_output(ResumeAnalysis)
+    llm = get_llm(role, max_tokens=_MAX_OUTPUT_TOKENS, agent="resume_analyst").with_structured_output(ResumeAnalysis)
     messages = [
         ("system", _SYSTEM_PROMPT),
         ("human", f"Resume text:\n\n{_fit_to_budget(resume_text)}"),

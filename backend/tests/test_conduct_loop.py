@@ -683,17 +683,27 @@ def loop_sessions() -> Iterator[Callable[[], str]]:
         conn.close()
 
 
-def _ok_llm_calls(caplog: pytest.LogCaptureFixture) -> list[str]:
+def _ok_llm_calls(caplog: pytest.LogCaptureFixture, agent: str | None = None) -> list[str]:
     """Copied from `test_confirm_level.py`'s helper of the same name --
     only `outcome=ok` records, never every `llm_call` line, so a legitimate
     validate-retry does not read as a duplicate call. See that file's
-    docstring for the full reasoning."""
+    docstring for the full reasoning.
+
+    `agent`, added for story 4.3's `evaluate_answer_node`: when given,
+    additionally requires `agent=<agent>` in the message. `evaluate_answer`
+    and the probe/clarification calls in this file's loop all run on
+    `role=fast`, so counting `outcome=ok` alone can no longer tell a probe
+    call from an evaluator call -- `app/llm.py` now tags every product call
+    site with which agent made it (see `get_llm`'s `agent` kwarg) for
+    exactly this reason. Default `None` keeps every existing call site in
+    this file byte-identical to before the parameter existed."""
     return [
         record.getMessage()
         for record in caplog.records
         if record.name == "app.llm"
         and record.getMessage().startswith("llm_call")
         and "outcome=ok" in record.getMessage()
+        and (agent is None or f"agent={agent}" in record.getMessage())
     ]
 
 
@@ -727,7 +737,23 @@ def _initial_state(session_id: str) -> dict:
 #
 # ~21s: the ceiling is 8,000 TPM and a probe request measured ~2,700 tokens
 # (from the 429's own `Requested`), so roughly 3 requests per minute.
-_MIN_SECONDS_BETWEEN_LLM_CALLS = 21.0
+#
+# 🔴 RAISED 21 -> 75 on 2026-08-10, and the reason is a trap worth naming:
+# this helper paces GRAPH INVOCATIONS, but story 4.3 put TWO LLM calls inside
+# one of them. A resume now fires `evaluate_answer` and then `ask_probe` back
+# to back with no delay between them. Measured from the 429s' own `Requested`
+# on 2026-08-10: 3,298 / 3,792 / 3,922 / 4,106 tokens per call, so a single
+# resume demands ~8,000 -- the ENTIRE per-minute allowance -- in about ten
+# seconds. 21s regenerates only ~2,800 of it, so the pair 429s on its second
+# call every time, which is exactly what was observed twice:
+#   Used 5775, Requested 3922   and   Used 3953, Requested 4106
+# Both cross 8,000, and both are the second call of a pair. At 21s this file
+# could not pass however correct the product was.
+#
+# 75s: ~8,000 tokens per resume against 8,000 TPM needs 60s to break even,
+# plus margin for a longer-than-measured generation. The cost is wall clock,
+# and a detached run pays it once.
+_MIN_SECONDS_BETWEEN_LLM_CALLS = 75.0
 _last_call_at = 0.0
 
 
@@ -849,6 +875,13 @@ async def test_await_candidate_produces_exactly_one_llm_call_per_probe_turn(
     (both would still read as one probe/answer exchange); only
     `app.llm`'s call log sees it. Assert there, never on state -- same
     rule as `test_confirm_level.py`'s and Phase 3's equivalent tests.
+
+    Counted PER AGENT since story 4.3 added `evaluate_answer_node`, which
+    fires once per candidate answer on `role=fast` -- the same role the
+    probe uses. An unfiltered `_ok_llm_calls` count would include both and
+    the per-probe-turn arithmetic below would no longer hold; filtering on
+    `agent="interviewer"` restores the original 1-per-turn count by
+    excluding the evaluator's calls rather than by loosening the number.
     """
     session_id = loop_sessions()
     graph = build_graph(checkpointer, interviewer_role="fast")
@@ -856,13 +889,13 @@ async def test_await_candidate_produces_exactly_one_llm_call_per_probe_turn(
 
     with caplog.at_level(logging.INFO, logger="app.llm"):
         await _start_at_the_loop(graph, config, session_id)
-        assert len(_ok_llm_calls(caplog)) == 0, "the question must cost zero LLM calls"
+        assert len(_ok_llm_calls(caplog, agent="interviewer")) == 0, "the question must cost zero LLM calls"
 
         for turn in range(1, 4):  # a few probe turns -- enough to prove the per-turn count, not all 8
-            await _paced(graph, 
+            await _paced(graph,
                 Command(resume={"type": "answer", "text": f"Answer number {turn}."}), config
             )
-            calls_so_far = len(_ok_llm_calls(caplog))
+            calls_so_far = len(_ok_llm_calls(caplog, agent="interviewer"))
             assert calls_so_far == turn, (
                 f"expected exactly {turn} generate_probe call(s) after {turn} probe turn(s), "
                 f"got {calls_so_far} -- a resumed await_candidate re-fired a probe call"
@@ -881,7 +914,16 @@ async def test_await_candidate_does_not_redo_the_clarification_call_amid_a_probe
     resumes with the REAL answer to that same probe -- which must cost
     EITHER zero calls (if `decide_next` routes straight to another probe,
     that next `ask_probe` call is counted separately below) but must, above
-    all, NOT re-fire the clarification call a second time."""
+    all, NOT re-fire the clarification call a second time.
+
+    Counted PER AGENT since story 4.3 added `evaluate_answer_node`, which
+    fires once per candidate answer on `role=fast` -- the same role the
+    probe and clarification calls use. Filtering `_ok_llm_calls` on
+    `agent="interviewer"` excludes the evaluator's calls so the original
+    counts below (2 probe calls, then 3 after the clarification, then 4
+    after the real answer) still hold; the evaluator firing alongside each
+    answer is real and expected, it is just not what this test is proving.
+    """
     session_id = loop_sessions()
     graph = build_graph(checkpointer, interviewer_role="fast")
     config = _config(session_id)
@@ -891,13 +933,13 @@ async def test_await_candidate_does_not_redo_the_clarification_call_amid_a_probe
 
         await _paced(graph, Command(resume={"type": "answer", "text": "Answer number 1."}), config)
         await _paced(graph, Command(resume={"type": "answer", "text": "Answer number 2."}), config)
-        calls_before_clarify = len(_ok_llm_calls(caplog))
+        calls_before_clarify = len(_ok_llm_calls(caplog, agent="interviewer"))
         assert calls_before_clarify == 2, "expected exactly 2 probe calls before the clarification"
 
-        await _paced(graph, 
+        await _paced(graph,
             Command(resume={"type": "clarify", "text": "How big is Palewell's customer base?"}), config
         )
-        calls_after_clarify = len(_ok_llm_calls(caplog))
+        calls_after_clarify = len(_ok_llm_calls(caplog, agent="interviewer"))
         assert calls_after_clarify == 3, "expected exactly 1 more call (the clarification)"
 
         # The real answer to the probe that was open when the candidate
@@ -908,7 +950,7 @@ async def test_await_candidate_does_not_redo_the_clarification_call_amid_a_probe
         # legitimate increment left is the next `ask_probe` call the answer
         # itself triggers.
         await _paced(graph, Command(resume={"type": "answer", "text": "About 340 customers."}), config)
-        calls_after_real_answer = len(_ok_llm_calls(caplog))
+        calls_after_real_answer = len(_ok_llm_calls(caplog, agent="interviewer"))
         assert calls_after_real_answer == 4, (
             "expected exactly 1 more call (the next probe) -- got "
             f"{calls_after_real_answer}, which means either the clarification call "

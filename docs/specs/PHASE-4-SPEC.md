@@ -224,9 +224,24 @@ evidence_quote text not null check (length(evidence_quote) > 0)
       way, so that is the important half. 🔴 **`test_conduct_loop.py` + `test_transcript.py` are
       OWED** — they hit the daily cap (`Used 197132, Limit 200000`), **8 failed / 2 passed with ZERO
       assertion failures**, classified quota.
+      **RUN TWICE ON 2026-08-10, still not closed, but the reason changed and the product is not
+      implicated.** Run 1 (`4 failed, 6 passed, 436.00s`) found this story had **silently broken two
+      single-call assertions** in `test_conduct_loop.py`: `evaluate_answer_node` fires once per
+      answer, so every resume logs two `outcome=ok` records and both tests counted all of them
+      (`got 2`, `assert 4 == 2` — exactly 2× both times). Fixed by **tagging every `app.llm` call
+      with its agent** rather than by doubling the expected counts, which would have made a
+      load-bearing assertion unfalsifiable. Run 2 confirmed the primary one:
+      **`test_await_candidate_produces_exactly_one_llm_call_per_probe_turn` PASSES** at its original
+      1-per-turn count, filtered on `agent="interviewer"`.
+      🔴 **Still owed: one run at the corrected pacing.** `_paced` throttles graph invocations, but
+      this story put two ~4,000-token calls inside one, so a resume needs ~8,000 tokens — the whole
+      per-minute allowance — and 21s regenerated ~2,800. Raised to **75s**, **not yet validated by a
+      green run.** Two empty-generation schema faults (`failed_generation=''`, one `ask_probe`, one
+      `evaluate_answer_node`) are open and **deliberately not called defects** — run 2 was provably
+      under-paced. See DEV-STATE § Decisions 2026-08-10.
 
 **Acceptance:** ✅ the single-call assertion **observed failing** against a deliberately wrong graph.
-🔴 The conduct-loop re-run is owed before this story is closed.
+🔴 The conduct-loop re-run is owed before this story is closed — now at 75s pacing.
 
 ### 4.4 The scorecard — ✅ DONE 2026-08-09
 

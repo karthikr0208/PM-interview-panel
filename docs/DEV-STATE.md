@@ -6,6 +6,33 @@
 
 ## Now
 
+**🟡 SESSION 18, 2026-08-10: THE OWED RUN WAS RUN TWICE, 4.3 IS STILL OPEN, AND THE PRODUCT IS NOT
+IMPLICATED.** Run 1 found story 4.3 had **silently broken two single-call assertions** —
+`evaluate_answer_node` fires once per answer, so every resume logs two `outcome=ok` records and both
+tests counted all of them (`got 2`, `assert 4 == 2`, exactly 2× both times). **CLAUDE.md's `build.py`
+trap, third occurrence, third file.**
+
+**🟢 Fixed by tagging every `app.llm` call with its agent, not by doubling the expected counts.**
+The cheap fix would have gone green while making a load-bearing assertion unable to say WHICH agent
+doubled — the vacuity shape this project has shipped three times. The two assertions are back at
+their **original** numbers, filtered per-agent, which is strictly stronger than before 4.3.
+**`test_await_candidate_produces_exactly_one_llm_call_per_probe_turn` PASSES live.** The label
+earned itself inside one run: schema failures now log `agent=interviewer` / `agent=evaluator`, which
+attributed both of run 2's faults in a single grep.
+
+**🔴 `_paced` paces GRAPH INVOCATIONS, not LLM calls, and 4.3 put two inside one.** A resume now
+demands ~8,000 tokens — the entire per-minute allowance — in about ten seconds; 21s regenerated
+~2,800. Both 429s are the second call of a pair. **The clincher: these same two files went 10 passed
+/ 334.61s at 21s on 2026-08-09, before the node existed.** Raised to **75s, not yet validated**.
+
+**🟡 Two `failed_generation=''` schema faults are open and deliberately NOT called defects** — run 2
+was provably under-paced, and this shape vanished under correct pacing in session 15. The 75s re-run
+is the experiment that decides it.
+
+**🔴 Budget forced a choice and Karthik took the interview.** Two live runs plus a GPM interview do
+not fit one 200,000 cap. He sat gate #4 locally; the pacing fix cost zero tokens and the re-run goes
+first on a fresh budget.
+
 **🟢 SESSION 15, 2026-08-08: EVERY OPEN ⬜ FROM SESSION 14 IS RESOLVED, AND THE PROBE-7 FAULT WAS
 NEVER A DEFECT.** The paced live conduct loop went **4 passed, 346s — its first fully green run
 ever**, with no `llm_schema_failure` logged. That closes the batching hypothesis: neither of
@@ -206,7 +233,7 @@ toggle no script can flip.** See Blockers.
 | 2 Case Architect + Planner | 🟢 **ALL SEVEN STORIES DONE 2026-08-04, every box ticked. 3 of 4 gate conditions met.** Both agents smoked, **the full chain runs end to end live**, both agents in the orchestration column, **`case_world` write-once now enforced AND falsified**. Planner needs `deep` (measured) and flaps on genericness, accepted. Gate #4 (a case world Karthik reads and believes) is HIS and still open | [PHASE-2-SPEC.md](specs/PHASE-2-SPEC.md) | 2026-08-04 — **162 offline (+3 live), 84 vitest**, chain proven live |
 | 3 Interviewer + conduct loop | 🟢 **COMPLETE 2026-08-05. All three stories, all four gate conditions.** Loop built, **the looping interrupt falsified on BOTH sides**, chain runs end to end over real HTTP, interview UI built with **TRAP 2 and the dash guard falsified by deliberate mutation**, and **deployed**. **Gate #4 CLOSED: Karthik sat a real interview in the browser and reported the whole flow working with no bugs.** **BOTH paths exercised** — and an adversarial clarifying question got a **correct refusal, not an invented fact**, which is ARCHITECTURE §9's undetectable failure mode observed *not* happening. The open work is **question QUALITY, not correctness** — see § Decisions 2026-08-05 | [PHASE-3-SPEC.md](specs/PHASE-3-SPEC.md) | 2026-08-05 — **221 offline (+3 live), 113 vitest**, deployed, interview sat, refusal branch confirmed live |
 | 3.5 Question quality | 🟢 **ALL FIVE STORIES DONE AND VALIDATED LIVE 2026-08-08**, except one node change owed a re-run. Session 15: the paced conduct loop went **4 passed / 346s, its first fully green live run**, and **no `llm_schema_failure`** — so the probe-7 shape fault was **never a product defect** and `_append_retry_instruction` is CLOSED. `gpm_portfolio_world` ran for the first time, failed **3/3 byte-identically** (`fast` is deterministic; the flapping finding was `deep`), and is **4/4** after a scope rule stopping the interviewer answering its own case question. Interviewer golden suite **5 passed / 2 failed, both reds PRE-EXISTING and attributed by `git stash`**. A second live interview cut **probes 8 → 4** (probes 6-8 recycled 1-3 through `generate_probe`'s 4-turn window) and found a **clarifying question stored as a candidate position**, now fixed by carrying `kind` end to end. **🔴 The `kind` change is the one thing NOT live-validated** — the re-run hit the daily cap at 197,615/200,000, classified quota. See § Decisions 2026-08-08. Prior notes follow: **ALL FIVE STORIES CODE-COMPLETE 2026-08-06; VERIFIED IN PART AND DEPLOYED 2026-08-07.** The probe loop **completed a live run for the first time** (all 8 probes + boundary exit, gate condition #3's central assertion). Session 13's `generate_probe` `max_tokens` fix is **verified real but incomplete** — it moved the failure from probe 3 to probe 7. **The probe-7 fault is a SHAPE fault, not truncation; another `max_tokens` bump does nothing.** The other live failure was the 8,000 TPM per-minute ceiling, a test-harness artifact. Neither of two full live runs was green, but **every test passed in at least one**. Twelve commits deployed. See § Decisions 2026-08-07. Prior session-13 notes follow: **the `fast` daily budget ran out mid-live-run at 198,580/200,000.** 3.5.4's probe loop and 3.5.5's UI are built, offline-green and falsified by mutation, but **the probe loop has never completed a live run** and `generate_probe`'s `max_tokens` fix is applied and unverified. **THE EIGHT REAL COMPANIES ARE LIVE IN THE GRAPH.** `generate_case_world` calls `select_case_world`, the generative Case Architect is out of the runtime path, and an interview costs **one fewer LLM call**. Smoked: the Planner asks *"What is Anthropic's biggest threat over the next three years?"* against the real Anthropic sheet. **The live graph re-run is OWED** — deferred to the end of 3.5.4 because the probe edge reopens `build.py` in the same story. 3.5.1 transcript holds candidate turns · 3.5.2 eight curated real-company worlds, a 13-shape bank, three new assertions · 3.5.3 **the Planner stops writing questions** (Python formats a bank template) **and drops from `deep` to `fast`, measured.** Target register reached: *"What is Ferngrove Media's biggest threat over the next three years?"* **Four defects caught by independent re-verification, none visible in a green suite.** The rest of 3.5.4 (probe loop, `improvised_facts`, `_QUESTIONS_THIS_PHASE` 3 → 1) and 3.5.5 remain | [PHASE-3.5-SPEC.md](specs/PHASE-3.5-SPEC.md) | 2026-08-06 — **329 offline (was 326), 6 live transcript, 113 vitest**, Planner smoked on `fast` against real Figma and Anthropic worlds |
-| 4 Evaluator + scorecard | 🟡 **4.1, 4.2 AND 4.4 DONE; 4.3 CODE-COMPLETE AND OWED ONE LIVE RE-RUN.** Gate 1 ✅ 2 ✅ 3 ✅, gate 4 (a scorecard Karthik reads and believes) still HIS and still open. **4.4 done 2026-08-09 at zero LLM cost** (`82c2392`): 170 vitest passed / 17 files, the overall-score suppression **falsified by mutation** and failing on its POSITIVE assertion. Prior note: **4.1 AND 4.2 DONE. 4.2 closed 2026-08-09: the Evaluator scores live.** `439 offline passed, 111 deselected` (was 429/111, deselected unchanged). Smoke green on `fast` for `apm_consumer_world_full_coverage`; **role measured at `deep` 2/2 vs `fast` 1/2 and we stayed on `fast` deliberately** (one `deep` sample is not a measurement, and the single disagreement is a rubric definition question). **Token fit computed at the LAST answer BEFORE the loop was built**, per the spec's own instruction: stress case 5,398 against the 8,000 ceiling, asserted offline by `tests/test_evaluator_budget.py` at zero tokens. **One open rubric question surfaced and deliberately not decided** — whether demonstrating a LOW anchor counts as evidence, or whether `not_assessed` means "did not engage at all"; it is Karthik's, and the spec already named it his. **Both of 4.1's open questions are answered**: the "duplicate" clarify turn is not a replay (two different questions 332s apart, idx contiguous 0..27), and fixture 1's inherited ground truth is wrong on the transcript's own text — `dimension_coverage` counts what the Interviewer PROBED, not what the candidate EVIDENCED. Next is 4.3. Prior note: **STARTED 2026-08-08. Story 4.1 DONE (`2231a96`), delegated to a Sonnet subagent and independently re-verified — the first story built under CLAUDE.md's new delegation policy.** Schema, 7 golden fixtures, assertion harness. **429 offline passed (was 394), evaluator suite 35 passed / 8 errors — and the RED is the acceptance**, every error an `ImportError` for the not-yet-existing `evaluate_answer`, with no stub written to fake it. The verbatim-quote assertion was **falsified against a one-word paraphrase** ("runs" → "operates") and observed rejecting it. Fixture 1 is Karthik's **real** 2026-08-07 transcript read from Postgres, spot-checked as genuine. **Two open questions the subagent surfaced: the real transcript has FIVE clarify turns not four (turns 9 and 11 duplicate, possibly a resume replay), and fixture 1's `not_assessed` ground truth is inherited from the spec rather than measured.** Next is 4.2. Prior note: **SPECCED 2026-08-07**, from the live interview of the same day rather than from the plan. Three findings shape it: **2 of 5 rubric dimensions got ZERO evidence** in a real interview, so the Evaluator will be asked to score things nothing was said about; **a single end-of-interview call does not fit the 8,000 TPM ceiling** (the full transcript measured 10,274 tokens on 2026-08-06), so per-answer scoring is forced rather than chosen; and the Interviewer's 4-turn window **must not be reused**, because "sharpens a thesis under pushback" is a property of an arc a keyhole cannot see. The DDL also settles more than expected — `evidence_quote` is `not null` with a length check, so PRD §8's schema-level enforcement is **in Postgres**, and `score` being `not null` means an unassessed dimension is represented by the ABSENCE of a row | [PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) | — |
+| 4 Evaluator + scorecard | 🟡 **4.1, 4.2 AND 4.4 DONE; 4.3 CODE-COMPLETE AND OWED ONE LIVE RE-RUN — now at 75s pacing.** 2026-08-10: the owed run was run **twice**, `4 failed / 6 passed` both times, and **4.3 is still open — but the product is not implicated.** Run 1 found 4.3 had silently broken two single-call assertions (`evaluate_answer_node` doubles the `outcome=ok` records per resume); fixed by **tagging every `app.llm` call with its agent** rather than doubling the expected counts, and `test_await_candidate_produces_exactly_one_llm_call_per_probe_turn` **now passes live at its original count.** Run 2's four failures: **2 quota (TPM), 2 empty-generation schema faults deliberately NOT called defects** because `_paced` was measured to be structurally under-paced since 4.3 (a resume costs ~8,000 tokens, the whole per-minute allowance; 21s regenerated ~2,800 — and these same files went 10 passed / 334.61s at 21s *before* the node existed). Pacing 21s → **75s, not yet validated by a green run.** See § Decisions 2026-08-10. Prior note: Gate 1 ✅ 2 ✅ 3 ✅, gate 4 (a scorecard Karthik reads and believes) still HIS and still open. **4.4 done 2026-08-09 at zero LLM cost** (`82c2392`): 170 vitest passed / 17 files, the overall-score suppression **falsified by mutation** and failing on its POSITIVE assertion. Prior note: **4.1 AND 4.2 DONE. 4.2 closed 2026-08-09: the Evaluator scores live.** `439 offline passed, 111 deselected` (was 429/111, deselected unchanged). Smoke green on `fast` for `apm_consumer_world_full_coverage`; **role measured at `deep` 2/2 vs `fast` 1/2 and we stayed on `fast` deliberately** (one `deep` sample is not a measurement, and the single disagreement is a rubric definition question). **Token fit computed at the LAST answer BEFORE the loop was built**, per the spec's own instruction: stress case 5,398 against the 8,000 ceiling, asserted offline by `tests/test_evaluator_budget.py` at zero tokens. **One open rubric question surfaced and deliberately not decided** — whether demonstrating a LOW anchor counts as evidence, or whether `not_assessed` means "did not engage at all"; it is Karthik's, and the spec already named it his. **Both of 4.1's open questions are answered**: the "duplicate" clarify turn is not a replay (two different questions 332s apart, idx contiguous 0..27), and fixture 1's inherited ground truth is wrong on the transcript's own text — `dimension_coverage` counts what the Interviewer PROBED, not what the candidate EVIDENCED. Next is 4.3. Prior note: **STARTED 2026-08-08. Story 4.1 DONE (`2231a96`), delegated to a Sonnet subagent and independently re-verified — the first story built under CLAUDE.md's new delegation policy.** Schema, 7 golden fixtures, assertion harness. **429 offline passed (was 394), evaluator suite 35 passed / 8 errors — and the RED is the acceptance**, every error an `ImportError` for the not-yet-existing `evaluate_answer`, with no stub written to fake it. The verbatim-quote assertion was **falsified against a one-word paraphrase** ("runs" → "operates") and observed rejecting it. Fixture 1 is Karthik's **real** 2026-08-07 transcript read from Postgres, spot-checked as genuine. **Two open questions the subagent surfaced: the real transcript has FIVE clarify turns not four (turns 9 and 11 duplicate, possibly a resume replay), and fixture 1's `not_assessed` ground truth is inherited from the spec rather than measured.** Next is 4.2. Prior note: **SPECCED 2026-08-07**, from the live interview of the same day rather than from the plan. Three findings shape it: **2 of 5 rubric dimensions got ZERO evidence** in a real interview, so the Evaluator will be asked to score things nothing was said about; **a single end-of-interview call does not fit the 8,000 TPM ceiling** (the full transcript measured 10,274 tokens on 2026-08-06), so per-answer scoring is forced rather than chosen; and the Interviewer's 4-turn window **must not be reused**, because "sharpens a thesis under pushback" is a property of an arc a keyhole cannot see. The DDL also settles more than expected — `evidence_quote` is `not null` with a length check, so PRD §8's schema-level enforcement is **in Postgres**, and `score` being `not null` means an unassessed dimension is represented by the ABSENCE of a row | [PHASE-4-SPEC.md](specs/PHASE-4-SPEC.md) | — |
 | 5 Coach | ⬜ not started | — | — |
 | 6 Orchestration depth | ⬜ not started | — | — |
 | 7 Polish & hardening | ⬜ not started | — | — |
@@ -2196,6 +2223,63 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
+## 🔴 SESSION 19. ONE LIVE RUN IS OWED, AT THE NEW 75s PACING. IT IS THE ONLY THING BLOCKING 4.3.
+
+**Read § Decisions 2026-08-10 first** — five findings. #3 and #4 are what this run decides.
+
+**Run these first (~3 min, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 464 passed, 113 deselected
+cd frontend && npm test -- --run                                          # expect 170 passed, 17 files
+```
+
+### 🔴 SPEND THE FIRST FRESH TOKENS HERE. One item, and it is an EXPERIMENT, not a formality.
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/test_conduct_loop.py tests/test_transcript.py -q -m "live"
+```
+
+**Run it DETACHED. At 75s pacing this is ~25-40 minutes**, up from ~7.5, and that is deliberate —
+see § Decisions 2026-08-10 #3 for the token arithmetic. Do not lower the constant to make it finish
+sooner; 21s was measured to be unable to pass regardless of product correctness.
+
+**What it decides:** whether the two `failed_generation=''` schema faults (one `ask_probe`, one
+`evaluate_answer_node`) are real defects or an artifact of running at the TPM ceiling. **If it
+greens, 4.3 closes and Phase 4 is one story from complete.** If the empty generations survive
+correct pacing, they are real, they now name their own agent in the log, and they are the next
+piece of work.
+
+**Grep the output for `tokens per day` and `tokens per minute` before concluding anything** — four
+of the eight failures across the two runs on 2026-08-10 were quota.
+
+### 🟢 Do not redo any of this — all validated 2026-08-10
+
+- **Offline is green at 464 / 113 and 170 / 17**, re-run independently after every change below.
+- **The agent label is in and works.** `app/llm.py` tags every product call with `agent=`; the six
+  call sites are tagged, `skeleton.py` deliberately is not. Schema-failure records now name their
+  agent, which attributed both of run 2's faults in one grep.
+- **`test_await_candidate_produces_exactly_one_llm_call_per_probe_turn` PASSES live** at its
+  original 1-per-turn count. That was the assertion 4.3 broke.
+- **Migration 0004 is applied to the live DB** — `reasoning` column confirmed present by direct
+  query, not by trusting the record.
+- **No env var, config, or dependency changed** in any unpushed commit, so the deploy needs no
+  Render dashboard work.
+
+### 🔴 Then: what Karthik's GPM interview found
+
+**He sat it locally on 2026-08-10** (`localhost:5173` against `localhost:8000`, since the scorecard
+is unpushed). **Findings go here — this line is a placeholder until they are written down.**
+
+### Deployment
+
+**`e631961..57a0bad` plus session 18's commit are local only. NOT pushed.** Karthik's call was to
+deploy after 4.3, and 4.3 is not closed. Hold until the 75s run greens.
+
+---
+
+## Superseded — session 17's handoff, kept for the record
+
 ## 🔴 SESSION 17. ONE LIVE RUN IS OWED, THEN 4.4.
 
 **Read § Decisions 2026-08-09 first** — nine findings, and #9 is the owed run.
@@ -3778,6 +3862,102 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟡 2026-08-10 (session 18) · THE OWED RUN WAS RUN TWICE AND 4.3 IS STILL OPEN — BUT THE PRODUCT
+IS NOT IMPLICATED, AND THE ASSERTION 4.3 ACTUALLY BROKE IS NOW GREEN.**
+
+**🔴 1. STORY 4.3 SILENTLY BROKE TWO SINGLE-CALL ASSERTIONS. This is CLAUDE.md's `build.py` trap
+firing for the third time, in a third file.**
+
+Run 1, on the code as committed in `16235ee`:
+
+```
+tests/test_conduct_loop.py tests/test_transcript.py -m live  ->  4 failed, 6 passed, 32 deselected, 436.00s
+
+FAILED test_await_candidate_produces_exactly_one_llm_call_per_probe_turn
+  AssertionError: expected exactly 1 generate_probe call(s) after 1 probe turn(s), got 2
+FAILED test_await_candidate_does_not_redo_the_clarification_call_amid_a_probe_loop
+  AssertionError: expected exactly 2 probe calls before the clarification / assert 4 == 2
+```
+
+Exactly 2× in both cases. `evaluate_answer_node` fires once per answer, so each resumed
+`await_candidate` now logs `evaluate_answer` **and** `generate_probe`, and both tests counted every
+`outcome=ok` record on `app.llm`.
+
+**The product was never wrong.** The evaluator's own single-call property is established twice over
+and neither was re-run to reach this conclusion: `test_evaluate_answer.py` passed live 2026-08-09,
+and `falsify_evaluate_single_call.py` observed 1 -> 2 against a deliberately wrong graph. In run 1
+the 4-probe boundary exit passed, as did
+`test_the_final_answer_gets_a_row_even_though_ask_probe_never_runs_again`.
+
+**🟢 2. THE FIX WAS NOT THE CHEAP ONE, DELIBERATELY. `app/llm.py` NOW TAGS EVERY CALL WITH ITS
+AGENT.**
+
+The tempting fix was relaxing `== turn` to `== turn * 2`. It goes green and it still catches a
+doubled probe — **but it can no longer say WHICH agent doubled**, so a test whose own docstring
+calls it load-bearing would be reporting a property it cannot observe. That is the vacuity shape
+this project has now shipped three times.
+
+`_log_call` appends ` agent=<name>` **after** `outcome=`, and only when non-empty, so untagged
+callers log byte-identically and the three copies of `_ok_llm_calls` keep working unchanged.
+`get_llm` gained a keyword-only `agent`; the six product call sites are tagged and
+`app/graph/skeleton.py` is deliberately not (it is a test harness, not an agent). `_ok_llm_calls`
+gained an optional `agent` filter, default `None` = count everything, so `test_confirm_level.py` and
+`test_evaluate_answer.py` were not disturbed.
+
+**The two assertions went back to their ORIGINAL numbers** (1 per probe turn; 2/3/4 across the
+clarification), filtered per-agent. That is strictly stronger than before the story: a re-fired
+probe still lands as an extra `interviewer` call, and now it names itself.
+
+**It earned itself within one run.** The `llm_schema_failure` records in run 2 read
+`agent=interviewer` and `agent=evaluator`, which attributed both faults in a single grep. 4.3's
+author already knew the ambiguity existed — PHASE-4-SPEC §4.3 says the new test seeds the FINAL
+answer "so the evaluator is the only call in the cycle" because "a mid-loop `delta == 2` could not
+tell the two apart" — and routed around it rather than fixing it. Phase 5's Coach is a sixth agent
+and would have hit this again.
+
+**🔴 3. `_paced` PACES GRAPH INVOCATIONS, NOT LLM CALLS — AND 4.3 PUT TWO CALLS INSIDE ONE
+INVOCATION. 21s -> 75s.**
+
+Run 2, after the agent-label fix:
+
+```
+tests/test_conduct_loop.py tests/test_transcript.py -m live  ->  4 failed, 6 passed, 32 deselected, 460.19s
+
+test_await_candidate_produces_exactly_one_llm_call_per_probe_turn   PASSED   <- the primary fix, confirmed
+FAILED test_a_clarifying_question_does_not_advance_current_q_idx      429 TPM, answer_clarification_node
+FAILED test_await_candidate_does_not_redo_the_clarification_call...   429 TPM, evaluate_answer_node
+FAILED ..._exits_at_the_probe_count_boundary        StructuredOutputError, ask_probe,        failed_generation=''
+FAILED test_candidate_answer_writes_a_transcript_row StructuredOutputError, evaluate_answer_node, failed_generation=''
+```
+
+A resume now costs a PAIR of calls fired back to back with no delay between them. Measured from the
+429s' own `Requested` on 2026-08-10: **3,298 / 3,792 / 3,922 / 4,106** tokens per call, so one
+resume demands **~8,000 — the entire per-minute allowance — in about ten seconds.** 21s regenerates
+~2,800. Both 429s are the SECOND call of a pair and both cross the ceiling:
+`Used 5775, Requested 3922` and `Used 3953, Requested 4106`.
+
+**The clinching evidence is a run nobody re-ran:** these same two files went **10 passed, 334.61s at
+21s pacing on 2026-08-09** (session 16, § Decisions #1), before `evaluate_answer_node` existed. Same
+files, same constant, green before the node and 429ing after it. **At 21s this file could not pass
+however correct the product was.** Raised to 75s in both copies, with the arithmetic in the comment.
+**The 75s constant is NOT yet validated by a green run** — that is what is owed.
+
+**🟡 4. TWO EMPTY-GENERATION SCHEMA FAULTS ARE OPEN AND DELIBERATELY NOT CALLED DEFECTS.**
+
+`failed_generation=''` with a 400 `json_validate_failed` is not a 429, so it is not classified as
+quota. But run 2 was **provably under-paced**, and this exact shape appeared in session 15 and
+vanished when the run was correctly paced (4 passed / 346s, no `llm_schema_failure`). One sample is
+not a measurement and a run at the ceiling cannot separate "product defect" from "model under
+pressure". **The 75s re-run is the experiment that decides it.** If the faults survive correct
+pacing, they are real and belong to `generate_probe` and `evaluate_answer`; if they vanish again,
+the pacing was the whole story both times.
+
+**🔴 5. BUDGET, AND KARTHIK'S CALL.** Two live runs (~7.5 min each) plus a GPM interview do not fit
+one 200,000 daily cap; CLAUDE.md already warns gate #1 and gate #4 compete for the same bucket.
+**Karthik's call was the interview**, on the reasoning that no failure so far implicates the
+product, the pacing fix costs zero tokens, and gate #4 is the last open gate on Phase 4 and the only
+one that cannot be delegated.
 
 **🟢 2026-08-09 (session 16) · THE OWED LIVE RUN IS GREEN, AND BOTH OF STORY 4.1'S OPEN QUESTIONS
 ARE ANSWERED. NEITHER WAS WHAT IT LOOKED LIKE.**

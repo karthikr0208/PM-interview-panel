@@ -51,6 +51,8 @@ only in where it is spent.
 
 from __future__ import annotations
 
+import asyncio
+import time
 import uuid
 from typing import Callable, Iterator
 
@@ -123,12 +125,40 @@ def _initial_state(session_id: str) -> dict:
     }
 
 
+# 🔴 PACING, copied from `test_conduct_loop.py`. Same reason: this file fires
+# real `fast` `generate_probe` / `answer_clarification` calls back to back
+# across several tests in one run, and an unpaced file has previously 429'd
+# against the 8,000 TPM ceiling before this copy existed. See that file's
+# block comment for the full measurement.
+# 🔴 75, not 21: a resume fires TWO LLM calls since story 4.3
+# (`evaluate_answer` then `ask_probe`) and this helper paces graph
+# invocations, not calls. See the long block comment on the same constant in
+# `test_conduct_loop.py` for the measured arithmetic. Keep the two in step.
+_MIN_SECONDS_BETWEEN_LLM_CALLS = 75.0
+_last_call_at = 0.0
+
+
+async def _paced(graph, payload, config: dict) -> dict:
+    """`graph.ainvoke`, throttled to stay under the per-minute token ceiling.
+
+    Sleeps only as much as needed since the previous call, so a test that
+    pauses on its own for other reasons pays nothing extra. Copied from
+    `test_conduct_loop.py`'s helper of the same name.
+    """
+    global _last_call_at
+    wait = _MIN_SECONDS_BETWEEN_LLM_CALLS - (time.monotonic() - _last_call_at)
+    if wait > 0:
+        await asyncio.sleep(wait)
+    _last_call_at = time.monotonic()
+    return await graph.ainvoke(payload, config)
+
+
 async def _start_at_the_loop(graph, config: dict, session_id: str) -> dict:
     """Copied from `test_conduct_loop.py`'s helper of the same name -- see
     its docstring for why seeding the checkpoint `as_node="plan_interview"`
     is the right shape rather than merely a working one."""
     await graph.aupdate_state(config, _initial_state(session_id), as_node="plan_interview")
-    return await graph.ainvoke(None, config)
+    return await _paced(graph, None, config)
 
 
 @pytest.fixture
@@ -199,7 +229,7 @@ async def test_candidate_answer_writes_a_transcript_row(
 
     await _start_at_the_loop(graph, config, session_id)
     answer_text = "I'd ship the web view first, then measure engagement before building native."
-    await graph.ainvoke(Command(resume={"type": "answer", "text": answer_text}), config)
+    await _paced(graph, Command(resume={"type": "answer", "text": answer_text}), config)
 
     rows = _transcript_rows(session_id)
     candidate_rows = [r for r in rows if r[1] == "candidate"]
@@ -221,7 +251,7 @@ async def test_candidate_clarifying_question_writes_a_transcript_row(
 
     await _start_at_the_loop(graph, config, session_id)
     clarify_text = "How big is Palewell's customer base?"
-    await graph.ainvoke(Command(resume={"type": "clarify", "text": clarify_text}), config)
+    await _paced(graph, Command(resume={"type": "clarify", "text": clarify_text}), config)
 
     rows = _transcript_rows(session_id)
     candidate_rows = [r for r in rows if r[1] == "candidate"]
@@ -286,11 +316,11 @@ async def test_the_final_answer_gets_a_row_even_though_ask_probe_never_runs_agai
 
     await _start_at_the_loop(graph, config, session_id)
     for probe_number in range(1, probes + 1):
-        await graph.ainvoke(
+        await _paced(graph,
             Command(resume={"type": "answer", "text": f"Answer number {probe_number}."}), config
         )
     final_answer = "I'd track renewal rate as the falsifying signal."
-    final = await graph.ainvoke(Command(resume={"type": "answer", "text": final_answer}), config)
+    final = await _paced(graph, Command(resume={"type": "answer", "text": final_answer}), config)
 
     assert "__interrupt__" not in final, "the loop should have exited at the probe count boundary"
 
@@ -323,10 +353,10 @@ async def test_full_interview_transcript_alternates_with_no_gaps_in_idx(
 
     await _start_at_the_loop(graph, config, session_id)
     for probe_number in range(1, probes + 1):
-        await graph.ainvoke(
+        await _paced(graph,
             Command(resume={"type": "answer", "text": f"Answer number {probe_number}."}), config
         )
-    final = await graph.ainvoke(Command(resume={"type": "answer", "text": "I'd track renewal rate."}), config)
+    final = await _paced(graph, Command(resume={"type": "answer", "text": "I'd track renewal rate."}), config)
     assert "__interrupt__" not in final
 
     rows = _transcript_rows(session_id)
