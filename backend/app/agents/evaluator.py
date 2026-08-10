@@ -361,6 +361,14 @@ async def evaluate_answer(
             f"unknown level has no anchors to score against"
         )
 
-    llm = get_llm(role, max_tokens=2048, agent="evaluator").with_structured_output(AnswerEvaluation)
+    # 4096, not 2048: `gpt-oss-20b` is a reasoning model and its reasoning tokens
+    # come out of the SAME output budget as the JSON. On a realistic answer
+    # (~250 words) the reasoning exhausted 2048 before any JSON was emitted, and
+    # Groq returned `failed_generation: ''` -- an EMPTY body, not a truncated one.
+    # Observed 2026-08-10 in a human-paced live interview with ZERO rate-limit
+    # errors, so it is not the TPM artifact the same shape was blamed on twice
+    # before. The test suite never caught it because its fixtures answer with
+    # "Answer number 1." See DEV-STATE § Decisions 2026-08-10.
+    llm = get_llm(role, max_tokens=4096, agent="evaluator").with_structured_output(AnswerEvaluation)
     messages = _build_evaluation_messages(case_world, question, answer, assessed_level, prior_scores)
     return await llm.ainvoke(messages)

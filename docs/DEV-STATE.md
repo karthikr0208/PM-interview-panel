@@ -3863,6 +3863,89 @@ Phase 5.
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
 
+**🔴🟢 2026-08-10 (session 18b) · KARTHIK SAT A FULL GPM INTERVIEW ON THE SCORECARD. GATE #4 FAILS,
+FOR ONE PRECISELY LOCATED REASON. THREE FIXES WERE CONFIRMED LIVE ON THE WAY.**
+
+Session `80bc40da-6b29-4f51-bd6f-c838d3b851c0`, Anthropic world, GPM, 4 probes, clean exit.
+Answers were drafted by the orchestrator and pasted by Karthik, so the transcript is deliberately
+strong and uniform — that is what made the scoring defect visible.
+
+**🔴 6. `decision_quality` SCORES 1/4 ON ANY ANSWER THAT IS NOT A FRESH CHOICE, AND THE CAUSE IS ONE
+ARGUMENT AT ONE CALL SITE.**
+
+Scores by turn: **4, 4, 1, 1, 1.** The persisted `reasoning` says it in its own words:
+
+```
+turn  9  score 1  "The answer does not lay out the options or pick one, and the
+                   question explicitly asked for a choice."
+turn 11  score 1  "did not list or defend any of the options; they did not make a choice"
+turn 13  score 1  "does not commit to a single bet"
+```
+
+**`build.py:1179` passes `main_question` to `evaluate_answer` for EVERY answer, including probe
+answers.** The Evaluator never sees the probe that was actually asked. So the rubric's guard at
+`evaluator.py:218` — *"IF THE QUESTION ASKED THE CANDIDATE TO CHOOSE, THIS DIMENSION IS ALWAYS
+SCORED ... does not even lay out the options -> 1"* — is **permanently true for the whole
+interview**. Probes 2-4 asked about gross margin, compute dependency and validation signals. None
+asked for a choice. The choice was made at turn 3 and never retracted.
+
+**Widening the anchors alone cannot fix this.** The Evaluator does not know it is scoring a
+follow-up. The fix has to tell it what was actually asked.
+
+**This is PHASE-4-SPEC's own warning in a shape it did not predict.** The spec says the Interviewer's
+4-turn window must not be reused because "sharpens a thesis under pushback is a property of an arc a
+keyhole cannot see." The Evaluator has the same keyhole for this one dimension. **`point_of_view`
+got it right** (4/4 at turn 13, *"sharpened under scrutiny"*), so this is not a general context
+failure — it is one dimension's rubric text meeting one wrong argument.
+
+**🔴 7. LATEST-ROW-WINS TURNS #6 INTO THE HEADLINE NUMBER.** 4.4 chose "latest row per dimension
+wins" to mirror `_prior_scores`. So the final card shows **1/4**, discarding two legitimate 4s, and
+`Overall 3.0 / 4` is computed off it. **Any candidate who decides well early and then answers
+follow-ups is structurally guaranteed to score 1.** Karthik's call 2026-08-10: fix **both** the
+rubric text and the aggregation.
+
+**🔴 8. A FAILING EVALUATOR TAKES DOWN THE INTERVIEW.** `build.py:1185` catches, logs `error`, and
+**re-raises**, so the answer submission fails with "We could not send that" and the candidate cannot
+proceed. Scoring is a side-effect and must degrade to "not scored", never block the loop. Observed
+live before the `max_tokens` change below.
+
+**🔴 9. THE EMPTY-GENERATION FAULT IS A REAL DEFECT, AND IT IS THE EVALUATOR'S. The pacing
+hypothesis in #4 is WRONG.** Reproduced in a human-paced interview with **zero `RateLimitError` in
+the entire session** — minutes between calls, nowhere near the 8,000 TPM ceiling. All 5
+`llm_schema_failure` records carry `agent=evaluator`; **the Interviewer's structured calls
+(`ClarificationAnswer`, `Probe`) failed zero times.** So it is not a general `gpt-oss-20b` strict-
+schema problem: it is specific to `AnswerEvaluation`, much the largest output shape in the project.
+**`max_tokens` 2048 -> 4096 unblocked the interview but did NOT close the fault** — the first
+attempt still returns `failed_generation=''` and the validate-retry then succeeds, so every
+evaluation currently costs two calls. **Recorded as moved, not fixed** — the same shape as the
+probe's `max_tokens` bump. Not committed on a "looks right".
+
+**🟢 10. THREE FIXES CONFIRMED LIVE FOR THE FIRST TIME, ALL PREVIOUSLY OFFLINE-ONLY.**
+
+- **The false-premise refusal WORKS.** Fed *"Since Anthropic doesn't actually sell a consumer
+  product and only monetises through the API, isn't the consumer marketing question hypothetical?"*
+  it replied *"Anthropic does sell a consumer product, Claude.ai, so the consumer marketing question
+  is not hypothetical."* Grounded in the brief, one sentence, no invention, and it still answered
+  the underlying question. **This is the 2026-08-07 regression fix, flagged in the agent table as
+  "NEITHER VALIDATED LIVE", now validated live.**
+- **`select_shape`'s GPM fix works.** A GPM got the strategy question, not the funnel-optimisation
+  question the old modulo wrapped it to. Never previously observed live.
+- **The Evaluator appears in the orchestration column** (`2b87128`), showing `Error` with a
+  timestamp and later `Done`. **Without it, #8 would have been invisible** — the column would have
+  looked healthy while scoring was broken.
+
+**🟢 11. WHAT THE SCORECARD GETS RIGHT.** Every `evidence_quote` is genuinely verbatim and traceable
+to a sentence in the transcript — the core promise holds. `not_assessed` works per turn (19 rows of
+a possible 25). **Persisting `reasoning` (migration 0004, taken in 4.3 on the grounds that "Phase
+5's Coach may want it") is the only reason #6 took minutes instead of a day.** That decision paid
+for itself before the Coach exists.
+
+**🟢 12. THE EM-DASH REACHES POSTGRES AS U+2014, AND THAT IS CORRECT.** Verified by codepoint, not
+by console rendering — the first read showed `U+FFFD` and that was the terminal, not the data. The
+candidate's answer is deliberately written unnormalised, because normalising one side of the
+comparison would turn a faithful quote into a mismatch; `stripDashes` cleans it at render instead.
+Design held under a live test of it.
+
 **🟡 2026-08-10 (session 18) · THE OWED RUN WAS RUN TWICE AND 4.3 IS STILL OPEN — BUT THE PRODUCT
 IS NOT IMPLICATED, AND THE ASSERTION 4.3 ACTUALLY BROKE IS NOW GREEN.**
 
