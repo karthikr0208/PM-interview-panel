@@ -2234,24 +2234,40 @@ cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expe
 cd frontend && npm test -- --run                                          # expect 170 passed, 17 files
 ```
 
-### 🔴 SPEND THE FIRST FRESH TOKENS HERE. One item, and it is an EXPERIMENT, not a formality.
+### 🔴 SPEND THE FIRST FRESH TOKENS HERE, IN THIS ORDER.
+
+**1. Smoke the changed Evaluator prompt (~7k, do this FIRST).** `565a92c` rewrote the
+`decision_quality` rubric and it is **NOT yet smoked** — the attempt on 2026-08-10 died on the daily
+cap (`tokens per day (TPD): Limit 200000, Used 197152, Requested 7370`), classified quota, never
+reached an assertion.
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/golden/evaluator -q -m live -k "apm_consumer"
+```
+
+**2. Prove the fix works on the shape that broke it.** The golden case above is an OPENING answer,
+so it does **not** exercise the new follow-up path. Score a follow-up answer with
+`is_followup=True` and confirm `decision_quality` no longer returns 1 for an answer that elaborates
+an existing decision. **The cheapest honest check is a real re-sit**, since the defect only appeared
+across an arc.
+
+**3. The 4.3 live re-run, at the new 75s pacing.**
 
 ```
 cd backend && .venv/Scripts/python.exe -m pytest tests/test_conduct_loop.py tests/test_transcript.py -q -m "live"
 ```
 
-**Run it DETACHED. At 75s pacing this is ~25-40 minutes**, up from ~7.5, and that is deliberate —
-see § Decisions 2026-08-10 #3 for the token arithmetic. Do not lower the constant to make it finish
-sooner; 21s was measured to be unable to pass regardless of product correctness.
+**Run it DETACHED. At 75s this is ~25-40 minutes**, up from ~7.5, deliberately — see § Decisions
+2026-08-10 #3. Do not lower the constant to finish sooner; 21s was measured to be unable to pass
+regardless of product correctness. **If it greens, 4.3 closes.**
 
-**What it decides:** whether the two `failed_generation=''` schema faults (one `ask_probe`, one
-`evaluate_answer_node`) are real defects or an artifact of running at the TPM ceiling. **If it
-greens, 4.3 closes and Phase 4 is one story from complete.** If the empty generations survive
-correct pacing, they are real, they now name their own agent in the log, and they are the next
-piece of work.
+🔴 **Note what #9 already settled:** the `failed_generation=''` fault is **real and is the
+Evaluator's**, proven in a human-paced interview with zero rate-limit errors. So run 3 is no longer
+the experiment that decides that question — it decides whether the LOOP is green, and the evaluator
+fault is separate open work.
 
-**Grep the output for `tokens per day` and `tokens per minute` before concluding anything** — four
-of the eight failures across the two runs on 2026-08-10 were quota.
+**Grep every run for `tokens per day` and `tokens per minute` before concluding anything** — five of
+the nine failures on 2026-08-10 were quota.
 
 ### 🟢 Do not redo any of this — all validated 2026-08-10
 
@@ -2266,10 +2282,31 @@ of the eight failures across the two runs on 2026-08-10 were quota.
 - **No env var, config, or dependency changed** in any unpushed commit, so the deploy needs no
   Render dashboard work.
 
-### 🔴 Then: what Karthik's GPM interview found
+### 🔴 GATE #4 WAS SAT AND IT FAILED. Two defects remain OPEN after it.
 
-**He sat it locally on 2026-08-10** (`localhost:5173` against `localhost:8000`, since the scorecard
-is unpushed). **Findings go here — this line is a placeholder until they are written down.**
+Karthik sat a full GPM interview locally on 2026-08-10 (session
+`80bc40da-6b29-4f51-bd6f-c838d3b851c0`, Anthropic world, 4 probes, clean exit). **Full write-up in
+§ Decisions 2026-08-10 (session 18b), findings #6 to #12.** The scorecard was **not believable**:
+`decision_quality` read 4, 4, 1, 1, 1 and the card showed 1/4.
+
+**🟢 FIXED AND COMMITTED (`565a92c`), offline-green, NOT yet smoked live:** the Evaluator now knows
+when it is scoring a follow-up (`is_followup`, derived from `followup_count`), the rubric scopes its
+anti-dodging guard to the opening answer, and the scorecard aggregates on highest-score-wins instead
+of latest-wins.
+
+**🔴 STILL OPEN, both observed live, neither fixed:**
+
+1. **A failing Evaluator blocks the interview.** `build.py:1185` catches, logs `error`, and
+   **re-raises**, so the candidate sees "We could not send that" and cannot proceed. Scoring is a
+   side-effect; it must degrade to "not scored" and let the loop continue. **This is the more
+   serious of the two** — it can end a candidate's session.
+2. **The Evaluator's empty-generation fault is real.** All 5 `llm_schema_failure` records carry
+   `agent=evaluator`; the Interviewer's structured calls failed zero times, so it is specific to
+   `AnswerEvaluation`, the largest output shape in the project. `max_tokens` 2048 -> 4096 **moved it,
+   did not close it**: the first attempt still returns `failed_generation=''` and the validate-retry
+   then succeeds, so **every evaluation currently costs two calls**. Do not record 4096 as a fix.
+
+**Gate #4 remains OPEN.** It needs a re-sit after the rubric fix is smoked.
 
 ### Deployment
 
