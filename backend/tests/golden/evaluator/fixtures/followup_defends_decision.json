@@ -1,0 +1,32 @@
+{
+  "world_fixture": "pm_b2b_world",
+  "assessed_level": "PM",
+  "is_followup": true,
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "Circuitway's forecasting module is accurate for customers with a single warehouse, but activation drops sharply for customers running more than three sites: only 34.7% of multi-site customers reach their first accurate forecast within 30 days, versus 81.2% of single-site customers. What do you do about the multi-site segment, which is 46% of the pipeline this quarter?"
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "I'd staff the two available backend engineers on a manual override tool this quarter, not a rebuild of the forecasting engine and not a pullback from multi-site. Rebuilding the model to natively handle inventory transfer across sites is the right long-term answer, but it's a multi-quarter bet with no guarantee it fixes activation, and we don't have the headcount to run it in parallel with anything else. De-prioritizing multi-site protects nothing, since it's 46% of this quarter's pipeline and sales has already booked $1.2M against the feature shipping. The override tool gets a multi-site customer to a workable forecast inside the 30-day window by letting them correct the model site by site, which is slower than a native fix but ships on the timeline we actually have. What I'm giving up is forecast accuracy that's fully automatic for that segment this quarter, in exchange for closing the activation gap enough to protect the pipeline and the logo growth commitment."
+    },
+    {
+      "idx": 2,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "The CEO's read is that this isn't a modeling problem at all. The three multi-site customers who did succeed each got more than ten hours of hands-on onboarding, against a company average of two. If onboarding alone explains the successes you already have, why spend two scarce engineers building a tool instead of just funding more onboarding hours?"
+    },
+    {
+      "idx": 3,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "The onboarding data is real and I don't think it's wrong, but I don't think it's the whole explanation either. Ten-plus hours of hands-on onboarding on three accounts is a hand-crafted outcome, and multi-site is 46% of this quarter's pipeline, which is not a segment we can staff with white-glove onboarding at that ratio without hiring a team we don't have budget for. The override tool isn't competing with onboarding, it's what makes the onboarding hours we do have go further, because a rep walking a customer through the model can point at the three sites where the forecast is actually wrong instead of narrating the whole architecture from scratch. If the onboarding hours are doing all the work, the override tool should see almost no usage once a customer is trained, and that's the number I'd watch: usage of the override tool by customers who've already had the full onboarding treatment. If that number stays high past the first two forecast cycles instead of dropping toward zero, that tells me the model itself is still wrong for multi-site sites and the CEO's onboarding read was only ever true for the three accounts we happened to hand-hold, not for the segment as a whole. That's what would move me off this plan."
+    }
+  ],
+  "note": "Hand-written for the is_followup golden coverage (2026-08-10, commit 565a92c). Paired with followup_abandons_decision.json -- SAME world (pm_b2b_world), SAME assessed_level (PM), SAME opening question, SAME probe. This half's final answer never restates 'I choose the override tool' -- it defends the decision already made with new reasoning (the usage-decay argument, the staffing-ratio argument) and names a concrete falsifier (override-tool usage staying high past two cycles among already-onboarded customers) that would change the candidate's mind. Under the 2026-08-10 follow-up rubric this should land decision_quality >= 3, most likely 4."
+}

@@ -79,6 +79,14 @@ class GoldenCase:
         return self._payload.get("world_fixture")
 
     @property
+    def is_followup(self) -> bool:
+        # Default False so all seven fixtures that predate the 2026-08-10
+        # is_followup fix (commit 565a92c) are completely unchanged -- only
+        # the two fixtures below that set it explicitly opt into the
+        # follow-up notice in `_build_evaluation_messages`.
+        return self._payload.get("is_followup", False)
+
+    @property
     def case_world(self) -> dict:
         world_fixture = self.world_fixture
         if world_fixture is None:
@@ -224,6 +232,66 @@ def _check_sparse_framework_narration(result: AnswerEvaluation) -> None:
     )
 
 
+def _check_followup_defends_decision(result: AnswerEvaluation) -> None:
+    """See the fixture's own note: same world, same level, same question and
+    probe as `followup_abandons_decision` -- this half's final answer defends
+    the earlier override-tool decision with new reasoning and names what
+    would change the candidate's mind, never re-making the choice. This is
+    the fixture that exercises the 2026-08-10 fix (commit 565a92c):
+    `decision_quality` must be SCORED (never not_assessed on a follow-up --
+    the topic plainly came up) and must not fall to the bottom of the range
+    the way every probe answer did before `is_followup` existed."""
+    assert "decision_quality" not in result.not_assessed, (
+        "followup_defends_decision: decision_quality was declined, but the follow-up "
+        "answer is entirely about defending the override-tool decision -- there is "
+        "evidence to score"
+    )
+    decision = next(
+        (ds for ds in result.dimension_scores if ds.dimension == "decision_quality"), None
+    )
+    assert decision is not None, (
+        "followup_defends_decision: expected decision_quality to be scored, found no "
+        "DimensionScore for it at all"
+    )
+    assert decision.score != 1, (
+        "followup_defends_decision: a follow-up that defends its decision scored at the "
+        "bottom of the range; this is the 2026-08-10 decision_quality defect (commit "
+        "565a92c) -- every probe answer was being scored as if it dodged a fresh choice"
+    )
+    assert decision.score >= 3, (
+        f"followup_defends_decision: expected decision_quality >= 3 (a follow-up that "
+        f"defends its decision with new reasoning and names what would change its mind), "
+        f"got {decision.score}"
+    )
+
+
+def _check_followup_abandons_decision(result: AnswerEvaluation) -> None:
+    """The control half of the pair above: same world, level, question and
+    probe, but the final answer abandons the override-tool decision under
+    pressure with no reason given and contradicts itself. This is what
+    proves the rubric still discriminates after the 2026-08-10 fix -- a
+    fixture that always scores well regardless of content would pass
+    vacuously without this one."""
+    assert "decision_quality" not in result.not_assessed, (
+        "followup_abandons_decision: decision_quality was declined, but the follow-up "
+        "answer directly addresses (and reverses) the earlier decision -- there is "
+        "evidence to score"
+    )
+    decision = next(
+        (ds for ds in result.dimension_scores if ds.dimension == "decision_quality"), None
+    )
+    assert decision is not None, (
+        "followup_abandons_decision: expected decision_quality to be scored, found no "
+        "DimensionScore for it at all"
+    )
+    assert decision.score <= 2, (
+        f"followup_abandons_decision: expected decision_quality <= 2 -- the rubric must "
+        f"still punish abandoning a decision under pressure with no reason given. A high "
+        f"score here means the 2026-08-10 is_followup fix over-corrected, got "
+        f"{decision.score}"
+    )
+
+
 CASES: tuple[GoldenCase, ...] = (
     GoldenCase(
         fixture="karthik_live_airbnb_senior_pm",
@@ -259,5 +327,15 @@ CASES: tuple[GoldenCase, ...] = (
         fixture="sparse_world_framework_narration",
         description="Three frameworks named, none applied -> framework_narration=True",
         check=_check_sparse_framework_narration,
+    ),
+    GoldenCase(
+        fixture="followup_defends_decision",
+        description="Follow-up that defends the earlier decision with new reasoning -> decision_quality scored, not bottom-of-range",
+        check=_check_followup_defends_decision,
+    ),
+    GoldenCase(
+        fixture="followup_abandons_decision",
+        description="Control: same world/level/question/probe, follow-up abandons the decision with no reason -> decision_quality still scored low",
+        check=_check_followup_abandons_decision,
     ),
 )

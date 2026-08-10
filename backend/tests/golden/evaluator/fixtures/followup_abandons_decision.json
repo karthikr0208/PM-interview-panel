@@ -1,0 +1,32 @@
+{
+  "world_fixture": "pm_b2b_world",
+  "assessed_level": "PM",
+  "is_followup": true,
+  "transcript_turns": [
+    {
+      "idx": 0,
+      "role": "interviewer",
+      "kind": "question",
+      "content": "Circuitway's forecasting module is accurate for customers with a single warehouse, but activation drops sharply for customers running more than three sites: only 34.7% of multi-site customers reach their first accurate forecast within 30 days, versus 81.2% of single-site customers. What do you do about the multi-site segment, which is 46% of the pipeline this quarter?"
+    },
+    {
+      "idx": 1,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "I'd staff the two available backend engineers on a manual override tool this quarter, not a rebuild of the forecasting engine and not a pullback from multi-site. Rebuilding the model to natively handle inventory transfer across sites is the right long-term answer, but it's a multi-quarter bet with no guarantee it fixes activation, and we don't have the headcount to run it in parallel with anything else. De-prioritizing multi-site protects nothing, since it's 46% of this quarter's pipeline and sales has already booked $1.2M against the feature shipping. The override tool gets a multi-site customer to a workable forecast inside the 30-day window by letting them correct the model site by site, which is slower than a native fix but ships on the timeline we actually have. What I'm giving up is forecast accuracy that's fully automatic for that segment this quarter, in exchange for closing the activation gap enough to protect the pipeline and the logo growth commitment."
+    },
+    {
+      "idx": 2,
+      "role": "interviewer",
+      "kind": "followup",
+      "content": "The CEO's read is that this isn't a modeling problem at all. The three multi-site customers who did succeed each got more than ten hours of hands-on onboarding, against a company average of two. If onboarding alone explains the successes you already have, why spend two scarce engineers building a tool instead of just funding more onboarding hours?"
+    },
+    {
+      "idx": 3,
+      "role": "candidate",
+      "kind": "answer",
+      "content": "That's a fair point, and honestly the CEO has been closer to these accounts than I have, so maybe onboarding is the bigger lever here. I mean, the override tool would probably still help some, but if three out of three of the successful accounts got there through hands-on onboarding and not through any tool, that's a pretty strong signal, so maybe we just fund more onboarding hours instead of building anything this quarter. Although I do think the engineering time matters too, so it might make sense to do a bit of both, or maybe start with onboarding and only build the tool if that doesn't work out. I guess I'm not fully sure anymore which one actually moves the 34.7% number, and I don't want to commit two engineers for a whole quarter to the wrong bet. We could revisit it after we see how the onboarding push goes, or maybe run them at the same time, whichever the team has bandwidth for."
+    }
+  ],
+  "note": "Hand-written for the is_followup golden coverage (2026-08-10, commit 565a92c). Paired with followup_defends_decision.json -- SAME world (pm_b2b_world), SAME assessed_level (PM), SAME opening question, SAME probe, only this final answer differs. This half abandons the override-tool decision under pressure with no evidence offered for the reversal ('maybe the CEO is right', 'I'm not fully sure anymore'), drifts into hedging ('a bit of both', 'whichever the team has bandwidth for'), and contradicts itself within the same answer (the tool 'would probably still help' right after conceding the CEO's onboarding-only read). Under the 2026-08-10 follow-up rubric this should land decision_quality <= 2, most likely 1 -- the control that proves the rubric still punishes abandoning a decision, not just rewards defending one."
+}

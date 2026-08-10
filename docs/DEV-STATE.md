@@ -2245,11 +2245,32 @@ reached an assertion.
 cd backend && .venv/Scripts/python.exe -m pytest tests/golden/evaluator -q -m live -k "apm_consumer"
 ```
 
-**2. Prove the fix works on the shape that broke it.** The golden case above is an OPENING answer,
-so it does **not** exercise the new follow-up path. Score a follow-up answer with
-`is_followup=True` and confirm `decision_quality` no longer returns 1 for an answer that elaborates
-an existing decision. **The cheapest honest check is a real re-sit**, since the defect only appeared
-across an arc.
+**2. 🔴 RUN THE FOLLOW-UP PAIR. This is the one that actually tests the fix (~14k, 2 cases).**
+Written 2026-08-10 at zero token cost, **collected and wired but NEVER EXECUTED**:
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/golden/evaluator -q -m live \
+  -k "followup_defends_decision or followup_abandons_decision"
+```
+
+**They are a matched pair and must be read as one result.** Same world (`pm_b2b_world`), same level
+(PM), and turns 0-2 are **byte-identical** — only the final candidate answer differs, so the pair
+isolates exactly one variable.
+
+- `followup_defends_decision` — defends the earlier decision with new reasoning and names a
+  falsifier, never restating the choice. **Must score `decision_quality >= 3`.** A 1 here is the
+  2026-08-10 defect resurfacing.
+- `followup_abandons_decision` — reverses under pressure with no reason, hedges, self-contradicts.
+  **Must score `decision_quality <= 2`.** This is the CONTROL: a high score here means the fix
+  **over-corrected** and the rubric has stopped discriminating.
+
+**A pass on the first without the second is not evidence** — an assertion that follow-ups "score
+well" passes vacuously if the Evaluator scores everything well. That vacuity shape has been caught
+three times on this project.
+
+Step 1's `apm_consumer` case is an OPENING answer and does **not** exercise `is_followup` at all; it
+only proves the prompt rewrite did not regress existing behaviour. Run it first because it is
+cheaper, but **step 2 is the real gate.**
 
 **3. The 4.3 live re-run, at the new 75s pacing.**
 

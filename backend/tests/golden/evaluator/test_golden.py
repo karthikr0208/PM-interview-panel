@@ -114,6 +114,7 @@ async def test_golden_case(case, evaluate_answer, caplog) -> None:
             case.assessed_level,
             [],  # prior_scores -- empty for a first-answer smoke; 4.2's job to thread the real running summary
             role=GOLDEN_ROLE,
+            is_followup=case.is_followup,
         )
 
     retried = any(
