@@ -287,14 +287,41 @@ the interview, so you can see whether a thesis is being sharpened or merely repe
 answer only. Do not re-score the earlier ones."""
 
 
+# 🔴 MEASURED. `prior_scores` is a SUMMARY, and it was carrying five verbatim
+# 220-character quotes into it. With the largest world and a 500-word answer
+# that pushed the request to 8,050 against the 8,000 TPM ceiling -- over by 50,
+# shipping since 2026-08-10, invisible until the budget test stopped hardcoding
+# its own `max_tokens` (DEV-STATE § Decisions 2026-08-11).
+#
+# 120 characters keeps what the summary is FOR -- letting the Evaluator see the
+# arc of the interview, which dimension was scored where and roughly on what --
+# while dropping what it is not for. The verbatim quote is not lost: it is
+# already written to `answer_evaluations`, where the scorecard and the Coach
+# read it. This prompt is the one place a full quote buys nothing.
+_PRIOR_QUOTE_CHARS = 120
+
+
 def _render_prior_scores(prior_scores: list[dict]) -> str:
     """The running summary as the prompt sees it. An empty list is SAID OUT
     LOUD rather than rendered as `[]`: the first answer of an interview is the
     common case, and a bare `[]` under a heading about earlier scores reads as
-    a gap the model might try to fill."""
+    a gap the model might try to fill.
+
+    Quotes are truncated to `_PRIOR_QUOTE_CHARS` -- see the comment above. The
+    truncation is marked with a trailing `...` so the model can tell a shortened
+    quote from a short one, which matters because it must never copy one of
+    these into `evidence_quote` for the answer it is currently scoring.
+    """
     if not prior_scores:
         return "(none yet - this is the first answer being scored)"
-    return json.dumps(prior_scores, indent=2)
+
+    summarised = []
+    for score in prior_scores:
+        quote = score.get("evidence_quote") or ""
+        if len(quote) > _PRIOR_QUOTE_CHARS:
+            quote = quote[:_PRIOR_QUOTE_CHARS].rstrip() + "..."
+        summarised.append({**score, "evidence_quote": quote})
+    return json.dumps(summarised, indent=2)
 
 
 _OPENING_ANSWER_NOTICE = "THIS IS THE OPENING ANSWER to the question above."

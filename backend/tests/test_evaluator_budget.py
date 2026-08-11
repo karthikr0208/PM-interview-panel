@@ -32,7 +32,11 @@ from pathlib import Path
 import pytest
 import tiktoken
 
-from app.agents.evaluator import EVALUATION_MAX_TOKENS, _build_evaluation_messages
+from app.agents.evaluator import (
+    EVALUATION_MAX_TOKENS,
+    _PRIOR_QUOTE_CHARS,
+    _build_evaluation_messages,
+)
 from app.agents.planner import RUBRIC_DIMENSIONS
 from tests.golden.evaluator.cases import CASES
 
@@ -186,7 +190,20 @@ def test_the_assembled_message_actually_carries_what_it_is_budgeting() -> None:
     assert question in human, "the question is not in the message being measured"
     assert "Senior PM" in human, "the assessed level is not in the message being measured"
     assert _OPENAI_WORLD["company"]["name"] in human, "the case world is not in the message being measured"
-    assert _LONG_QUOTE in human, "prior_scores is not in the message being measured"
+
+    # 🔴 This assertion changed on 2026-08-11 and got STRONGER, not looser.
+    # `_render_prior_scores` now truncates quotes to `_PRIOR_QUOTE_CHARS`,
+    # because five verbatim 220-character quotes in a running SUMMARY put the
+    # stress case 50 tokens over the ceiling. This test's job is to stop the
+    # budget passing because the message quietly stopped carrying things -- so
+    # it now checks BOTH halves of the new contract: the summary is still
+    # there, AND it is actually summarised.
+    truncated = _LONG_QUOTE[:_PRIOR_QUOTE_CHARS].rstrip() + "..."
+    assert truncated in human, "prior_scores is not in the message being measured"
+    assert _LONG_QUOTE not in human, (
+        "the full 220-character quote is in the prompt, so _render_prior_scores has "
+        "stopped truncating -- the stress case will go back over the TPM ceiling"
+    )
 
 
 def test_an_empty_prior_scores_is_said_out_loud_not_rendered_as_an_empty_list() -> None:

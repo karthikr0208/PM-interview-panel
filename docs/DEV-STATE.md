@@ -2258,36 +2258,19 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 **Run these first (~3 min, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 1 FAILED, 481 passed, 115 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 482 passed, 115 deselected
 cd frontend && npm test -- --run                                          # expect 170 passed, 17 files
 ```
 
-### 🔴 THE RED IS EXPECTED, TRUE, AND THE FIRST THING TO FIX
+### 🟢 The budget red is FIXED. Do not redo it.
 
-```
-FAILED tests/test_evaluator_budget.py::test_evaluation_request_fits_with_the_largest_world_and_a_verbose_answer
-AssertionError: stress case: requested 8050 tokens (system 1528 + human 2426 + max_tokens 4096),
-at or over the 8000 TPM ceiling -- over by 50
-```
+`_render_prior_scores` truncates to `_PRIOR_QUOTE_CHARS = 120`; stress case went `8050 OVER` →
+**`7955 / 8000, headroom 45`**. The vacuity guard that fired was updated to the new contract and is
+**stronger** than before. `apm_consumer` golden case run live: **flapped 1 fail then 1 pass**, and
+**cannot validate this change either way** because every golden fixture sends `prior_scores=[]`.
 
-**Do NOT make this green by loosening the assertion or lowering `EVALUATION_MAX_TOKENS`.** The
-assertion is correct: the request really is 50 tokens over. The code has shipped it since
-2026-08-10 and only the test was blind, so this is a pre-existing condition newly visible, not a
-regression.
-
-**The fix, already diagnosed:** truncate the quote inside `_render_prior_scores`
-(`app/agents/evaluator.py`) — it currently sends five 220-character quotes into what is only a
-running SUMMARY, and the full quote already lives in `answer_evaluations`. Roughly 120 characters
-is plenty and buys far more than the 50 tokens needed.
-
-🔴 **It is input to a SCORING agent, so it needs one golden case run afterwards** (~7k tokens):
-
-```
-cd backend && .venv/Scripts/python.exe -m pytest tests/golden/evaluator -q -m live -k "apm_consumer"
-```
-
-That is the same case that has been owed a smoke since `565a92c` and never run, so this closes two
-things at once.
+🔴 **45 tokens of headroom is tight.** Any edit to the Evaluator's rubric prompt will break that
+test. That is the test working, not a problem with the test.
 
 ### What session 19 finished
 
@@ -4171,6 +4154,51 @@ product failed, and the assertion 4.3 actually broke —
 `test_await_candidate_produces_exactly_one_llm_call_per_probe_turn` — is in the **passed** set of
 the full run. **10/10 across two runs is weaker evidence than 10/10 in one**, and that is stated
 rather than smoothed over.
+
+**🟢🔴 2026-08-11 (session 19) · THE SUITE IS GREEN AT `482 passed`, THE STRESS CASE FITS WITH 45
+TOKENS TO SPARE, AND `prior_scores` HAS NO GOLDEN COVERAGE AT ALL.**
+
+**The red is fixed, at the input rather than the cap.** `_render_prior_scores` truncates quotes to
+`_PRIOR_QUOTE_CHARS = 120`. It was sending five verbatim 220-character quotes into what is only a
+running SUMMARY; the full quote already lives in `answer_evaluations`, where the scorecard and the
+Coach read it, so the prompt was the one place it bought nothing.
+
+```
+stress case now 7955 / 8000, headroom 45   (was 8050, OVER by 50)
+482 passed, 115 deselected
+```
+
+**🔴 45 tokens is not comfortable and should not be described as fixed-and-forgotten.** Any future
+edit to the rubric prompt breaks it. The structural cause is unchanged: `EVALUATION_MAX_TOKENS`
+is 4096 of an 8,000 ceiling, so this agent lives near the edge by construction.
+
+**🔴 A guard fired and it was RIGHT to fire.**
+`test_the_assembled_message_actually_carries_what_it_is_budgeting` exists to stop the budget passing
+because the message quietly stopped carrying things — which is precisely the move truncation makes.
+It was **updated to the new contract and got STRONGER, not looser**: it now asserts the truncated
+summary IS present *and* that the full quote is NOT, so a silent revert of the truncation fails
+here.
+
+**🟡 The live golden case FLAPPED, and the flap is not attributable to this change.**
+`apm_consumer_world_full_coverage` on `fast`: **1 failed, then 1 passed on re-run, same input, ~1
+hour apart.** Both runs made exactly one `outcome=ok` evaluator call, so neither was quota.
+
+**🔴 But the honest point is that this case CANNOT validate the change at all.**
+`tests/golden/evaluator/test_golden.py:115` passes **`prior_scores=[]`** for every fixture, so
+`_render_prior_scores` returns its "(none yet)" string and **the truncated branch never executes.**
+The change is exonerated for this red by construction, and equally it is **not live-validated by
+this green.**
+
+**So: `prior_scores` — the running summary, the mechanism that makes an interview's ARC visible to a
+per-answer scorer, and the thing PHASE-4-SPEC § 3 argues is the whole reason per-answer scoring
+works — has ZERO golden coverage.** Every one of the eleven fixtures sends an empty list. That gap
+existed before today; truncating the quotes is simply the first change that made it matter.
+
+**Reopening condition, written down rather than chased now** (portfolio calibration, and Karthik's
+standing preference for momentum over attribution): if a live interview shows the Evaluator losing
+track of the arc — scoring `point_of_view` or `decision_quality` as if each answer were the first —
+suspect the 120-character truncation and add a golden fixture that sends a real `prior_scores`
+before touching anything else.
 
 **🔴🟢 2026-08-11 (session 19) · `max_tokens=4096` IS 51% OF THE WHOLE CEILING, AND ONCE THE TESTS
 COULD SEE IT, TWO AGENTS TURNED OUT NOT TO FIT. THE OFFLINE SUITE IS RED ON PURPOSE.**
