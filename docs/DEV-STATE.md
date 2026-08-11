@@ -2250,16 +2250,44 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🟢 SESSION 20. PHASE 4 IS COMPLETE. START AT STORY 5.2, THE COACH AGENT.
+## 🔴 SESSION 20. PHASE 4 IS COMPLETE, THE COACH AGENT EXISTS, AND THE OFFLINE SUITE IS RED ON
+## PURPOSE. FIX THE RED FIRST — IT IS ONE FUNCTION AND ONE GOLDEN CASE.
 
-**Nothing is owed. No live run is pending. The tree is clean and every commit below is local.**
+**No live run is owed. The tree is clean and every commit is local (not pushed).**
 
 **Run these first (~3 min, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 473 passed, 115 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 1 FAILED, 481 passed, 115 deselected
 cd frontend && npm test -- --run                                          # expect 170 passed, 17 files
 ```
+
+### 🔴 THE RED IS EXPECTED, TRUE, AND THE FIRST THING TO FIX
+
+```
+FAILED tests/test_evaluator_budget.py::test_evaluation_request_fits_with_the_largest_world_and_a_verbose_answer
+AssertionError: stress case: requested 8050 tokens (system 1528 + human 2426 + max_tokens 4096),
+at or over the 8000 TPM ceiling -- over by 50
+```
+
+**Do NOT make this green by loosening the assertion or lowering `EVALUATION_MAX_TOKENS`.** The
+assertion is correct: the request really is 50 tokens over. The code has shipped it since
+2026-08-10 and only the test was blind, so this is a pre-existing condition newly visible, not a
+regression.
+
+**The fix, already diagnosed:** truncate the quote inside `_render_prior_scores`
+(`app/agents/evaluator.py`) — it currently sends five 220-character quotes into what is only a
+running SUMMARY, and the full quote already lives in `answer_evaluations`. Roughly 120 characters
+is plenty and buys far more than the 50 tokens needed.
+
+🔴 **It is input to a SCORING agent, so it needs one golden case run afterwards** (~7k tokens):
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/golden/evaluator -q -m live -k "apm_consumer"
+```
+
+That is the same case that has been owed a smoke since `565a92c` and never run, so this closes two
+things at once.
 
 ### What session 19 finished
 
@@ -2274,37 +2302,40 @@ cd frontend && npm test -- --run                                          # expe
   constraints falsified** — a `moment` without a quote is rejected by Postgres, with accepted
   controls so the rejections are not vacuous. `probe_realtime.mjs` re-run: **OVERALL: PASS.**
 
-### 🔴 START HERE: story 5.2, the Coach agent
-
-Read `docs/specs/PHASE-5-SPEC.md` first — **all of it, it is short**, and § 3 is the part that
-shapes the agent. The table exists and constrains the output already.
+### 🟢 Story 5.2 is BUILT and offline-green. What exists now
 
 ```
-backend/app/agents/coach.py        <- does not exist yet
-backend/tests/golden/coach/        <- does not exist yet
+backend/app/agents/coach.py         the agent, its schema, and the grounding checks
+backend/tests/test_coach_budget.py  9 passed, 1396-1522 tokens of headroom
 ```
 
-**Three improvements, always** (Karthik's call 2026-08-11), each a `moment` or a `gap`. A `moment`'s
-anchor quote **must be one of the `evidence_quote` values already stored** for that session; a
-`gap`'s dimension **must genuinely be absent** from that session's `answer_evaluations`. Both are
-assertable offline, at zero token cost, and both are what stop the Coach inventing.
+- **Three improvements, always**, enforced in the pydantic schema rather than requested in the
+  prompt. `moment` / `gap` per PHASE-5-SPEC § 3.
+- **`verify_anchors` catches both fabrication directions** and is pure, so the node and the golden
+  suite run the identical assertion. Observed catching a planted invented quote AND a planted `gap`
+  claiming a dimension that carries a score.
+- **The budget was measured and the spec's projection was wrong by ~2,000 tokens.** Fixed by not
+  sending `supporting_facts` / `suits_categories` and capping quotes at 2 per dimension, weakest
+  first. See § Decisions 2026-08-11.
 
-**The Coach reads `answer_evaluations`, NOT the transcript.** The transcript is 10,274 tokens
-against an 8,000 TPM ceiling. This is the same wall that forced per-answer Evaluator scoring.
+### 🔴 What 5.2 still owes, and it is the part that matters
 
-**Measure the token budget BEFORE writing the node**, in the shape of
-`tests/test_evaluator_budget.py`. The spec's ~6,290 figure is **projected, not measured**, and says
-so.
+**NOTHING HAS BEEN RUN LIVE. The Coach has never produced a report.** Everything above is schema
+and arithmetic. The prompt is unsmoked and unread.
 
-### 🔴 Two open items, neither blocking 5.2
+1. **Golden fixtures at `tests/golden/coach/`** — do not exist. At minimum: a full-coverage session
+   (three `moment` improvements available) and a thin one (two `gap`s forced). Zero token cost.
+2. **One live smoke, then READ THE OUTPUT.** Whether the coaching is any good is a quality
+   judgement and it is **Karthik's**, per the standing rule. Bring him a real report, not a green
+   test.
+3. **Story 5.3, the graph node**, is not started. When it lands: `coach_report` after the loop
+   exits, never inside `await_candidate`, **a failing Coach must degrade** exactly as the Evaluator
+   now does, and **re-run every live file that builds a graph.**
 
-1. **The Evaluator's `max_tokens` drift.** Ships 4096 (`app/agents/evaluator.py:413`); the budget
-   test and the docstring both still say 2048, and `max_tokens` counts toward request size. Real
-   headroom is **565 tokens, not 2,613**. **The fix is not "change 2048 to 4096"** — that re-arms
-   the drift. Extract one constant both the call site and the test read. **Do this before 5.2's
-   budget test**, so the Coach's test is written against the correct pattern from the start.
-2. **The Evaluator's intermittent `failed_generation=''`.** Every evaluation costs two calls when it
-   fires. It did **not** fire once in 41 minutes on 2026-08-11 — one clean sample, not a fix.
+### 🔴 One more open item
+
+**The Evaluator's intermittent `failed_generation=''`.** Every evaluation costs two calls when it
+fires. It did **not** fire once in 41 minutes on 2026-08-11 — one clean sample, not a fix.
 
 ### 🟡 Two transient infrastructure failures happened, both non-reproducing
 

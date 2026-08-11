@@ -178,28 +178,34 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
       `probe_realtime.mjs` re-run: **OVERALL: PASS** (own row delivered, other session denied).
       🟡 It failed its positive half once and passed cleanly on re-run — logged in DEV-STATE as one
       of the day's two non-reproducing transient failures.
-- [ ] **Measure the real token budget** with `tiktoken`, offline, zero LLM cost, in the shape of
-      `tests/test_evaluator_budget.py`. **`max_tokens` comes from a shared constant that the call
-      site also reads** — the 2026-08-11 drift must not be re-armed.
+- [x] ✅ **DONE 2026-08-11, and it FAILED first, which was the point.** `tests/test_coach_budget.py`
+      red on all 8 worlds at up to **8,328 / 8,000**; § 2's ~6,290 projection was wrong by ~2,000.
+      Now `9 passed` with **1,396-1,522 headroom**. **`max_tokens` comes from a shared constant that
+      the call site also reads** — the 2026-08-11 drift must not be re-armed.
 - [ ] Golden fixtures, including **one with zero evaluations** and **one with a single turn's
       worth**, because § 3 says both are reachable.
 - [ ] The assertion harness reds before the agent exists, with **no stub written to fake it** — the
       shape 4.1 used.
 
-### 5.2 The Coach agent — ⬜
+### 5.2 The Coach agent — 🟡 BUILT AND OFFLINE-GREEN 2026-08-11, NEVER RUN LIVE
 
-- [ ] `app/agents/coach.py`. Input is `answer_evaluations` plus `case_world` plus the main
-      question. **Not the transcript.**
-- [ ] Output: **three improvements**, each a `moment` or a `gap` (§ 3), each with a stronger version
-      and a drill.
-- [ ] **A `moment`'s anchor quote must be one of the `evidence_quote` values already stored.** This
+- [x] `app/agents/coach.py`. ✅ Input is `answer_evaluations` plus a **summarised** `case_world`
+      plus the main question. **Not the transcript.** 🔴 The world is summarised because the full
+      one does not fit: `supporting_facts` and `suits_categories` are dropped, and quotes are capped
+      at 2 per dimension weakest-first. Measured 8,328 → 6,604 on the worst world. See
+      § "the budget was projected and the projection was wrong" below.
+- [x] Output: **three improvements**, each a `moment` or a `gap` (§ 3), each with a stronger version
+      and a drill. ✅ Enforced in the pydantic schema, not requested in the prompt — "up to three"
+      silently becomes one on a thin interview and nobody notices.
+- [x] ✅ **A `moment`'s anchor quote must be one of the `evidence_quote` values already stored.** This
       is the strong form: it makes every anchor verifiable against the transcript byte for byte
       **without the Coach ever seeing the transcript**, and it makes an invented anchor detectable,
       which ARCHITECTURE §9 says nothing can detect at runtime. Assert it.
-- [ ] **A `gap`'s named dimension must genuinely be absent** from that session's
-      `answer_evaluations`. Assert it — a `gap` claiming the candidate never addressed something
+- [x] ✅ **A `gap`'s named dimension must genuinely be absent** from that session's
+      `answer_evaluations`. `verify_anchors` observed catching both a planted invented quote and a
+      planted false gap. Assert it — a `gap` claiming the candidate never addressed something
       they were scored on is the same fabrication in the other direction.
-- [ ] Runs on `fast`. Tagged `agent="coach"` in `get_llm` — the six existing call sites are tagged
+- [x] ✅ Runs on `fast`. Tagged `agent="coach"` in `get_llm` — the six existing call sites are tagged
       and this is the seventh.
 
 ### 5.3 The graph node and the write — ⬜
