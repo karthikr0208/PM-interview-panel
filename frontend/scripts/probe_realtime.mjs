@@ -158,7 +158,22 @@ async function main() {
     })
     console.log('  service control subscribed (status=SUBSCRIBED)')
 
-    const settleMs = Number(process.env.PROBE_SETTLE_MS || 0)
+    // 🔴 DEFAULT 2000 SINCE 2026-08-11, was 0. `SUBSCRIBED` is not the same
+    // event as "the RLS-scoped filter is live server-side", and inserting in
+    // the gap between them loses the row for the `authenticated` subscriber
+    // while the service-role control still receives it -- which is exactly the
+    // shape this probe reported, repeatedly, as a false FAIL.
+    //
+    // Measured, same session, same machine, no other change:
+    //     default 0ms     2 PASS / 4 runs
+    //     settle 2000ms   3 PASS / 3 runs
+    //
+    // The DENIAL half never failed in any run, so nothing here weakens what
+    // the probe proves: it removes a startup race in the PROBE, not a check.
+    // The product does not have this race -- `lib/agentEvents.ts` documents it,
+    // and the columns subscribe when a session id first exists, minutes before
+    // any row is written.
+    const settleMs = Number(process.env.PROBE_SETTLE_MS || 2000)
     if (settleMs > 0) {
       console.log(`=== 3c. EXPERIMENT: settling ${settleMs}ms before the first insert ===`)
       await sleep(settleMs)

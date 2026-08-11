@@ -7,6 +7,7 @@ import { useCaseWorld } from './lib/caseWorld'
 import { AppShell } from './components/AppShell'
 import { OrchestrationColumn } from './components/OrchestrationColumn'
 import { EvaluationColumn } from './components/EvaluationColumn'
+import { CoachReport } from './components/CoachReport'
 import { UploadSurface } from './components/UploadSurface'
 import { ConfirmationScreen } from './components/ConfirmationScreen'
 import { InterviewSurface } from './components/InterviewSurface'
@@ -136,7 +137,14 @@ function App() {
         // read the candidate's own rows over Realtime and neither may mint an
         // id of its own. `revealed` stays unset until Phase 5 owns the end of
         // the interview -- until then the candidate controls blind mode.
-        evaluation={<EvaluationColumn sessionId={sessionId} />}
+        // `CoachReport` renders below the scorecard: it is end-of-interview
+        // output that elaborates on the scores above it, not a peer surface.
+        evaluation={
+          <div className="flex flex-col gap-6">
+            <EvaluationColumn sessionId={sessionId} />
+            <CoachReport sessionId={sessionId} />
+          </div>
+        }
       />
     </IconStandard>
   )

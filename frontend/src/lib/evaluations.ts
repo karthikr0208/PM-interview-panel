@@ -19,6 +19,20 @@ export const DIMENSIONS = [
 
 export type Dimension = (typeof DIMENSIONS)[number]
 
+// Sentence case, candidate-facing. Keyed by the exact
+// `answer_evaluations.dimension` string the Evaluator writes, so the join key
+// and the label can never drift into each other. Order comes from
+// `DIMENSIONS` (PRD §7), not from this object. Shared with `CoachReport.tsx`,
+// which names dimensions on `gap` rows using the same human labels -- one
+// object so the two surfaces cannot drift apart.
+export const DIMENSION_LABEL: Record<Dimension, string> = {
+  business_model_fluency: 'Business model fluency',
+  market_accuracy: 'Market accuracy',
+  decision_quality: 'Decision quality',
+  structural_clarity: 'Structural clarity',
+  point_of_view: 'Point of view',
+}
+
 /**
  * What one dimension currently stands at. `not_assessed` carries no score
  * field at all rather than a nullable one, so there is no shape in which a

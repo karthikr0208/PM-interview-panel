@@ -3,24 +3,12 @@ import { Eye, EyeSlash, Quotes, WarningCircle } from '@phosphor-icons/react'
 import { stripDashes } from '../lib/copy'
 import {
   DIMENSIONS,
+  DIMENSION_LABEL,
   highestPerDimension,
   useEvaluations,
-  type Dimension,
   type DimensionStanding,
   type EvaluationsState,
 } from '../lib/evaluations'
-
-// Sentence case, candidate-facing. Keyed by the exact
-// `answer_evaluations.dimension` string the Evaluator writes, so the join key
-// and the label can never drift into each other. Order comes from
-// `DIMENSIONS` (PRD §7), not from this object.
-const DIMENSION_LABEL: Record<Dimension, string> = {
-  business_model_fluency: 'Business model fluency',
-  market_accuracy: 'Market accuracy',
-  decision_quality: 'Decision quality',
-  structural_clarity: 'Structural clarity',
-  point_of_view: 'Point of view',
-}
 
 const MAX_SCORE = 4
 const SEGMENTS = [1, 2, 3, 4] as const

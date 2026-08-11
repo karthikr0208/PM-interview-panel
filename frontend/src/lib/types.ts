@@ -146,3 +146,36 @@ export interface CaseWorld {
   as_of: string
   suits_categories: string[]
 }
+
+/**
+ * Mirrors the `coach_reports` table (`backend/migrations/0005_coach_reports.sql`).
+ * ONE ROW PER IMPROVEMENT, three rows per session, ordered for display by
+ * `idx` -- not a JSON blob, for the same reason `answer_evaluations` is one
+ * row per (turn, dimension).
+ *
+ * `kind` decides which of `anchor_quote` / `dimension` is populated, enforced
+ * in Postgres by two scoped check constraints rather than by convention:
+ *   'moment' -- the candidate said something. `anchor_quote` is non-null,
+ *               `dimension` is null.
+ *   'gap'    -- a rubric dimension never came up. `dimension` is non-null,
+ *               `anchor_quote` is null -- there is no quote of a thing the
+ *               candidate never said.
+ *
+ * `anchor_quote` is never normalised on the way in (matches
+ * `answer_evaluations.evidence_quote`): it is compared to the transcript
+ * byte for byte. `stronger_version` and `drill` ARE normalised for em-dashes
+ * at the graph boundary, same as `reasoning`.
+ */
+export type CoachImprovementKind = 'moment' | 'gap'
+
+export interface CoachImprovement {
+  id: string
+  session_id: string
+  idx: number
+  kind: CoachImprovementKind
+  anchor_quote: string | null
+  dimension: string | null
+  stronger_version: string
+  drill: string
+  created_at: string
+}

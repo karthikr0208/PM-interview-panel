@@ -48,6 +48,14 @@ vi.mock('./lib/evaluations', async (importOriginal) => {
   return { ...actual, useEvaluations: () => ({ state: { kind: 'empty' }, retry: () => {} }) }
 })
 
+// Same reason again (story 5.4): CoachReport opens its own Realtime
+// subscription on `coach_reports`. Stubbed so this file stays about the
+// upload -> assessment handoff.
+vi.mock('./lib/coachReport', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lib/coachReport')>()
+  return { ...actual, useCoachReport: () => ({ state: { kind: 'empty' }, retry: () => {} }) }
+})
+
 const SESSION_ID = 'sess-from-upload'
 
 function pdf(): File {
