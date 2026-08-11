@@ -618,27 +618,30 @@ async def test_agent_events_bracket_the_call(
     assert events[-1]["duration_ms"] >= 0
 
 
-async def test_a_failed_evaluation_writes_an_error_event_and_reraises(
+async def test_a_failed_evaluation_writes_an_error_event_and_does_not_end_the_interview(
     recorded_inserts_no_db: list[tuple[str, dict]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Same contract as `ask_probe` and `answer_clarification_node`: this is a
-    real LLM call and it can fail."""
+    """Scoring is a SIDE EFFECT of the interview, not a precondition for it
+    continuing. Unlike `ask_probe` and `answer_clarification_node` -- whose LLM
+    calls produce content the candidate is waiting on -- a failed Evaluator call
+    must degrade to "this answer was not scored" rather than end the session.
+    Absence of an `answer_evaluations` row already means "not assessed" (see
+    the node's own docstring), so `{}` is a complete, not partial, result."""
 
     async def _explode(*args: object, **kwargs: object) -> AnswerEvaluation:
         raise RuntimeError("groq unavailable")
 
     monkeypatch.setattr("app.graph.build.evaluate_answer", _explode)
 
-    with pytest.raises(RuntimeError):
-        await _make_evaluate_answer_node()(_answer_state())
+    result = await _make_evaluate_answer_node()(_answer_state())
 
-    errors = [
-        payload
-        for table, payload in recorded_inserts_no_db
-        if table == "agent_events" and payload.get("status") == "error"
-    ]
-    assert len(errors) == 1
-    assert errors[0]["agent"] == "evaluator"
+    assert result == {}
+
+    events = [payload for table, payload in recorded_inserts_no_db if table == "agent_events"]
+    assert [e["status"] for e in events] == ["started", "error"], (
+        "a failed evaluation must not write a 'done' event"
+    )
+    assert events[-1]["agent"] == "evaluator"
     assert not [t for t, _ in recorded_inserts_no_db if t == "answer_evaluations"]
 
 

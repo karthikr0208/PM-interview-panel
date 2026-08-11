@@ -1191,6 +1191,12 @@ def _make_evaluate_answer_node(
                 is_followup=state.get("followup_count", 0) > 0,
             )
         except Exception:
+            # Scoring is a SIDE EFFECT of the interview, not a precondition for
+            # it continuing. Record the failure for visibility, then degrade to
+            # "this answer was not scored" instead of ending the candidate's
+            # session -- absence of an `answer_evaluations` row already means
+            # "not assessed" (see the docstring above), so `{}` is a complete
+            # representation of a failed evaluation, not a partial one.
             await rest_insert(
                 "agent_events",
                 {
@@ -1200,7 +1206,7 @@ def _make_evaluate_answer_node(
                     "summary": _EVALUATE_ERROR_SUMMARY,
                 },
             )
-            raise
+            return {}
 
         duration_ms = int((time.perf_counter() - started) * 1000)
 

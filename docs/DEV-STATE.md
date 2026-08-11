@@ -2241,9 +2241,15 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 **Run these first (~3 min, free, no LLM):**
 
 ```
-cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 464 passed, 113 deselected
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 473 passed, 115 deselected
 cd frontend && npm test -- --run                                          # expect 170 passed, 17 files
 ```
+
+🔴 **That backend number said `464 / 113` until 2026-08-11 and was STALE** — `b5664a2`'s own commit
+message already recorded `473 passed, 115 deselected (was 471/113)`. Measured twice on 2026-08-11,
+with and without that day's change, both `473 passed, 115 deselected`. A stale expected-count is how
+a real regression gets waved through as "close enough", so it is corrected here rather than in the
+superseded blocks below, which are left as the historical record.
 
 ### 🔴 SPEND THE FIRST FRESH TOKENS HERE, IN THIS ORDER.
 
@@ -2330,10 +2336,14 @@ of latest-wins.
 
 **🔴 STILL OPEN, both observed live, neither fixed:**
 
-1. **A failing Evaluator blocks the interview.** `build.py:1185` catches, logs `error`, and
-   **re-raises**, so the candidate sees "We could not send that" and cannot proceed. Scoring is a
-   side-effect; it must degrade to "not scored" and let the loop continue. **This is the more
-   serious of the two** — it can end a candidate's session.
+1. ✅ **FIXED 2026-08-11.** ~~A failing Evaluator blocks the interview.~~ `build.py`'s `except`
+   around `evaluate_answer` now writes the same error `agent_events` record and **`return {}`**
+   instead of re-raising. No schema change was needed: absence of an `answer_evaluations` row
+   already means "not assessed", so `{}` is a complete representation of a failed evaluation, not a
+   partial one. The test that **certified** this bug (`..._and_reraises`, asserting
+   `pytest.raises`) was **inverted, not deleted** — same trap as 2026-08-04's upload defect.
+   Falsified: reverting to `raise` was observed turning the new test red. See § Decisions
+   2026-08-11.
 2. **The Evaluator's empty-generation fault is real.** All 5 `llm_schema_failure` records carry
    `agent=evaluator`; the Interviewer's structured calls failed zero times, so it is specific to
    `AnswerEvaluation`, the largest output shape in the project. `max_tokens` 2048 -> 4096 **moved it,
@@ -3975,6 +3985,57 @@ minute` in the output, and zero failures, so nothing was masked.
 2. **The Evaluator's `failed_generation=''` fault is untouched by this run.** `llm_schema_failure`
    is a log record, not a DB row, and a green `-q` run discards it — so this run says nothing about
    whether the two-call retry fired. Do not read 2 passed as evidence on that defect.
+
+**🟢 2026-08-11 (session 19) · A FAILING EVALUATOR NO LONGER ENDS THE CANDIDATE'S SESSION, AND THE
+TEST THAT CERTIFIED THE BUG WAS INVERTED RATHER THAN DELETED.**
+
+Gate #4's more serious defect. `evaluate_answer_node` caught an Evaluator failure, wrote an error
+`agent_events` record, then **re-raised** — so a scoring hiccup surfaced as "We could not send
+that" and the candidate could not proceed. **Scoring is a side-effect of the interview, not a
+precondition for it continuing.**
+
+The fix is one statement: the error record is written exactly as before, then **`return {}`**.
+
+**No schema change was needed, and that is the point.** Absence of an `answer_evaluations` row
+already means "not assessed" — the convention 4.3 established because `score` is `not null`. So a
+failed evaluation is *already representable* and `{}` is a complete result, not a partial one.
+PHASE-4-SPEC 4.3's standing prohibition on a nullable score or a sentinel row held without
+argument.
+
+**Scope was deliberately NOT widened.** Only the `except` around the `evaluate_answer` LLM call
+degrades. The `rest_insert` calls after it still raise loudly — a database failure is a different
+class of problem and making it silent would trade one invisible failure for another.
+
+**🔴 The interesting part is the test.** `tests/test_evaluate_answer.py` carried
+`test_a_failed_evaluation_writes_an_error_event_and_reraises`, asserting `pytest.raises(RuntimeError)`
+— **an existing test certifying the defect**, the same shape as 2026-08-04's upload bug where a
+test asserted that a missing session should silently do nothing. It was **inverted, not deleted**,
+and now asserts four things: the node returns `{}`, exactly one `error` event survives with
+`agent="evaluator"`, zero `answer_evaluations` rows are written, and the event sequence is
+`["started", "error"]` with **no `"done"`**.
+
+**Falsified.** Reverting `return {}` to `raise` was observed turning the new test red:
+
+```
+E       RuntimeError: groq unavailable
+FAILED tests/test_evaluate_answer.py::test_a_failed_evaluation_writes_an_error_event_and_does_not_end_the_interview
+1 failed, 28 deselected in 2.21s
+```
+
+**Offline: `473 passed, 115 deselected`**, measured by the orchestrator twice — once with the
+change stashed and once with it applied, both identical, confirming a rename is net zero.
+
+**🟡 A stale number was caught on the way.** The handoff said to expect `464 passed, 113
+deselected`. It was wrong before this session started: `b5664a2` already recorded `473 / 115 (was
+471/113)`. Corrected in § Next session. **A stale expected-count is how a real regression gets
+waved through as close enough.**
+
+**Delegation note.** Implementation went to a Sonnet subagent against a design fixed in advance
+(the `return {}` shape, the scope limit, the four assertions, and the inversion trap named
+explicitly). It reported the count mismatch as a contradiction rather than quietly adopting the new
+number — which is the behaviour the brief asks for — though it attributed the delta to the wrong
+reference. Both diffs were read line by line and the baseline re-measured independently before any
+of this was recorded.
 
 **🔴🟢 2026-08-10 (session 18b) · KARTHIK SAT A FULL GPM INTERVIEW ON THE SCORECARD. GATE #4 FAILS,
 FOR ONE PRECISELY LOCATED REASON. THREE FIXES WERE CONFIRMED LIVE ON THE WAY.**
