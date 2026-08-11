@@ -32,12 +32,15 @@ from pathlib import Path
 import pytest
 import tiktoken
 
-from app.agents.evaluator import _build_evaluation_messages
+from app.agents.evaluator import EVALUATION_MAX_TOKENS, _build_evaluation_messages
 from app.agents.planner import RUBRIC_DIMENSIONS
 from tests.golden.evaluator.cases import CASES
 
 _TPM_CEILING = 8000
-_MAX_TOKENS = 2048  # `evaluate_answer`'s value -- part of the request, see module docstring
+# Bound to the SAME constant `evaluate_answer` passes to `get_llm`, never a
+# literal -- see `EVALUATION_MAX_TOKENS`'s own comment in evaluator.py for why
+# a hardcoded value here is exactly the drift this test exists to prevent.
+_MAX_TOKENS = EVALUATION_MAX_TOKENS
 
 _OPENAI_WORLD = json.loads(
     (Path(__file__).resolve().parent.parent / "app" / "cases" / "openai.json").read_text(

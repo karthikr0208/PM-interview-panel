@@ -4141,6 +4141,77 @@ product failed, and the assertion 4.3 actually broke —
 the full run. **10/10 across two runs is weaker evidence than 10/10 in one**, and that is stated
 rather than smoothed over.
 
+**🔴🟢 2026-08-11 (session 19) · `max_tokens=4096` IS 51% OF THE WHOLE CEILING, AND ONCE THE TESTS
+COULD SEE IT, TWO AGENTS TURNED OUT NOT TO FIT. THE OFFLINE SUITE IS RED ON PURPOSE.**
+
+```
+1 failed, 481 passed, 115 deselected
+FAILED tests/test_evaluator_budget.py::test_evaluation_request_fits_with_the_largest_world_and_a_verbose_answer
+```
+
+**🔴 THIS RED IS TRUE AND IT IS STAYING.** Making it green would mean loosening an assertion that
+is correctly reporting a real overage, which is the one thing this project never does.
+
+**What changed.** `EVALUATION_MAX_TOKENS` is now a single constant that `evaluate_answer` and
+`test_evaluator_budget.py` both read, so they cannot disagree again. **Falsified**: set to 8000, all
+ten budget tests went red, proving the test now genuinely tracks the constant — before this it
+hardcoded 2048 and could not see the call site at all.
+
+**What that immediately exposed.** The stress case — largest curated world + a 500-word answer +
+full `prior_scores` — requests **8,050 tokens against the 8,000 ceiling, over by 50.** It was
+always over. **The code has shipped this since 2026-08-10; only the test was blind.** It is a
+pre-existing condition newly made visible, not a regression.
+
+**🔴 The same root then failed the Coach, before it was ever wired in.** `tests/test_coach_budget.py`
+was written before the graph node, per 3.5.4's trap, and **all eight worlds failed at up to 8,328
+tokens.** PHASE-5-SPEC had projected ~6,290 and said explicitly that the figure was projected. **The
+projection was wrong by ~2,000 tokens, and the measurement caught it before a candidate ever saw a
+429.** That is the entire reason the spec refused to claim its numbers were measured.
+
+Component measurement that located it:
+
+```
+system prompt         542
+rendered evals       2347   (25 rows, worst case)
+max_tokens           4096
+                    -----
+everything but world 6985   -> leaves 1015 for a world weighing 1205-1392
+```
+
+**`max_tokens` alone is 51% of the per-minute allowance before one input token.** That is the real
+finding, and it applies to every agent with a large output shape.
+
+**🟢 The Coach is fixed, by two principled cuts rather than by lowering the cap:**
+
+1. **`supporting_facts` and `suits_categories` are not sent.** The Coach does not check factual
+   accuracy — the Evaluator already did, and its verdict arrives as `reasoning`. Those keys are
+   improvisation material and Planner routing metadata (~434 tokens on the largest world).
+2. **Quotes are capped at 2 per dimension, weakest first** (`_QUOTES_PER_DIMENSION`). The coachable
+   answers are the weak ones; a dimension scored 4 twice does not need three worked examples.
+   Sorted by `(score, turn_idx)` so the prompt is byte-stable and golden cases cannot flap on
+   ordering.
+
+```
+worst world after the cuts:  6604 requested, 1396 headroom   (was 8328, OVER)
+all eight worlds:            1396-1522 headroom
+9 passed
+```
+
+**🔴 The Evaluator's 50-token overage is NOT fixed, deliberately.** The analogous lever exists — its
+`_render_prior_scores` sends five 220-character quotes — but that is **input to a scoring agent**,
+and changing what the Evaluator sees can change what it scores. CLAUDE.md requires a golden case
+run before a prompt change lands, and this session has no budget left to read the result properly.
+**Recommended fix, for next session: truncate the quote inside `_render_prior_scores` only.** A
+running summary does not need the full sentence; the full quote already lives in
+`answer_evaluations`. Then run one golden case and read it.
+
+**Delegation note.** The constant extraction went to a Sonnet subagent. Its brief asserted every
+budget test would still pass at 4096 — **that was wrong**, because the measured table I gave it
+covered the nine golden fixtures and not the separate stress case. It found the tenth, **refused to
+loosen the assertion or lower the constant as the brief instructed on contradiction, and stopped to
+report.** That is the brief working exactly as intended: the contradiction was the most valuable
+thing it returned.
+
 **🔴 2026-08-11 (session 19) · THE EVALUATOR'S BUDGET TEST IS GREEN AGAINST A REQUEST SHAPE THAT NO
 LONGER SHIPS. `max_tokens` DRIFTED 2048 → 4096 AND THE TEST DID NOT FOLLOW.**
 

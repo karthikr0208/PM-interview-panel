@@ -129,28 +129,31 @@ class AnswerEvaluation(BaseModel):
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 🔴 THE TOKEN BUDGET, ALREADY MEASURED -- do not re-derive it. Measured
-# 2026-08-09 with tiktoken's o200k_base against all seven golden fixtures and
-# the eight real curated worlds. `Requested = system + human + max_tokens`,
-# against the 8,000 TPM ceiling (see `app/llm.py`'s `get_llm` note --
-# max_tokens is part of the REQUEST size, not just a cap on the reply):
+# 2026-08-11 (orchestrator, offline, zero tokens) with tiktoken's o200k_base
+# against every golden fixture at its LAST answer plus a worst-case
+# `prior_scores`. `Requested = system + human + max_tokens` (`body` below is
+# system + human), against the 8,000 TPM ceiling (see `app/llm.py`'s
+# `get_llm` note -- max_tokens is part of the REQUEST size, not just a cap on
+# the reply):
 #
-#   system prompt                                        936
-#   largest case_world (openai.json)                   1,392
-#   prior_scores, five dimensions, score + long quote     283
-#   the same, with a `reasoning` string on each           438
+#   fixture                                            body    @4096   headroom
+#   karthik_live_airbnb_senior_pm                      3281     7377      623
+#   apm_consumer_world_full_coverage                   3339     7435      565   <- worst
+#   pm_b2b_world_narrow_coverage                       3124     7220      780
+#   senior_pm_platform_world_level_pair_pm             3321     7417      583
+#   senior_pm_platform_world_level_pair_gpm            3322     7418      582
+#   gpm_portfolio_world_extreme_narrow                 3059     7155      845
+#   sparse_world_framework_narration                   2838     6934     1066
+#   followup_defends_decision                          3208     7304      696
+#   followup_abandons_decision                         3152     7248      752
 #
-#   worst real fixture (apm_consumer, full prior_scores) 4,783   headroom 3,217
-#   stress   openai world + 500-word verbose answer
-#            + five-dimension prior_scores WITH reasoning 5,398   headroom 2,602
-#
-# 🔴 Read the STRESS row, not the fixture row. No fixture pairs the largest
-# world with the longest answer, because each fixture carries its own world --
-# the highest any real fixture reaches is 4,783. The stress case is the
-# synthetic cross-product that production CAN send, it is strictly worse than
-# every fixture, and it is the row `tests/test_evaluator_budget.py` asserts.
-# The 438-token `prior_scores` there is deliberately larger than the 283 the
-# running summary actually sends today, so the executable test is stricter
-# than this comment's own arithmetic rather than looser.
+# 🔴 Every fixture fits at `max_tokens=4096`, but headroom on the worst
+# fixture is 565 tokens -- about 93% of the 8,000 TPM ceiling is already
+# spoken for, not the 3,217-token cushion `max_tokens=2048` used to leave.
+# `EVALUATION_MAX_TOKENS` below is the single source for this value; both the
+# request built here and `tests/test_evaluator_budget.py`'s assertion read
+# the same constant, so the two cannot drift the way this comment block did
+# on 2026-08-10 when the call site moved to 4096 and this arithmetic did not.
 #
 # PHASE-4-SPEC.md § "WHAT THE LIVE INTERVIEW ALREADY DECIDED" #2 measured the
 # FULL transcript at 10,274 tokens, over the ceiling, which is what forces
@@ -163,6 +166,14 @@ class AnswerEvaluation(BaseModel):
 # matter how long the interview runs, so this budget does not grow with turn
 # count the way the Interviewer's window does.
 # ═══════════════════════════════════════════════════════════════════════════
+
+# Part of the REQUEST size against the 8,000 TPM ceiling, not just a cap on
+# the reply (see `app/llm.py`'s `get_llm` note, and the budget block above).
+# `tests/test_evaluator_budget.py` imports THIS constant rather than pinning
+# its own literal, so the call site and the test that budgets it cannot
+# silently disagree the way `max_tokens=4096` vs. a stale `_MAX_TOKENS = 2048`
+# once did.
+EVALUATION_MAX_TOKENS = 4096
 
 _EVALUATION_SYSTEM_PROMPT = """You are scoring ONE answer a PM candidate gave in a live product strategy interview, \
 against a fixed five-dimension rubric. You are not coaching, not replying to the candidate, and \
@@ -378,12 +389,13 @@ async def evaluate_answer(
     once by the Case Architect and is immutable after Phase 2 (ARCHITECTURE
     §2). This function never mutates it, and neither may its caller.
 
-    `max_tokens=2048`: see the measured budget block above for the arithmetic,
-    and `generate_probe`'s docstring for why arguing this DOWN from the size
-    of the output schema is wrong. On gpt-oss it is a reasoning-plus-output
-    budget, not an output cap, and reasoning scales with the INPUT. Lowering
-    it buys nothing the budget needs and reproduces the `json_validate_failed`
-    of 2026-08-06, which names the prompt and is not a prompt problem.
+    `max_tokens=EVALUATION_MAX_TOKENS` (4096): see the measured budget block
+    above for the arithmetic, and `generate_probe`'s docstring for why arguing
+    this DOWN from the size of the output schema is wrong. On gpt-oss it is a
+    reasoning-plus-output budget, not an output cap, and reasoning scales with
+    the INPUT. Lowering it buys nothing the budget needs and reproduces the
+    `json_validate_failed` of 2026-08-06, which names the prompt and is not a
+    prompt problem.
 
     Raises `ValueError` on an empty `case_world`, a blank `question` or
     `answer`, or an `assessed_level` outside the four known levels, rather
@@ -402,15 +414,18 @@ async def evaluate_answer(
             f"unknown level has no anchors to score against"
         )
 
-    # 4096, not 2048: `gpt-oss-20b` is a reasoning model and its reasoning tokens
-    # come out of the SAME output budget as the JSON. On a realistic answer
-    # (~250 words) the reasoning exhausted 2048 before any JSON was emitted, and
-    # Groq returned `failed_generation: ''` -- an EMPTY body, not a truncated one.
-    # Observed 2026-08-10 in a human-paced live interview with ZERO rate-limit
-    # errors, so it is not the TPM artifact the same shape was blamed on twice
-    # before. The test suite never caught it because its fixtures answer with
-    # "Answer number 1." See DEV-STATE § Decisions 2026-08-10.
-    llm = get_llm(role, max_tokens=4096, agent="evaluator").with_structured_output(AnswerEvaluation)
+    # EVALUATION_MAX_TOKENS (4096), not 2048: `gpt-oss-20b` is a reasoning model
+    # and its reasoning tokens come out of the SAME output budget as the JSON.
+    # On a realistic answer (~250 words) the reasoning exhausted 2048 before any
+    # JSON was emitted, and Groq returned `failed_generation: ''` -- an EMPTY
+    # body, not a truncated one. Observed 2026-08-10 in a human-paced live
+    # interview with ZERO rate-limit errors, so it is not the TPM artifact the
+    # same shape was blamed on twice before. The test suite never caught it
+    # because its fixtures answer with "Answer number 1." See DEV-STATE
+    # § Decisions 2026-08-10.
+    llm = get_llm(role, max_tokens=EVALUATION_MAX_TOKENS, agent="evaluator").with_structured_output(
+        AnswerEvaluation
+    )
     messages = _build_evaluation_messages(
         case_world, question, answer, assessed_level, prior_scores, is_followup=is_followup
     )
