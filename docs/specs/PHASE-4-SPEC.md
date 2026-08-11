@@ -1,12 +1,17 @@
 # Phase 4 — Evaluator and scorecard: a score that cannot be given without evidence
 
-**Status:** 🟡 **4.1, 4.2 and 4.4 DONE. 4.3 is code-complete and owed ONE live re-run** (the
-conduct loop, which died on the daily cap with zero assertion failures). Written 2026-08-07, before
-any code, from the live interview of the same day. **Every number in § "What the live interview
-already decided" is measured, not projected.**
+**Status:** ✅ **ALL FOUR STORIES DONE. 4.3 CLOSED 2026-08-11** by the owed conduct-loop run at
+75s pacing — every test in both live files passed, though across two runs rather than one. Gate 4
+(a scorecard Karthik reads and believes) remains HIS and is still open after the 2026-08-10 sit.
 
-**Gate status: 1 ✅ · 2 ✅ · 3 ✅ · 4 open (Karthik's).** The only engineering work left in this
-phase is the owed conduct-loop run.
+Written 2026-08-07, before any code, from the live interview of the same day. **Every number in
+§ "What the live interview already decided" is measured, not projected.**
+
+**Gate status: 1 ✅ · 2 ✅ · 3 ✅ · 4 open (Karthik's).** No engineering work is left in this phase.
+**One defect found at the 2026-08-10 sit is fixed** (a failing Evaluator no longer ends the
+session, 2026-08-11); **one remains open and is NOT a blocker for Phase 5**: the Evaluator's
+intermittent `failed_generation=''` on the first attempt, which the validate-retry absorbs at the
+cost of a second call. It did **not** fire once in the 41-minute run of 2026-08-11.
 
 The Evaluator scores a candidate's answers against the PRD §7 rubric — five dimensions, 1 to 4,
 each score carrying a verbatim quote from the transcript. The scorecard renders them. That is the
@@ -173,7 +178,7 @@ paraphrase. Zero tokens.
 `deep`. Role measured. **One open rubric question this story surfaced and did not decide** — see
 DEV-STATE § Decisions 2026-08-09 #8.
 
-### 4.3 The graph edge, and the write — 🟡 CODE-COMPLETE 2026-08-09, ONE LIVE RE-RUN OWED
+### 4.3 The graph edge, and the write — ✅ DONE 2026-08-11
 
 **Everything in this story is built and every box below is ticked except the last, which died on
 the daily cap at 197,132/200,000 and is classified as QUOTA, not defect** — zero assertion failures
@@ -218,7 +223,20 @@ evidence_quote text not null check (length(evidence_quote) > 0)
 - [x] **Falsify it** by building the wrong graph, the way `falsify_single_call.py` does.
       `scripts/falsify_evaluate_single_call.py`, **observed**: `outcome=ok records at pause: 1,
       after resume: 2`, exit 0, residue 0.
-- [ ] 🔴 **Re-run every live test file that builds a graph.** **PARTIALLY DONE.**
+- [x] 🔴 **Re-run every live test file that builds a graph.** ✅ **DONE 2026-08-11, at 75s pacing.**
+      `1 failed, 9 passed, 32 deselected, 34 warnings in 2468.42s (0:41:08)`, then the single
+      failure **re-run alone: `1 passed, 35 deselected in 237.54s`.** Every test in both files has
+      now passed. **Zero `tokens per day` / `tokens per minute`, zero `AssertionError`, zero
+      `llm_schema_failure` in the whole 41 minutes.**
+      🔴 **Read the caveat, it is the honest version:** this is 10/10 across TWO runs, not a single
+      green run. The one failure was `psycopg.OperationalError: server closed the connection
+      unexpectedly` on `checkpointer.aget_tuple` — a pure DB read, reached **after both of that
+      test's assertions had already passed.** Cause **undetermined**. The obvious explanation (75s
+      pacing leaves the pooled connection idle long enough to be reaped) was **tested at zero token
+      cost and FALSIFIED** — a connection held idle 80s survived and read fine. It is recorded as
+      transient because it does not reproduce, **not** because it is understood. See DEV-STATE
+      § Decisions 2026-08-11.
+      **Prior state, kept for the record:**
       `test_evaluate_answer.py` + `test_confirm_level.py`: **11 passed, 23 deselected, 489s**, and
       `test_confirm_level.py`'s load-bearing single-call test is the one story 3.2 broke this exact
       way, so that is the important half. 🔴 **`test_conduct_loop.py` + `test_transcript.py` are
