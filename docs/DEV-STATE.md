@@ -2250,7 +2250,8 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ## Next session — start here
 
-## 🟢 SESSION 20. PHASE 5 IS 5.1-5.3 BUILT AND OFFLINE-GREEN. START AT 5.4, THE COACH SURFACE.
+## 🔴 SESSION 20. ALL OF PHASE 5 IS BUILT. THE LIVE SUITE IS OWED AFTER TWO MIGRATIONS,
+## AND THAT IS THE FIRST THING TO SPEND A FRESH BUDGET ON.
 
 **No live run is owed. The tree is clean and every commit is local (not pushed).**
 
@@ -2258,8 +2259,31 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 
 ```
 cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 507 passed, 117 deselected
-cd frontend && npm test -- --run                                          # expect 172 passed, 17 files
+cd frontend && npm test -- --run                                          # expect 191 passed, 19 files
 ```
+
+### 🔴 SPEND THE FIRST FRESH TOKENS HERE. It is CLAUDE.md's own rule, not a preference.
+
+**Two migrations were applied on 2026-08-11 (`0005` created `coach_reports`, `0006` added it to the
+Realtime publication) and the LIVE suite has NOT been run since.** CLAUDE.md: *"Create database
+objects, or change anything shared -> run the ENTIRE live suite, not just the file you wrote."*
+Story 0.5 broke two of story 0.4's tests by adding tables to the same schema **while the offline
+suite stayed green at 21 passed throughout**. Offline green at 507 is NOT evidence here.
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "live"
+```
+
+Run it DETACHED; the conduct-loop files alone take ~41 minutes at 75s pacing. **Grep the output for
+`tokens per day` and `tokens per minute` before concluding anything.**
+
+Then the two things the Coach still owes:
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests/golden/coach -q -m live   # ~7k, ONE clean pair run
+```
+
+Both coach golden cases have passed live, but **in separate runs, never together.**
 
 ### 🔴 THE DAY ENDED ON THE DAILY CAP. Check budget before planning any live work.
 
@@ -2298,7 +2322,23 @@ test. That is the test working, not a problem with the test.
   constraints falsified** — a `moment` without a quote is rejected by Postgres, with accepted
   controls so the rejections are not vacuous. `probe_realtime.mjs` re-run: **OVERALL: PASS.**
 
-### 🔴 START HERE: story 5.4, the coaching report surface. It costs NO LLM budget.
+### 🟢 Story 5.4 is BUILT. `191 passed, 19 files`, build clean.
+
+`CoachReport.tsx` + `lib/coachReport.ts`, mounted below `EvaluationColumn` in App.tsx's evaluation
+slot. **`moment` and `gap` render differently** — a moment shows the candidate's own words, a gap
+names what never came up and has no quote. Full loading / empty / error cycle, `stripDashes`
+throughout, and a test that puts a real em dash in stored data and proves it never reaches the DOM.
+
+### 🟡 What Phase 5 still owes
+
+1. **The live suite** (above) — owed because of the migrations.
+2. **One clean coach golden pair run** — both have passed, never together.
+3. **A live end-to-end interview**, so Karthik can READ a coaching report. **He has asked for this
+   and it is the real gate.** Whether the advice is any good is his judgement, not a test's.
+4. **5.3's one-call-per-session assertion and its falsification script** — specced in
+   PHASE-5-SPEC 5.3, not written. Every other agent has one.
+
+### 🟢 Old note, kept: story 5.2's state
 
 `PHASE-5-SPEC.md` 5.4. Renders three improvements. **`moment` and `gap` render differently** — a
 `moment` shows the candidate's own words and a stronger version; a `gap` names what never came up
@@ -4177,6 +4217,59 @@ product failed, and the assertion 4.3 actually broke —
 `test_await_candidate_produces_exactly_one_llm_call_per_probe_turn` — is in the **passed** set of
 the full run. **10/10 across two runs is weaker evidence than 10/10 in one**, and that is stated
 rather than smoothed over.
+
+**🟢 2026-08-11 (session 19) · STORY 5.4 IS BUILT, A REALTIME GAP THE CHECKLIST DOES NOT NAME WAS
+FOUND, AND THE PROBE FLAP FINALLY HAS A DIAGNOSIS.**
+
+```
+frontend 191 passed, 19 files      (was 172 / 17)
+backend  507 passed, 117 deselected
+npm run build clean · probe_realtime.mjs OVERALL: PASS
+```
+
+**🔴 `coach_reports` was NOT in the `supabase_realtime` publication.** Found by querying
+`pg_publication_tables` **on the live database**, not by reading migrations — `0005` looked
+complete on its face, and **CLAUDE.md's own triggered-updates checklist names the RLS policy but
+not the publication.** They are different guarantees: the policy decides which rows a subscriber
+may see; the publication decides whether any change is broadcast at all. A table can have a perfect
+policy and be silently read-only-on-load.
+
+**It matters more for this table than for the other three.** `0001`'s three are written repeatedly
+across an interview, so a missed broadcast fills in on the next render. **`coach_reports` is
+written ONCE, in the last node, after the candidate has stopped interacting** — so with no
+broadcast the notes never arrive and the panel keeps saying they appear when the interview ends,
+which it already has. `0006` fixes it; applied and verified by direct query.
+
+**🟢 The `probe_realtime.mjs` flap is DIAGNOSED, and the reopening condition I wrote is what forced
+it.** DEV-STATE said "if either recurs, it is a defect, not noise." It recurred, so it got a
+diagnosis instead of a third shrug.
+
+**`SUBSCRIBED` is not the same event as "the RLS-scoped filter is live server-side."** Inserting in
+the gap between them loses the row for the `authenticated` subscriber while the service-role
+control still receives it — **precisely the shape the probe kept reporting.** The script already
+carried a `PROBE_SETTLE_MS` knob defaulting to **0**, which means this was suspected before and
+never settled.
+
+```
+default 0ms     2 PASS / 4 runs
+settle 2000ms   3 PASS / 3 runs
+```
+
+Default is now 2000. **The DENIAL half never failed in any run**, so this removes a race in the
+PROBE and weakens no check. The product does not have the race: the columns subscribe when a
+session id first exists, minutes before any row is written.
+
+**🔴 OWED, and it is CLAUDE.md's own rule: two migrations were applied today (`0005`, `0006`) and
+the LIVE suite has not been run since.** "Create database objects, or change anything shared → run
+the ENTIRE live suite." Story 0.5 broke two of 0.4's tests by adding tables to the same schema while
+the offline suite stayed green throughout. **Offline being green at 507 is not evidence here.** The
+daily cap made it impossible today.
+
+**🟡 A second concurrency artifact, and this time the subagent handled it correctly.** The 5.4
+agent found `0006` sitting untracked on disk and reported it as a contradiction rather than
+re-writing or editing it — exactly what the brief asks for. Its guess that it had "likely never
+been run" was wrong (it was applied minutes earlier), but reporting beat acting. **The lesson from
+the first artifact stands: do not `git add -A` while a subagent is writing.**
 
 **🟢🔴 2026-08-11 (session 19) · THE COACH RAN LIVE. STORIES 5.2 AND 5.3 ARE BUILT, AND I WALKED
 INTO A TRAP I HAD WRITTEN DOWN MYSELF TWO HOURS EARLIER.**

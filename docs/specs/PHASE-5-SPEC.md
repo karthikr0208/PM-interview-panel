@@ -1,6 +1,6 @@
 # Phase 5 — The Coach: three improvements, each anchored to a moment that actually happened
 
-**Status:** 🟡 **5.1 PART-DONE. 5.2 is next.** Written 2026-08-11, before any code. The migration is applied to the live DB and its constraints are falsified; the budget measurement and the golden fixtures are the rest of 5.1 and can be done alongside 5.2.
+**Status:** 🟡 **ALL FOUR STORIES BUILT 2026-08-11 and offline-green. The LIVE SUITE IS OWED** after two migrations, plus one clean coach golden pair run, 5.3's one-call assertion, and a live interview Karthik reads. Prior note: **5.1 PART-DONE. 5.2 is next.** Written 2026-08-11, before any code. The migration is applied to the live DB and its constraints are falsified; the budget measurement and the golden fixtures are the rest of 5.1 and can be done alongside 5.2.
 
 **🔴 Read the honesty marker before trusting a number in this file.** Phase 4's spec could open by
 saying every number in it was measured. **This one cannot.** The token budget in § 2 below is an
@@ -208,7 +208,7 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
 - [x] ✅ Runs on `fast`. Tagged `agent="coach"` in `get_llm` — the six existing call sites are tagged
       and this is the seventh.
 
-### 5.3 The graph node and the write — ⬜
+### 5.3 The graph node and the write — 🟡 BUILT 2026-08-11, ONE ASSERTION STILL OWED
 
 - [ ] `coach_report` node after the loop exits. **Never inside `await_candidate`.**
 - [ ] 🔴 **A failing Coach must not break the scorecard.** Same argument, same shape as the
@@ -218,12 +218,20 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
       `agent="coach"`, and **falsify it** against a deliberately wrong graph.
 - [ ] 🔴 **Re-run every live file that builds a graph**, not just the one edited.
 
-### 5.4 The coaching report surface — ⬜
+### 5.4 The coaching report surface — ✅ DONE 2026-08-11
 
-- [ ] Renders up to three improvements. **Fewer than three renders as fewer**, with no filler.
-- [ ] Zero improvements renders an honest empty state naming why.
-- [ ] Full loading / empty / error cycle, per the design rules.
-- [ ] Vitest, no LLM budget.
+- [x] ✅ Renders three improvements. **`moment` and `gap` render differently** — a moment shows the
+      candidate's own words, a gap names what never came up and has no quote element at all.
+- [x] ✅ Honest empty state naming why. Reachable in practice because `coach_report` returns `{}`
+      on failure, so it is a real branch, not a defensive one.
+- [x] ✅ Full loading / empty / error cycle, `stripDashes` throughout.
+- [x] ✅ `191 passed, 19 files` (was 172/17), `npm run build` clean, zero LLM budget. Includes a
+      test that puts a real em dash in stored data and proves it never reaches the DOM — rows
+      written before normalisation shipped really do carry raw characters.
+- [x] 🔴 **`0006_coach_reports_realtime.sql`**, unplanned. `coach_reports` was not in the
+      Realtime publication, so the surface would have loaded once and never updated. RLS
+      membership and publication membership are different guarantees and the checklist only
+      names the first. Found by querying the LIVE database, not by reading migrations.
 
 ---
 
