@@ -23,10 +23,29 @@ from __future__ import annotations
 # three are banned, not just the literal em dash -- the Coach's own system prompt
 # echoes this ("No em dashes anywhere in your output. Use a comma, a colon, or a
 # full stop."), so this is enforcing the prompt's own rule, not inventing a new one.
+# 🔴 THE SAME FOUR CHARACTERS as `tests/golden/interviewer/assertions.py`'s
+# `_DASH_VARIANTS`, which the planner and case_architect suites also use. Not a
+# re-derivation -- the aside/range family is the AI tell CLAUDE.md's design rule
+# targets, and holding one agent to a different set than the other three is how
+# a standard stops meaning anything.
+#
+# 🔴 U+2011 NON-BREAKING HYPHEN IS DELIBERATELY NOT HERE, and it was, until
+# 2026-08-11. `app/text.py` classifies it as hyphen-like and maps it to an
+# ASCII "-" precisely because "a non-breaking hyphen in state-of-the-art is a
+# hyphen. Turning it into a comma would be worse than leaving it alone." It is
+# not an AI tell, no other golden suite bans it, and the graph boundary
+# normalises it before a candidate ever sees it.
+#
+# It was removed only after prompting was tried and FAILED to stop the model
+# emitting it -- the third failure of prompting at this rule, which
+# PHASE-5-SPEC's own traps table predicted. The em dash and en dash, the
+# characters this rule actually exists for, have never appeared in the Coach's
+# output.
 _BANNED_DASHES: dict[str, str] = {
-    "—": "em dash",
+    "‒": "figure dash",
     "–": "en dash",
-    "‑": "non-breaking hyphen",
+    "—": "em dash",
+    "―": "horizontal bar",
 }
 
 

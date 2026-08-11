@@ -249,7 +249,9 @@ Rules:
 improvements to the same quote.
   - Do not praise. This is the improvements section; the scorecard already carries the \
 scores. Be direct and specific, the way a good manager is in a one to one.
-  - No em dashes anywhere in your output. Use a comma, a colon, or a full stop.
+  - Use ONLY plain ASCII punctuation. No em dashes and no en dashes: use a comma, a colon, or a \
+full stop instead. For a hyphenated word like "state-of-the-art", use the ordinary ASCII hyphen \
+on your keyboard, never a Unicode hyphen variant.
   - No invented statistics, and no round made-up numbers like "50%" or "$1M". If you cite \
 a figure it comes from the case world.
   - Do not name the rubric dimensions in your prose. The candidate reads plain English, \

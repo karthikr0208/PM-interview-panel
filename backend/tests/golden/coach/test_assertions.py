@@ -367,8 +367,26 @@ def test_dashes_in_text_rejects_an_en_dash() -> None:
     assert dashes_in_text("Practice the 5–10 minute framing drill.") == ["en dash"]
 
 
-def test_dashes_in_text_rejects_a_non_breaking_hyphen() -> None:
-    assert dashes_in_text("A follow‑up drill for tomorrow.") == ["non-breaking hyphen"]
+def test_dashes_in_text_accepts_a_non_breaking_hyphen() -> None:
+    """🔴 INVERTED 2026-08-11, and the inversion is the point.
+
+    This asserted the opposite until the Coach's first live golden run, where
+    U+2011 was the ONLY thing failing and prompting failed to stop it -- the
+    third failure of prompting at this rule, which PHASE-5-SPEC's traps table
+    predicted in advance.
+
+    The resolution was not to prompt harder or to relax the rule, but to notice
+    that this suite had invented a stricter bar than the project's own: the
+    established `no_dash_variants` (interviewer, planner, case_architect) bans
+    the four aside/range characters and deliberately not this one, and
+    `app/text.py` maps it to an ASCII hyphen because a non-breaking hyphen in
+    "state-of-the-art" IS a hyphen. It is not an AI tell, and the graph
+    boundary normalises it before a candidate sees it.
+
+    The characters this rule exists for are still banned, and are covered by
+    the three tests above.
+    """
+    assert dashes_in_text("A follow‑up drill for tomorrow.") == []
 
 
 def test_a_report_with_an_em_dash_in_drill_is_rejected_by_the_dash_check() -> None:
