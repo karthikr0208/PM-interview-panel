@@ -88,13 +88,40 @@ Two independent reasons, and neither is hypothetical:
    failing Evaluator degrades to `return {}` rather than ending the candidate's session. **So a
    completed interview can legitimately reach the Coach with rows missing for entire turns.**
 
-**Consequence: the Coach returns UP TO three improvements, and may return fewer.** Do not force
-three. Forcing three when the evidence supports one produces two invented improvements wearing a
-coach's authority — the identical defect as scoring an unevidenced dimension, which this project
-already refused in 4.1. PRD §3's "3 improvements" is the target shape, not a floor to pad to.
+**🔴 THREE IMPROVEMENTS, ALWAYS. Karthik's call, 2026-08-11 — and it is achievable WITHOUT padding
+because improvements come in two kinds.** The first framing of this question posed a false choice
+between three-with-padding and fewer-but-honest. It missed that a thin interview produces MORE
+material of the second kind, not less:
 
-**If there are no evaluations at all, there is no coach report.** Say so plainly on the surface.
-Do not render an empty card with encouraging filler.
+| Kind | Shape | Needs a quote? | When coverage is thin |
+|---|---|---|---|
+| `moment` | "Here is what you said, here is a stronger version" | **Yes** | Fewer available |
+| `gap` | "You never took a position on the market at all" | **No — nothing was said to quote** | **More available** |
+
+A dimension in `not_assessed` is not an absence of coaching material. **It is among the most useful
+things a coach can say**, and PHASE-4-SPEC § 1 measured a real interview producing two of them. So
+three improvements are reachable honestly at every realistic coverage level, and nothing is
+invented to reach the count.
+
+**🔴 This collides with § 1's `anchor_quote not null`, and the resolution is NOT to relax it.**
+Dropping the constraint to accommodate `gap` rows would surrender the strongest guarantee in the
+table for every row, including the ones that can honour it. Instead, **a `kind` discriminator with
+the check scoped to where it applies**:
+
+```sql
+kind          text not null check (kind in ('moment', 'gap')),
+anchor_quote  text,
+check (kind <> 'moment' or (anchor_quote is not null and length(anchor_quote) > 0))
+```
+
+**Every `moment` improvement still cannot exist without a verbatim quote, enforced in Postgres.** A
+`gap` improvement carries a dimension instead, and its truthfulness is checkable a different way:
+the named dimension must genuinely be absent from `answer_evaluations` for that session. Assert
+that too — it is the same falsifiability, obtained from a different column.
+
+**Only if there is nothing to say at all is there no report.** Zero evaluations AND zero coverage
+gaps to name cannot both be true of a completed interview, so in practice this fires only on an
+interview that never started. Render an honest empty state naming why; never encouraging filler.
 
 ### 4. THE COACH DEFAULTS TO `fast`, AND THAT SUPERSEDES THE PRD.
 
@@ -135,8 +162,9 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
 
 ### 5.1 The migration, the budget measurement, and golden fixtures — ⬜
 
-- [ ] `migrations/0005_coach_reports.sql`. One row per improvement. `anchor_quote text not null
-      check (length(anchor_quote) > 0)`. Applied with `scripts/migrate.py`, never the dashboard.
+- [ ] `migrations/0005_coach_reports.sql`. One row per improvement, with the `kind` discriminator
+      and the scoped check from § 3 — **a `moment` row cannot exist without a verbatim quote**, a
+      `gap` row carries a dimension instead. Applied with `scripts/migrate.py`, never the dashboard.
 - [ ] RLS policy on the new table, matching the existing six. **`probe_realtime.mjs` re-run after**,
       per CLAUDE.md's rule for anything touching RLS or the realtime publication.
 - [ ] **Measure the real token budget** with `tiktoken`, offline, zero LLM cost, in the shape of
@@ -151,11 +179,15 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
 
 - [ ] `app/agents/coach.py`. Input is `answer_evaluations` plus `case_world` plus the main
       question. **Not the transcript.**
-- [ ] Output: up to three improvements, each with anchor quote, stronger version, drill.
-- [ ] **The anchor quote must be one of the `evidence_quote` values already stored.** This is the
-      strong form: it makes every anchor verifiable against the transcript byte for byte **without
-      the Coach ever seeing the transcript**, and it makes an invented anchor detectable, which
-      ARCHITECTURE §9 says nothing can detect at runtime. Assert it.
+- [ ] Output: **three improvements**, each a `moment` or a `gap` (§ 3), each with a stronger version
+      and a drill.
+- [ ] **A `moment`'s anchor quote must be one of the `evidence_quote` values already stored.** This
+      is the strong form: it makes every anchor verifiable against the transcript byte for byte
+      **without the Coach ever seeing the transcript**, and it makes an invented anchor detectable,
+      which ARCHITECTURE §9 says nothing can detect at runtime. Assert it.
+- [ ] **A `gap`'s named dimension must genuinely be absent** from that session's
+      `answer_evaluations`. Assert it — a `gap` claiming the candidate never addressed something
+      they were scored on is the same fabrication in the other direction.
 - [ ] Runs on `fast`. Tagged `agent="coach"` in `get_llm` — the six existing call sites are tagged
       and this is the seventh.
 
@@ -208,6 +240,7 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
   the Evaluator's reasoning, not the full answers. Its "stronger version" is therefore a rewrite of
   a sentence rather than of a whole answer. That is a real trade for fitting the ceiling, and
   whether it still produces useful coaching is a quality call, which is yours.
-- **Three improvements, or as many as the evidence supports?** § 3 argues for the second and the
-  spec is written that way. If you want exactly three for the portfolio demo, say so — but it means
-  padding when coverage is thin, which is the defect 4.1 refused.
+- ✅ **DECIDED 2026-08-11: three, always.** Karthik's call. The padding objection dissolved once
+  `moment` and `gap` improvements were separated — see § 3. Nothing about this needs revisiting
+  unless a real report shows `gap` items reading as filler, which is a quality judgement and would
+  be yours.
