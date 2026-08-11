@@ -216,9 +216,22 @@ def test_routing_now_happens_after_the_evaluation_so_the_final_answer_is_scored(
     branches = {
         (target, data) for source, target, data in _compiled_edges() if source == "evaluate_answer_node"
     }
-    assert branches == {("ask_question", "ask"), ("ask_probe", "probe"), (END, "exit")}, (
-        f"the routing branches off evaluate_answer_node are {branches}"
-    )
+    assert branches == {
+        ("ask_question", "ask"),
+        ("ask_probe", "probe"),
+        ("coach_report", "exit"),
+    }, f"the routing branches off evaluate_answer_node are {branches}"
+
+    # 🔴 Updated for story 5.3, and the property this test exists for is
+    # UNCHANGED: "exit" used to point straight at END, and now it points at the
+    # Coach. What must stay true is that the exit path is still reached from
+    # BELOW the evaluation, so the final answer is scored before the interview
+    # ends -- and that the interview still ends. Asserting only the first half
+    # would let a Coach node with no way out pass while hanging every interview
+    # at the last turn.
+    assert (END, None) in {
+        (target, data) for source, target, data in _compiled_edges() if source == "coach_report"
+    }, "coach_report has no edge to END -- the interview would never terminate"
 
 
 def test_await_candidate_cannot_hold_an_llm_call_at_all() -> None:

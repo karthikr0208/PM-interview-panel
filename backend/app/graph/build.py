@@ -49,6 +49,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
+from app.agents.coach import generate_coach_report, verify_anchors
 from app.agents.evaluator import evaluate_answer
 from app.agents.interviewer import answer_clarification as _answer_clarification
 from app.agents.interviewer import (
@@ -114,6 +115,10 @@ _PROBE_ERROR_SUMMARY = "Ran into a problem following up on your answer."
 _EVALUATE_STARTED_SUMMARY = "Scoring your answer against the rubric."
 _EVALUATE_DONE_SUMMARY = "Scored your answer against the rubric."
 _EVALUATE_ERROR_SUMMARY = "Ran into a problem scoring your answer."
+
+_COACH_STARTED_SUMMARY = "Writing your coaching notes."
+_COACH_DONE_SUMMARY = "Wrote your coaching notes."
+_COACH_ERROR_SUMMARY = "Ran into a problem writing your coaching notes."
 
 
 def _make_level_candidate(
@@ -1258,6 +1263,117 @@ def _make_evaluate_answer_node(
     return evaluate_answer_node
 
 
+def _make_coach_report_node(
+    role: Role = "fast",
+) -> Callable[[InterviewState], Awaitable[dict]]:
+    """Factory, same reasoning as the others above.
+
+    Runs ONCE, on the way out of the loop: `decide_next`'s "exit" branch points
+    here instead of straight at END. That placement is deliberate and it is the
+    only correct one -- the Coach needs every evaluation including the final
+    answer's, and `evaluate_answer_node` sits above the routing conditional
+    precisely so the final answer is scored (story 4.3). Putting the Coach
+    anywhere earlier would coach an interview that had not finished.
+
+    🔴 Like the Evaluator since 2026-08-11, a failure here DEGRADES. The
+    candidate has already earned their scorecard by the time this runs, and a
+    coach report is the last thing in the graph: raising would replace a
+    finished interview with an error for the one agent whose output is a bonus
+    rather than the product. Writes the error event for visibility, returns {}.
+    """
+
+    async def coach_report_node(state: InterviewState) -> dict:
+        session_id = state["session_id"]
+        evaluations = state.get("answer_evaluations") or []
+
+        # `current_q_idx - 1` for the same reason `evaluate_answer_node` uses
+        # it: `ask_question` increments the moment it asks, so it already points
+        # PAST the question that was on the table. Clamped so a defensive 0
+        # cannot wrap to the end of the list.
+        pending_idx = max(state.get("current_q_idx", 1) - 1, 0)
+        main_question = state["question_plan"][pending_idx]["question"]
+
+        started = time.perf_counter()
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "coach",
+                "status": "started",
+                "summary": _COACH_STARTED_SUMMARY,
+            },
+        )
+
+        try:
+            report = await generate_coach_report(
+                state["case_world"],
+                main_question,
+                state["assessed_level"],
+                evaluations,
+                role=role,
+            )
+            # 🔴 The grounding check runs on the way OUT, not as a suggestion in
+            # the prompt. `verify_anchors` is what makes an invented anchor
+            # detectable at all (ARCHITECTURE §9 says nothing can detect a
+            # fabricated fact at runtime -- this one can, because the anchor
+            # must come from a closed set). A report that fails it is not
+            # written: a plausible quote the candidate never said is worse than
+            # no coaching, because it is indistinguishable from real feedback.
+            problems = verify_anchors(report, evaluations)
+            if problems:
+                raise ValueError(
+                    "coach report is not grounded in the stored evidence: " + "; ".join(problems)
+                )
+        except Exception:
+            await rest_insert(
+                "agent_events",
+                {
+                    "session_id": session_id,
+                    "agent": "coach",
+                    "status": "error",
+                    "summary": _COACH_ERROR_SUMMARY,
+                },
+            )
+            return {}
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        # `stronger_version` and `drill` are prose the candidate reads, so they
+        # are normalised at the graph boundary exactly like the Evaluator's
+        # `reasoning`. `anchor_quote` is NOT, and must never be -- it is checked
+        # against the transcript byte for byte, and normalising one side of that
+        # comparison turns a faithful quote into a mismatch.
+        rows = [
+            {
+                "session_id": session_id,
+                "idx": idx,
+                "kind": improvement.kind,
+                "anchor_quote": improvement.anchor_quote,
+                "dimension": improvement.dimension,
+                "stronger_version": normalize_dashes(improvement.stronger_version),
+                "drill": normalize_dashes(improvement.drill),
+            }
+            for idx, improvement in enumerate(report.improvements)
+        ]
+        for row in rows:
+            await rest_insert("coach_reports", row)
+
+        await rest_insert(
+            "agent_events",
+            {
+                "session_id": session_id,
+                "agent": "coach",
+                "status": "done",
+                "summary": _COACH_DONE_SUMMARY,
+                "duration_ms": duration_ms,
+            },
+        )
+
+        return {"coach_report": {"improvements": rows}}
+
+    return coach_report_node
+
+
 def build_graph(
     checkpointer: BaseCheckpointSaver,
     *,
@@ -1266,6 +1382,7 @@ def build_graph(
     planner_role: Role = "deep",
     interviewer_role: Role = "fast",
     evaluator_role: Role = "fast",
+    coach_role: Role = "fast",
 ) -> Any:
     """Compiles level_candidate -> confirm_level -> generate_case_world ->
     plan_interview -> ask_question -> await_candidate -> ... -> END (the
@@ -1318,6 +1435,7 @@ def build_graph(
     graph.add_node("answer_clarification_node", _make_answer_clarification_node(interviewer_role))
     graph.add_node("decide_next", _decide_next_node)
     graph.add_node("evaluate_answer_node", _make_evaluate_answer_node(evaluator_role))
+    graph.add_node("coach_report", _make_coach_report_node(coach_role))
     graph.set_entry_point("level_candidate")
     graph.add_edge("level_candidate", "confirm_level")
     graph.add_edge("confirm_level", "generate_case_world")
@@ -1341,6 +1459,12 @@ def build_graph(
     graph.add_conditional_edges(
         "evaluate_answer_node",
         decide_next,
-        {"ask": "ask_question", "probe": "ask_probe", "exit": END},
+        {"ask": "ask_question", "probe": "ask_probe", "exit": "coach_report"},
     )
+
+    # Story 5.3: the interview now ends THROUGH the Coach rather than at the
+    # routing conditional. Explicit rather than relying on a node with no
+    # outgoing edge terminating implicitly -- an implicit END is invisible to
+    # the test that asserts the interview still finishes.
+    graph.add_edge("coach_report", END)
     return graph.compile(checkpointer=checkpointer)

@@ -1,0 +1,44 @@
+{
+  "world_source": "airbnb",
+  "assessed_level": "PM",
+  "question": "How much should Airbnb invest in this new Services and Experiences expansion versus defending its core lodging business against regulatory and growth headwinds?",
+  "evaluations": [
+    {
+      "turn_idx": 1,
+      "dimension_scores": [
+        {
+          "dimension": "decision_quality",
+          "score": 2,
+          "evidence_quote": "I'd sequence it: keep Services in two or three pilot markets while the core team fixes the trust and safety issues that keep coming up publicly, and revisit the bigger bet in a year.",
+          "reasoning": "Names a real option from the case and a rough timeline, but never says what evidence at the one-year mark would change the plan."
+        },
+        {
+          "dimension": "business_model_fluency",
+          "score": 3,
+          "evidence_quote": "Airbnb runs an 82.6% gross margin on $11.1B in ARR, so the marginal cost of trying the pilot is genuinely low relative to the size of the core business.",
+          "reasoning": "Correctly reasons about margin structure and scale using the case world's real figures."
+        }
+      ],
+      "not_assessed": ["market_accuracy", "structural_clarity", "point_of_view"]
+    },
+    {
+      "turn_idx": 2,
+      "dimension_scores": [
+        {
+          "dimension": "decision_quality",
+          "score": 1,
+          "evidence_quote": "Actually, maybe just do whatever leadership wants since they know the company best.",
+          "reasoning": "Abdicates the decision under pressure instead of defending or revising the earlier pilot plan, scored at the bottom of the range."
+        },
+        {
+          "dimension": "business_model_fluency",
+          "score": 2,
+          "evidence_quote": "The margin's high so there's room to spend on it, I guess.",
+          "reasoning": "Gestures at the right idea but drops the actual numbers the first answer used."
+        }
+      ],
+      "not_assessed": ["market_accuracy", "structural_clarity", "point_of_view"]
+    }
+  ],
+  "note": "Hand-written. Only decision_quality and business_model_fluency ever get evidence across both turns -- market_accuracy, structural_clarity, and point_of_view are never scored anywhere in this session, so unevidenced_dimensions() returns those three and 'gap' improvements are available and plentiful. PHASE-4-SPEC §1 measured a real interview evidencing three of five dimensions; this fixture is narrower still, evidencing two, to make the gap path unambiguous."
+}

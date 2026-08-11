@@ -117,12 +117,18 @@ describe('OrchestrationColumn', () => {
     useAgentEvents.mockReturnValue([])
     render(<OrchestrationColumn sessionId="sess-1" />)
     const names = screen.getAllByRole('status').map((el) => el.getAttribute('aria-label'))
+    // The Coach joined on story 5.3 and is LAST deliberately: this list is
+    // asserted in graph-run order, and the Coach runs once on the way out of
+    // the loop, after the final answer has been scored. A Coach appearing
+    // above the Evaluator here would mean the graph coaches an interview it
+    // has not finished evaluating.
     expect(names).toEqual([
       'Resume Analyst',
       'Case Architect',
       'Interview Planner',
       'Interviewer',
       'Evaluator',
+      'Coach',
     ])
   })
 

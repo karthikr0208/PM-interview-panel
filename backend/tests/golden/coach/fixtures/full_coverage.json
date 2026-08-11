@@ -1,0 +1,62 @@
+{
+  "world_source": "airbnb",
+  "assessed_level": "Senior PM",
+  "question": "How much should Airbnb invest in this new Services and Experiences expansion versus defending its core lodging business against regulatory and growth headwinds?",
+  "evaluations": [
+    {
+      "turn_idx": 1,
+      "dimension_scores": [
+        {
+          "dimension": "business_model_fluency",
+          "score": 3,
+          "evidence_quote": "Airbnb's gross margin is 82.6% and Services carries a materially lower margin because supply acquisition and trust operations are heavier per unit than lodging, so I'd expect it to be dilutive to blended margin for at least four to six quarters.",
+          "reasoning": "Cites the real 82.6% margin figure and reasons correctly about why a new, less asset-light category dilutes blended margin."
+        },
+        {
+          "dimension": "decision_quality",
+          "score": 2,
+          "evidence_quote": "I'd go all in on Services because Chesky has said this is the vision, and betting against the CEO's stated direction is a career-limiting move for a PM.",
+          "reasoning": "The decision leans on organizational politics rather than the actual tradeoff between regulatory risk and growth, and never names what would need to be true for this to work."
+        }
+      ],
+      "not_assessed": ["market_accuracy", "structural_clarity", "point_of_view"]
+    },
+    {
+      "turn_idx": 2,
+      "dimension_scores": [
+        {
+          "dimension": "market_accuracy",
+          "score": 3,
+          "evidence_quote": "New York's Local Law 18 already stripped out most of the previously active listings there, and other cities are drafting similar rules, so the core lodging business is shrinking in exactly the markets Airbnb has historically depended on.",
+          "reasoning": "Correctly cites the Local Law 18 fact from the case world and connects it to real market risk rather than a generic regulatory worry."
+        },
+        {
+          "dimension": "structural_clarity",
+          "score": 2,
+          "evidence_quote": "So basically there's regulation and there's the CEO's vision and there's the money and I think we should think about all of those before deciding anything.",
+          "reasoning": "Lists the considerations in view but never signposts an order or arrives at a structured tradeoff between them."
+        }
+      ],
+      "not_assessed": ["business_model_fluency", "decision_quality", "point_of_view"]
+    },
+    {
+      "turn_idx": 3,
+      "dimension_scores": [
+        {
+          "dimension": "point_of_view",
+          "score": 3,
+          "evidence_quote": "If I'm wrong, it's because Services turns out to scale as fast as lodging did in its first five years, and I'd want to see host and provider supply growth outpace demand before I'd back off defending the core.",
+          "reasoning": "States a clear, falsifiable position and names the specific evidence that would change the candidate's mind."
+        },
+        {
+          "dimension": "business_model_fluency",
+          "score": 2,
+          "evidence_quote": "The $11.1B in ARR from lodging is basically all the revenue, so Services is a rounding error today and doesn't change the math yet.",
+          "reasoning": "Correctly notes revenue concentration but stops short of connecting it to the actual sizing of the investment decision."
+        }
+      ],
+      "not_assessed": ["market_accuracy", "decision_quality", "structural_clarity"]
+    }
+  ],
+  "note": "Hand-written. Every rubric dimension carries at least one evidence_quote across the three turns, so unevidenced_dimensions() is empty and the Coach has no dimension left to write a 'gap' improvement about -- this forces three 'moment' improvements. The counterweight is thin_coverage.json."
+}

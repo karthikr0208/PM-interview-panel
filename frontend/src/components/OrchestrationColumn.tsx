@@ -127,6 +127,24 @@ const AGENTS: readonly PanelAgent[] = [
       error: 'Ran into a problem scoring your answer.',
     },
   },
+  {
+    // Story 5.3. Added because `test_every_backend_agent_key_has_a_row_in_the_
+    // orchestration_column` failed the moment the Coach node started writing
+    // `agent_events` -- which is exactly what the note on the Evaluator row
+    // above predicted would happen, and why that test was written.
+    key: 'coach',
+    name: 'Coach',
+    copy: {
+      waiting: WAITING_COPY,
+      // Byte-identical to build.py's _COACH_*_SUMMARY, same rule as every
+      // entry above. Runs once, last, after the interview has already ended --
+      // so unlike every other row, reaching `error` here costs the candidate
+      // their coaching notes and nothing else. The scorecard is already theirs.
+      active: 'Writing your coaching notes.',
+      done: 'Wrote your coaching notes.',
+      error: 'Ran into a problem writing your coaching notes.',
+    },
+  },
 ]
 
 function AgentStatusRow({
