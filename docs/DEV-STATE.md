@@ -6,6 +6,22 @@
 
 ## Now
 
+**🟢🟢 SESSION 19, 2026-08-11: PHASE 4 IS COMPLETE. STORY 4.3 IS CLOSED, GATE #4'S SERIOUS DEFECT IS
+FIXED, AND PHASE 5 IS SPECCED WITH ITS TABLE ALREADY LIVE.**
+
+Four things landed. **4.3 closed** on the owed 75s run (`1 failed, 9 passed, 2468.42s`, the one
+failure passing on a solo re-run at `1 passed, 237.54s`, zero quota / zero `AssertionError` / zero
+`llm_schema_failure`). **A failing Evaluator no longer ends the candidate's session** — the fix was
+one statement, and the test that had been *certifying* the bug was inverted rather than deleted.
+**`0005_coach_reports.sql` is applied, verified by direct query, and its constraints falsified in
+Postgres** with accepted controls. **Phase 5 is specced**, and three-improvements-always is
+Karthik's call, made buildable without padding by splitting `moment` from `gap`.
+
+**🔴 Two things found that nobody was looking for.** The Evaluator's budget test is green against a
+request shape that stopped shipping — `max_tokens` drifted 2048 → 4096 and real headroom is **565
+tokens, not 2,613**. And **the obvious explanation for the run's one failure was tested and
+falsified**, one edit before it would have been written into this file as fact.
+
 **🟢 SESSION 19, 2026-08-11: THE FOLLOW-UP MATCHED PAIR PASSED LIVE — `2 passed, 43 deselected,
 131.41s`.** Both halves, read as one result: `followup_defends_decision` scored
 `decision_quality >= 3`, and the control `followup_abandons_decision` scored `<= 2` on a
@@ -2233,6 +2249,87 @@ Probe scripts kept in `backend/scripts/`: `check_env.py`, `check_db.py`, `probe_
 `probe_models.py`, `probe_candidates.py`, `probe_structured.py`.
 
 ## Next session — start here
+
+## 🟢 SESSION 20. PHASE 4 IS COMPLETE. START AT STORY 5.2, THE COACH AGENT.
+
+**Nothing is owed. No live run is pending. The tree is clean and every commit below is local.**
+
+**Run these first (~3 min, free, no LLM):**
+
+```
+cd backend && .venv/Scripts/python.exe -m pytest tests -q -m "not live"   # expect 473 passed, 115 deselected
+cd frontend && npm test -- --run                                          # expect 170 passed, 17 files
+```
+
+### What session 19 finished
+
+- **Story 4.3 CLOSED**, so **Phase 4 is complete** — all four stories. The 75s conduct-loop run
+  went `1 failed, 9 passed, 2468.42s`, and the single failure passed on a solo re-run
+  (`1 passed, 237.54s`). Zero quota, zero `AssertionError`, zero `llm_schema_failure`.
+- **Gate #4's more serious defect is fixed**: a failing Evaluator no longer ends the candidate's
+  session. Falsified by reverting it and watching the test go red.
+- **The follow-up matched pair passed live** — `defends >= 3`, control `abandons <= 2`.
+- **Phase 5 is specced** (`docs/specs/PHASE-5-SPEC.md`) and **story 5.1 is done**:
+  `0005_coach_reports.sql` is **applied to the live DB, verified by direct query, and its
+  constraints falsified** — a `moment` without a quote is rejected by Postgres, with accepted
+  controls so the rejections are not vacuous. `probe_realtime.mjs` re-run: **OVERALL: PASS.**
+
+### 🔴 START HERE: story 5.2, the Coach agent
+
+Read `docs/specs/PHASE-5-SPEC.md` first — **all of it, it is short**, and § 3 is the part that
+shapes the agent. The table exists and constrains the output already.
+
+```
+backend/app/agents/coach.py        <- does not exist yet
+backend/tests/golden/coach/        <- does not exist yet
+```
+
+**Three improvements, always** (Karthik's call 2026-08-11), each a `moment` or a `gap`. A `moment`'s
+anchor quote **must be one of the `evidence_quote` values already stored** for that session; a
+`gap`'s dimension **must genuinely be absent** from that session's `answer_evaluations`. Both are
+assertable offline, at zero token cost, and both are what stop the Coach inventing.
+
+**The Coach reads `answer_evaluations`, NOT the transcript.** The transcript is 10,274 tokens
+against an 8,000 TPM ceiling. This is the same wall that forced per-answer Evaluator scoring.
+
+**Measure the token budget BEFORE writing the node**, in the shape of
+`tests/test_evaluator_budget.py`. The spec's ~6,290 figure is **projected, not measured**, and says
+so.
+
+### 🔴 Two open items, neither blocking 5.2
+
+1. **The Evaluator's `max_tokens` drift.** Ships 4096 (`app/agents/evaluator.py:413`); the budget
+   test and the docstring both still say 2048, and `max_tokens` counts toward request size. Real
+   headroom is **565 tokens, not 2,613**. **The fix is not "change 2048 to 4096"** — that re-arms
+   the drift. Extract one constant both the call site and the test read. **Do this before 5.2's
+   budget test**, so the Coach's test is written against the correct pattern from the start.
+2. **The Evaluator's intermittent `failed_generation=''`.** Every evaluation costs two calls when it
+   fires. It did **not** fire once in 41 minutes on 2026-08-11 — one clean sample, not a fix.
+
+### 🟡 Two transient infrastructure failures happened, both non-reproducing
+
+Recorded because a third would make a pattern. Neither is understood:
+
+- `psycopg.OperationalError: server closed the connection unexpectedly` on a checkpoint read during
+  the conduct-loop run. **The obvious explanation was falsified** — an 80s idle connection reads
+  fine. Passed on re-run.
+- `probe_realtime.mjs` failed its positive half once (A did not receive its own row within the 8s
+  window) with the denial half and the service-role control both passing, then **passed cleanly on
+  re-run.**
+
+**If either recurs, it is a defect, not noise.**
+
+### Deployment
+
+**Everything from `e631961` to HEAD is local only. NOT pushed.** Karthik's standing call was to
+deploy after 4.3; 4.3 is now closed, so **the deploy is unblocked and is the one thing that can be
+done immediately.** No env var, config, or dependency changed, so Render needs no dashboard work.
+🔴 **But `0005` is applied to the live DB already** — the schema is ahead of the deployed code,
+which is the safe direction and is deliberate.
+
+---
+
+## Superseded — session 19's opening handoff, kept for the record
 
 ## 🔴 SESSION 19. ONE LIVE RUN IS OWED, AT THE NEW 75s PACING. IT IS THE ONLY THING BLOCKING 4.3.
 

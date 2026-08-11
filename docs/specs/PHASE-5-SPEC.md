@@ -1,6 +1,6 @@
 # Phase 5 — The Coach: three improvements, each anchored to a moment that actually happened
 
-**Status:** ⬜ **NOT STARTED.** Written 2026-08-11, before any code.
+**Status:** 🟡 **5.1 PART-DONE. 5.2 is next.** Written 2026-08-11, before any code. The migration is applied to the live DB and its constraints are falsified; the budget measurement and the golden fixtures are the rest of 5.1 and can be done alongside 5.2.
 
 **🔴 Read the honesty marker before trusting a number in this file.** Phase 4's spec could open by
 saying every number in it was measured. **This one cannot.** The token budget in § 2 below is an
@@ -160,13 +160,24 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
 
 ## Stories
 
-### 5.1 The migration, the budget measurement, and golden fixtures — ⬜
+### 5.1 The migration, the budget measurement, and golden fixtures — 🟡 PART-DONE 2026-08-11
 
-- [ ] `migrations/0005_coach_reports.sql`. One row per improvement, with the `kind` discriminator
-      and the scoped check from § 3 — **a `moment` row cannot exist without a verbatim quote**, a
-      `gap` row carries a dimension instead. Applied with `scripts/migrate.py`, never the dashboard.
-- [ ] RLS policy on the new table, matching the existing six. **`probe_realtime.mjs` re-run after**,
-      per CLAUDE.md's rule for anything touching RLS or the realtime publication.
+- [x] `migrations/0005_coach_reports.sql`. ✅ **DONE 2026-08-11.** One row per improvement, with the
+      `kind` discriminator and the scoped check from § 3. **Applied to the live DB and verified by
+      direct query**, not by trusting migrate.py's output: 9 columns, 6 check constraints, RLS
+      enabled, 1 policy. **Constraints FALSIFIED in Postgres**, with accepted controls so the
+      rejections are not vacuous:
+
+```
+  REJECTED  moment WITHOUT a quote          REJECTED  gap WITHOUT a dimension
+  REJECTED  moment with an EMPTY quote      ACCEPTED  gap WITH a dimension
+  ACCEPTED  moment WITH a quote             REJECTED  kind='invented'
+                                            REJECTED  duplicate (session, idx)
+```
+- [x] RLS policy on the new table, matching the existing six. ✅ **DONE 2026-08-11.**
+      `probe_realtime.mjs` re-run: **OVERALL: PASS** (own row delivered, other session denied).
+      🟡 It failed its positive half once and passed cleanly on re-run — logged in DEV-STATE as one
+      of the day's two non-reproducing transient failures.
 - [ ] **Measure the real token budget** with `tiktoken`, offline, zero LLM cost, in the shape of
       `tests/test_evaluator_budget.py`. **`max_tokens` comes from a shared constant that the call
       site also reads** — the 2026-08-11 drift must not be re-armed.
