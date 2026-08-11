@@ -1,0 +1,213 @@
+# Phase 5 — The Coach: three improvements, each anchored to a moment that actually happened
+
+**Status:** ⬜ **NOT STARTED.** Written 2026-08-11, before any code.
+
+**🔴 Read the honesty marker before trusting a number in this file.** Phase 4's spec could open by
+saying every number in it was measured. **This one cannot.** The token budget in § 2 below is an
+ESTIMATE built from measured components, and story 5.1 owes the real measurement before the node is
+built. Where a number is measured it says so and names the date; where it is projected it says
+that too. Do not let the two blur.
+
+The Coach runs once, at the end, and produces three improvements. Each carries an anchor (a moment
+from the interview), a stronger version of what the candidate said, and a drill. That is the whole
+phase.
+
+---
+
+## 🔴 WHAT IS ALREADY DECIDED, BY MEASUREMENT OR BY SCHEMA. Read this before designing anything.
+
+### 1. THERE IS NO `coach_report` TABLE. The schema is silent, and that is 4.3 inverted.
+
+Six tables exist in `migrations/0001_initial_schema.sql`: `sessions`, `resumes`, `case_worlds`,
+`transcript_turns`, `answer_evaluations`, `agent_events`. **None of them holds a coach report.**
+`app/graph/state.py:70` carries `coach_report: dict | None`, so the graph has a place to put one in
+memory and nowhere to put one durably.
+
+**Story 4.3 had the opposite problem and it was the easier one.** There, the DDL had already
+decided the shape and the work was to read it before designing one. Here nothing has been decided,
+which means **the shape will be decided by accident — by whatever the first `rest_insert` happens
+to pass — unless it is decided on purpose first.** Story 5.1 writes the migration BEFORE the agent,
+for that reason.
+
+**The grain is one row per improvement, not a JSON blob.** Same argument that made
+`answer_evaluations` one row per `(turn, dimension)`: a blob cannot be constrained, cannot be
+queried, and cannot enforce anything at the schema level.
+
+**🔴 The anchor quote carries the same `not null` + `length(...) > 0` check `evidence_quote`
+carries.** PRD §8's guarantee is that no score ships without evidence, enforced in Postgres rather
+than by convention. PRD §10's acceptance for this phase is the same shape — *"each of the 3 items
+names a question and quotes the candidate"* — so it gets the same enforcement. **It is free and it
+is the single most valuable line in the migration.** An improvement without a quote is advice, and
+generic advice is exactly what this product exists not to be.
+
+### 2. THE COACH CAN BE ONE CALL, BUT ONLY BECAUSE IT READS THE EVALUATOR'S OUTPUT.
+
+`ARCHITECTURE.md:121` specifies the Coach as *"whole transcript in one 1M-context call."* **That
+model does not exist on this stack.** The ceiling is 8,000 TPM, and the full transcript was measured
+at **10,274 tokens on 2026-08-06** (AGENT-INTERVIEWER-SPEC §6). Feeding the Coach the raw
+transcript is over the ceiling before the prompt is added — the same wall that forced the Evaluator
+into per-answer scoring in 4.2.
+
+**The Coach has an exit the Evaluator did not, and Phase 4 already built it.**
+`answer_evaluations` holds, per `(turn, dimension)`, a score, a **verbatim candidate quote**, and
+since migration `0004` the Evaluator's **`reasoning`**. That migration's own comment says why it
+exists:
+
+> *"the coach report would have to re-derive from a quote and a digit the judgement the Evaluator
+> already made and wrote down."*
+
+So the Coach reads **judgement, not raw material**, and the input collapses from a transcript to a
+bounded set of rows.
+
+**🔴 Projected budget — NOT MEASURED, story 5.1 owes the real number.** Built from measured parts:
+worst real curated world 1,392 tokens (`app/cases/openai.json`, measured 2026-08-09); 25 rows worst
+case (5 answers × 5 dimensions) at roughly 80 tokens each; `max_tokens` for three improvements.
+
+```
+case_world (worst real world)      ~1,392   measured
+25 evaluation rows                 ~2,000   PROJECTED
+main question                         ~50   projected
+coach system prompt                  ~800   PROJECTED — does not exist yet
+max_tokens (3 improvements)          2,048   a choice, not a measurement
+                                   -------
+                                   ~6,290   against 8,000 -> ~1,700 spare, PROJECTED
+```
+
+**Treat that 1,700 as fragile until measured.** § 3 of the 2026-08-11 findings shows exactly how
+this goes wrong: the Evaluator's real headroom is 565 tokens, not the 2,613 its budget test
+believes, because `max_tokens` drifted and the test did not follow. **Story 5.1's budget test reads
+`max_tokens` from a shared constant, never a literal.**
+
+### 3. THE COACH MUST SURVIVE A SESSION WITH PARTIAL OR ZERO EVALUATIONS. This is new as of today.
+
+Two independent reasons, and neither is hypothetical:
+
+1. **Coverage is not guaranteed.** PHASE-4-SPEC § 1 measured a real interview producing evidence
+   for **three of five dimensions**; two got zero. `not_assessed` is the normal case, not the edge.
+2. **A failed evaluation now writes nothing at all.** Fixed 2026-08-11 (DEV-STATE § Decisions): a
+   failing Evaluator degrades to `return {}` rather than ending the candidate's session. **So a
+   completed interview can legitimately reach the Coach with rows missing for entire turns.**
+
+**Consequence: the Coach returns UP TO three improvements, and may return fewer.** Do not force
+three. Forcing three when the evidence supports one produces two invented improvements wearing a
+coach's authority — the identical defect as scoring an unevidenced dimension, which this project
+already refused in 4.1. PRD §3's "3 improvements" is the target shape, not a floor to pad to.
+
+**If there are no evaluations at all, there is no coach report.** Say so plainly on the surface.
+Do not render an empty card with encouraging filler.
+
+### 4. THE COACH DEFAULTS TO `fast`, AND THAT SUPERSEDES THE PRD.
+
+`PRD.md:54` and `ARCHITECTURE.md:98` both assign the Coach `deep`. **The 2026-08-02 portfolio
+calibration says agents default to `fast` and explicitly supersedes ARCHITECTURE §4.** Build on
+`fast`. If the output is visibly worse, measure it and say so with samples — **one `deep` sample is
+not a measurement**, a rule this project learned in 4.2 and wrote down.
+
+---
+
+## 🔴 Decisions this phase inherits and must not relitigate
+
+| Decision | Where it was made | What it means here |
+|---|---|---|
+| Absence of a row means "not assessed" | PHASE-4-SPEC 4.3 | No nullable score, no sentinel row, no placeholder improvement |
+| `case_world` is immutable after Phase 2 | CLAUDE.md | The Coach reads it, never writes it |
+| Agents default to `fast` | DEV-STATE 2026-08-02 | § 4 above |
+| No em-dashes in user-facing copy | CLAUDE.md | The Coach's prose is read by the candidate. `normalize_dashes` at the graph boundary, as `reasoning` already does |
+| Evidence quotes are NEVER normalised | build.py, 4.3 | The anchor quote is compared to the transcript byte for byte. Normalising one side turns a faithful quote into a mismatch |
+| A green run is one sample | CLAUDE.md | Do not conclude the Coach "works" from one report that reads well |
+
+---
+
+## 🔴 Traps carried forward. Every one is a recorded failure from this project.
+
+| Trap | The recorded failure |
+|---|---|
+| **Re-run every live file that builds a graph** | Story 3.2 and story 4.3 each broke another file's load-bearing assertion via `build.py`. Third occurrence, third file. The Coach adds a node |
+| **Deselected is not passed** | 2026-08-05, twice: `N passed, M deselected` read as verification when the deselected were the only tests observing the property |
+| **A test can certify a bug** | 2026-08-04's upload defect, and again 2026-08-11 (`..._and_reraises`). When behaviour changes, invert the test, do not delete it |
+| **A green budget test can measure a shape that no longer ships** | 2026-08-11, the Evaluator's `max_tokens` drift. Read the constant, never a literal |
+| **Classify a 429 before calling it a defect** | Three separate mostly-red runs were rate limiting, once wearing an `AssertionError` written to be believed |
+| **Prompting failed twice at the em-dash rule** | 3.3 closed it deterministically instead. Do not try prompting a third time |
+
+---
+
+## Stories
+
+### 5.1 The migration, the budget measurement, and golden fixtures — ⬜
+
+- [ ] `migrations/0005_coach_reports.sql`. One row per improvement. `anchor_quote text not null
+      check (length(anchor_quote) > 0)`. Applied with `scripts/migrate.py`, never the dashboard.
+- [ ] RLS policy on the new table, matching the existing six. **`probe_realtime.mjs` re-run after**,
+      per CLAUDE.md's rule for anything touching RLS or the realtime publication.
+- [ ] **Measure the real token budget** with `tiktoken`, offline, zero LLM cost, in the shape of
+      `tests/test_evaluator_budget.py`. **`max_tokens` comes from a shared constant that the call
+      site also reads** — the 2026-08-11 drift must not be re-armed.
+- [ ] Golden fixtures, including **one with zero evaluations** and **one with a single turn's
+      worth**, because § 3 says both are reachable.
+- [ ] The assertion harness reds before the agent exists, with **no stub written to fake it** — the
+      shape 4.1 used.
+
+### 5.2 The Coach agent — ⬜
+
+- [ ] `app/agents/coach.py`. Input is `answer_evaluations` plus `case_world` plus the main
+      question. **Not the transcript.**
+- [ ] Output: up to three improvements, each with anchor quote, stronger version, drill.
+- [ ] **The anchor quote must be one of the `evidence_quote` values already stored.** This is the
+      strong form: it makes every anchor verifiable against the transcript byte for byte **without
+      the Coach ever seeing the transcript**, and it makes an invented anchor detectable, which
+      ARCHITECTURE §9 says nothing can detect at runtime. Assert it.
+- [ ] Runs on `fast`. Tagged `agent="coach"` in `get_llm` — the six existing call sites are tagged
+      and this is the seventh.
+
+### 5.3 The graph node and the write — ⬜
+
+- [ ] `coach_report` node after the loop exits. **Never inside `await_candidate`.**
+- [ ] 🔴 **A failing Coach must not break the scorecard.** Same argument, same shape as the
+      2026-08-11 Evaluator fix: the report is a side-effect of a finished interview. Write the error
+      `agent_events` record and degrade. The candidate has already earned their scorecard.
+- [ ] Assert exactly one Coach LLM call per session, on `app.llm`'s log filtered by
+      `agent="coach"`, and **falsify it** against a deliberately wrong graph.
+- [ ] 🔴 **Re-run every live file that builds a graph**, not just the one edited.
+
+### 5.4 The coaching report surface — ⬜
+
+- [ ] Renders up to three improvements. **Fewer than three renders as fewer**, with no filler.
+- [ ] Zero improvements renders an honest empty state naming why.
+- [ ] Full loading / empty / error cycle, per the design rules.
+- [ ] Vitest, no LLM budget.
+
+---
+
+## Automated tests
+
+| File | Must assert |
+|---|---|
+| `tests/test_coach_budget.py` | The request fits 8,000 TPM, with `max_tokens` read from the shared constant |
+| `tests/golden/coach/` | Anchors are real stored quotes; a zero-evaluation fixture yields no report; fewer-than-three is allowed |
+| `tests/test_coach_report.py` | One call per session, falsified; a failing Coach degrades and does not break the scorecard |
+| `frontend/**/*.test.ts` | Three, fewer, and zero improvements each render correctly |
+
+---
+
+## Phase gate
+
+1. ⬜ The migration is applied to the live DB, confirmed by direct query, not by trusting the record
+2. ⬜ The budget is MEASURED and under the ceiling
+3. ⬜ A Coach report generates live, every anchor traceable to a stored quote
+4. ⬜ **Karthik reads a coach report and finds it useful.** His, and not delegable
+
+---
+
+## Handoff
+
+**Verified by me, with evidence:** nothing yet — this spec is written before any code.
+
+**Needs your eyes:**
+
+- **Does reading judgement instead of the transcript cost too much?** The Coach will see quotes and
+  the Evaluator's reasoning, not the full answers. Its "stronger version" is therefore a rewrite of
+  a sentence rather than of a whole answer. That is a real trade for fitting the ceiling, and
+  whether it still produces useful coaching is a quality call, which is yours.
+- **Three improvements, or as many as the evidence supports?** § 3 argues for the second and the
+  spec is written that way. If you want exactly three for the portfolio demo, say so — but it means
+  padding when coverage is thin, which is the defect 4.1 refused.
