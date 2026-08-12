@@ -248,24 +248,45 @@ not a measurement**, a rule this project learned in 4.2 and wrote down.
 
 ## Phase gate
 
-1. ⬜ The migration is applied to the live DB, confirmed by direct query, not by trusting the record
-2. ⬜ The budget is MEASURED and under the ceiling
-3. ⬜ A Coach report generates live, every anchor traceable to a stored quote
-4. ⬜ **Karthik reads a coach report and finds it useful.** His, and not delegable
+1. ✅ The migration is applied to the live DB, confirmed by direct query, not by trusting the record
+   — 2026-08-11, constraints falsified in Postgres with accepted controls
+2. ✅ The budget is MEASURED and under the ceiling — 2026-08-11, `7955 / 8000, headroom 45`
+3. ✅ **A Coach report generated live 2026-08-12, every anchor traceable to a stored quote** —
+   session `93f52e86`, three rows, all three `anchor_quote` values verbatim against
+   `transcript_turns`
+4. 🔴 **Karthik read a coach report on 2026-08-12. The structure works; the content invents money.**
+   Not a pass. See DEV-STATE § Decisions 2026-08-12
 
 ---
 
 ## Handoff
 
-**Verified by me, with evidence:** nothing yet — this spec is written before any code.
+**Verified by me, with evidence (2026-08-12, live sit, session `93f52e86`):**
 
-**Needs your eyes:**
+- The graph exits through the Coach and writes three rows. Anchors verbatim, checked against the
+  stored transcript rather than trusted.
+- A failing Evaluator degrades without ending the session. Observed in **production**.
+- Migration `0006` works end to end: the panel filled in over Realtime with **no refresh**.
+  `probe_realtime.mjs` cannot show this — it exercises `agent_events`.
+- The report renders in the wide middle column and the closing copy no longer claims scoring is
+  unbuilt. `194 passed, 19 files`.
 
-- **Does reading judgement instead of the transcript cost too much?** The Coach will see quotes and
-  the Evaluator's reasoning, not the full answers. Its "stronger version" is therefore a rewrite of
-  a sentence rather than of a whole answer. That is a real trade for fitting the ceiling, and
-  whether it still produces useful coaching is a quality call, which is yours.
+**Needs your eyes — updated by the sit:**
+
+- 🔴 **The invented dollar figures.** Every `stronger_version` carried fabricated money and one was
+  wrong on units. This is **not** purely a quality call: CLAUDE.md § Design's fake-round-numbers
+  rule binds agent prompts. The cause is 5.2's own budget fix removing `supporting_facts`. A
+  deterministic guard is recommended over a prompt edit and is **not applied**.
 - ✅ **DECIDED 2026-08-11: three, always.** Karthik's call. The padding objection dissolved once
-  `moment` and `gap` improvements were separated — see § 3. Nothing about this needs revisiting
-  unless a real report shows `gap` items reading as filler, which is a quality judgement and would
-  be yours.
+  `moment` and `gap` improvements were separated — see § 3.
+  🔴 **REOPENED BY EVIDENCE 2026-08-12**, on the condition this entry itself named. The live report's
+  three improvements were **one idea restated three times**, every drill some form of "compare CPMs
+  in a spreadsheet". It arrived as redundancy rather than filler, and it arrived among `moment`s
+  rather than `gap`s — **the `gap` path has still never run**, because the Evaluator scored every
+  dimension.
+- **Does reading judgement instead of the transcript cost too much?** Partly answered and worse
+  than expected: the Coach reads judgement **and** has no company facts, since the budget fix took
+  `supporting_facts` away. It rewrites a sentence, and invents the numbers to put in it.
+- 🔴 **The Evaluator returned `4` for all 17 dimension scores across 4 answers.** Not this phase's
+  agent, but it is what starved the `gap` path, and a rubric emitting a constant is worth your
+  judgement.
