@@ -151,9 +151,11 @@ interface CoachReportProps {
 /**
  * The coaching report (story 5.4): three improvements, each either a
  * `moment` (the candidate's own words, then a stronger version) or a `gap`
- * (a rubric dimension that never came up). Mounted below `EvaluationColumn`
- * in `App.tsx`'s evaluation slot -- this is end-of-interview output and
- * belongs under the scorecard it elaborates on, not beside it.
+ * (a rubric dimension that never came up). Passed as `InterviewSurface`'s
+ * `coachReport` slot and rendered in the WIDE MIDDLE COLUMN, below the
+ * end-of-interview card. It sat in the narrow evaluation rail until
+ * 2026-08-12, when the first live sit showed three paragraphs of coaching
+ * prose are unreadable there. The rail stays numbers-only.
  */
 export function CoachReport({ sessionId }: CoachReportProps) {
   const { state, retry } = useCoachReport(sessionId)

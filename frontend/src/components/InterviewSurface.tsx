@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowBendDownRight, WarningCircle } from '@phosphor-icons/react'
 import { stripDashes } from '../lib/copy'
 import type { InterviewState } from '../lib/interview'
@@ -8,6 +8,11 @@ interface InterviewSurfaceProps {
   state: InterviewState
   onSubmitAnswer: (text: string) => void
   onAskClarification: (text: string) => void
+  // Rendered only in the `done` branch, below the closing card. The coaching
+  // report is prose end-of-interview output that belongs in this wide middle
+  // column, not the narrow evaluation rail (moved from App.tsx's evaluation
+  // slot -- see App.tsx's InterviewContainer).
+  coachReport?: ReactNode
 }
 
 // Skeletal, never a circular spinner (v1 §3 Rule 5) -- same treatment as
@@ -126,7 +131,7 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
  * The question is rendered whole in a single node -- no typewriter, no
  * per-character reveal (design v1).
  */
-export function InterviewSurface({ state, onSubmitAnswer, onAskClarification }: InterviewSurfaceProps) {
+export function InterviewSurface({ state, onSubmitAnswer, onAskClarification, coachReport }: InterviewSurfaceProps) {
   const [answerText, setAnswerText] = useState('')
   const [clarifyText, setClarifyText] = useState('')
   const [answerTouched, setAnswerTouched] = useState(false)
@@ -161,13 +166,14 @@ export function InterviewSurface({ state, onSubmitAnswer, onAskClarification }: 
 
   if (state.kind === 'done') {
     return (
-      <div className="mx-auto flex max-w-xl flex-col gap-4">
+      <div className="mx-auto flex max-w-2xl flex-col gap-4">
         <div className="rounded-card border border-border bg-surface p-6">
           <p className="text-sm font-medium text-text-primary">That is the end of the interview.</p>
           <p className="mt-1 text-sm text-text-secondary">
-            Feedback and scoring are not part of this build yet.
+            Your scores are in the panel on the right. Your coaching notes are below.
           </p>
         </div>
+        {coachReport}
       </div>
     )
   }

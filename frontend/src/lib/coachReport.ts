@@ -26,20 +26,21 @@ export type CoachReportState =
  *
  * Returns `{ state, retry }`, matching `useEvaluations` / `useCaseWorld`.
  *
- * 🔴 REALTIME PUBLICATION GAP: `coach_reports` is created by
- * `backend/migrations/0005_coach_reports.sql`, which adds RLS but does NOT
- * add the table to `supabase_realtime` -- only `0001_initial_schema.sql`
- * touches the publication, and its guarded loop lists exactly
- * `['transcript_turns', 'answer_evaluations', 'agent_events']`. `coach_reports`
- * is not in that array and no later migration adds it. The subscription
- * below is wired anyway, mirroring `useEvaluations` exactly, because the
- * initial `.select()` fetch does not depend on the publication and still
- * works correctly -- but until a migration adds `coach_reports` to
- * `supabase_realtime`, the INSERT handler here will never fire, and a
- * candidate who has this column mounted before the Coach writes will not see
- * the three cards appear live; only a subsequent fetch (e.g. a fresh page
- * load) would show them. Flagged for backend/DB attention, not fixed here --
- * CLAUDE.md reserves migrations for the orchestrator.
+ * The publication gap this docstring used to describe is CLOSED.
+ * `0005_coach_reports.sql` created the table with RLS but left it out of
+ * `supabase_realtime` -- only `0001_initial_schema.sql` touched the
+ * publication, listing exactly
+ * `['transcript_turns', 'answer_evaluations', 'agent_events']` -- so the
+ * INSERT handler below could never fire and the cards only appeared on a
+ * fresh page load. `0006` adds the table to the publication, and the fix is
+ * confirmed by the product rather than by a probe: in the live sit of
+ * 2026-08-12 the coaching panel filled in with no refresh. Note that
+ * `probe_realtime.mjs` cannot show this -- it exercises `agent_events`.
+ *
+ * It mattered more here than for the other three tables. Those are written
+ * repeatedly, so a missed broadcast fills in on the next write.
+ * `coach_reports` is written ONCE, in the last node, after the candidate has
+ * stopped interacting.
  */
 export function useCoachReport(sessionId: string | null): {
   state: CoachReportState

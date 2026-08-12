@@ -72,7 +72,12 @@ function InterviewContainer({
   return (
     <div className="flex flex-col gap-4">
       <CompanyBrief state={briefState} onRetry={retryBrief} />
-      <InterviewSurface state={state} onSubmitAnswer={submitAnswer} onAskClarification={askClarification} />
+      <InterviewSurface
+        state={state}
+        onSubmitAnswer={submitAnswer}
+        onAskClarification={askClarification}
+        coachReport={<CoachReport sessionId={sessionId} />}
+      />
     </div>
   )
 }
@@ -137,14 +142,12 @@ function App() {
         // read the candidate's own rows over Realtime and neither may mint an
         // id of its own. `revealed` stays unset until Phase 5 owns the end of
         // the interview -- until then the candidate controls blind mode.
-        // `CoachReport` renders below the scorecard: it is end-of-interview
-        // output that elaborates on the scores above it, not a peer surface.
-        evaluation={
-          <div className="flex flex-col gap-6">
-            <EvaluationColumn sessionId={sessionId} />
-            <CoachReport sessionId={sessionId} />
-          </div>
-        }
+        // `CoachReport` used to render here, below the scorecard, but this
+        // rail is too narrow to read three paragraphs of coaching prose. It
+        // now renders in `InterviewContainer`'s middle column instead, below
+        // the end-of-interview card, where there is room for prose. This
+        // rail stays numbers-only.
+        evaluation={<EvaluationColumn sessionId={sessionId} />}
       />
     </IconStandard>
   )

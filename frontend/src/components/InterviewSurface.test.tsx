@@ -96,8 +96,41 @@ describe('InterviewSurface', () => {
   it('renders the closing state and offers no answer control once done', () => {
     render(<InterviewSurface state={{ kind: 'done' }} onSubmitAnswer={noop} onAskClarification={noop} />)
     expect(screen.getByText(/end of the interview/i)).toBeTruthy()
+    expect(screen.getByText(/your scores are in the panel on the right/i)).toBeTruthy()
     expect(screen.queryByLabelText(/your answer/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /submit answer/i })).toBeNull()
+  })
+
+  // Scoring and coaching both shipped (Phases 4 and 5); the closing copy
+  // must not still claim they are missing.
+  it('does not claim feedback and scoring are unbuilt', () => {
+    render(<InterviewSurface state={{ kind: 'done' }} onSubmitAnswer={noop} onAskClarification={noop} />)
+    expect(screen.queryByText(/not part of this build yet/i)).toBeNull()
+  })
+
+  it('renders the coachReport slot in the done state, below the closing card', () => {
+    render(
+      <InterviewSurface
+        state={{ kind: 'done' }}
+        onSubmitAnswer={noop}
+        onAskClarification={noop}
+        coachReport={<p>Coaching notes go here.</p>}
+      />,
+    )
+    expect(screen.getByText('Coaching notes go here.')).toBeTruthy()
+  })
+
+  it('does not render the coachReport slot before the done state', () => {
+    const state: InterviewState = { kind: 'asking', question: Q1, probe: null, clarification: null }
+    render(
+      <InterviewSurface
+        state={state}
+        onSubmitAnswer={noop}
+        onAskClarification={noop}
+        coachReport={<p>Coaching notes go here.</p>}
+      />,
+    )
+    expect(screen.queryByText('Coaching notes go here.')).toBeNull()
   })
 
   it('disables controls and shows a skeletal state while sending, never a spinner', () => {
