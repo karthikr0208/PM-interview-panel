@@ -6,6 +6,30 @@
 
 ## Now
 
+**🟢🔴 SESSION 20, 2026-08-12: PHASE 5'S GATE WAS SAT LIVE. THE COACH WORKS AND WRITES INVENTED
+DOLLAR FIGURES.**
+
+Karthik sat a full Senior PM interview on the deployed stack (session `93f52e86`, YouTube world).
+**Everything structural passed**: the graph exited through the Coach, three improvements were
+written, **all three anchor quotes are verbatim candidate text**, a mid-interview Evaluator failure
+**degraded without ending the session** (2026-08-11's fix, observed in production), and **migration
+`0006` is confirmed end to end** — the panel filled in over Realtime with no refresh, which
+`probe_realtime.mjs` structurally cannot show.
+
+**🔴 Three defects, one of them a rule violation.** Every `stronger_version` invents financial
+figures (`$10` CPM, `$20,000` per 1% share, `$12 × 60 = $720`, which is also wrong on units) and
+presents them as the model answer — **CLAUDE.md § Design's fake-round-numbers rule binds agent
+prompts, and this breaks it.** The cause is traceable: story 5.2 stopped sending `supporting_facts`
+to fit the token ceiling, so the Coach holds no facts and fills the hole. **The three improvements
+also collapse into one idea** (all three drills are "compare CPMs in a spreadsheet"), which is the
+padding risk "three, always" accepted. And **2 of 4 probes attributed CASE-WORLD text to the
+candidate** — a new mechanism in the 2026-08-08 misattribution family, traced to
+`app/cases/youtube.json` lines 40 and 43.
+
+**🔴 The Evaluator returned `4` for ALL 17 dimension scores across 4 answers.** No 3, no 5, ceiling
+everywhere. Because nothing was unevidenced, **zero `gap` improvements were generated and that path
+is still unexercised.** Fixes are Karthik's call under the standing rule; nothing was changed.
+
 **🟢🟢 SESSION 19, 2026-08-11: PHASE 4 IS COMPLETE. STORY 4.3 IS CLOSED, GATE #4'S SERIOUS DEFECT IS
 FIXED, AND PHASE 5 IS SPECCED WITH ITS TABLE ALREADY LIVE.**
 
@@ -4117,6 +4141,95 @@ Phase 5.
 
 Dated log of where reality diverged from the plan. **These entries supersede
 `ARCHITECTURE.md` wherever they conflict.**
+
+**🟢🔴 2026-08-12 (session 20) · PHASE 5'S REAL GATE WAS SAT. THE COACH PRODUCED A REPORT END TO
+END, ITS GROUNDING MACHINERY HELD, AND ITS CONTENT INVENTS MONEY.**
+
+Karthik sat a full Senior PM interview on the deployed stack, session `93f52e86-0abc-4a0f-adf2-fe31136d480f`,
+YouTube world, one question and four probes. Answers were supplied by the orchestrator at his
+request to preserve budget, and were deliberately **strong** — that is the condition under which
+"three improvements, always" has to reach, which was the open question from 2026-08-11.
+
+**🟢 What passed, and it is the load-bearing half.**
+
+- **The graph exited through the Coach and wrote the report.** Three rows in `coach_reports`,
+  `idx` 0-2, all `kind=moment`.
+- **All three `anchor_quote` values are verbatim candidate text**, checked against
+  `transcript_turns`. `verify_anchors` let the report through and the report deserved it.
+- **The Evaluator failed mid-interview and the session survived** — `evaluator error` at 06:14:32,
+  `interviewer started` 0.2s later, interview continued to completion. That is 2026-08-11's
+  degrade fix (`60fd28f`) observed working in **production**, not in a test.
+- **🟢 Migration `0006` is confirmed end to end.** The coaching panel filled in over Realtime with
+  **no refresh**, which is the half `probe_realtime.mjs` structurally cannot cover — that script
+  exercises `agent_events`, not `coach_reports`. Publication + RLS + a once-written row, proven by
+  the product rather than by a probe.
+
+**🔴 DEFECT 1 — every `stronger_version` invents financial figures and states them as fact.**
+
+Verbatim from the stored rows: `$0.10` vs `$0.30` per 30-second slot, `$12` vs `$36` per hour;
+TikTok CPM `$10`, YouTube `$8`, raise to `$12`, `$20,000` per 1% share gain; TV CPM `$12` vs mobile
+`$8`. **None appear in `app/cases/youtube.json` or in any candidate turn.** One is not merely
+invented but **wrong on units** — `$12 × 60 = $720` multiplies a cost-per-mille by minutes — and it
+is presented to the candidate as the model answer.
+
+This also breaks a rule already written in CLAUDE.md § Design, which explicitly binds **agent
+prompts and not just CSS**: *no fake-round numbers*. `$10`, `$8`, `$12`, `$20,000` are the rule's
+own example shape.
+
+**The cause is traceable to story 5.2's budget fix and is not a mystery.** To fit the 8,000 TPM
+ceiling the Coach stopped being sent `supporting_facts` and `suits_categories` (§ Decisions
+2026-08-11). So it is asked to write a stronger version of an answer about ad economics while
+holding **no facts about the company at all**, and it fills the hole. The edit that bought the
+headroom created this.
+
+**Recommended fix is DETERMINISTIC, not prompted.** This project has lost to prompting three times
+on the em-dash rule and won immediately with a Python guard. Same shape as `verify_anchors`: reject
+a `stronger_version` carrying a currency or percentage token that appears nowhere in the source
+material, and regenerate. Falsifiable, zero tokens to test. **Not applied — the prompt/quality call
+is Karthik's under the standing rule.**
+
+**🔴 DEFECT 2 — the three improvements are one improvement, restated.**
+
+Improvement 1: compute revenue per hour. Improvement 2: compute a CPM differential. Improvement 3:
+compare CPMs and compute revenue per hour. All three `drill` fields are "build a spreadsheet
+comparing CPMs." **This is the padding risk the 2026-08-11 "three, always" decision accepted**, and
+it did not show up as vagueness — it showed up as redundancy. Improvement 2 is worse than
+redundant: it quotes a strategic argument about contested versus uncontested ground and replaces it
+with a fabricated CPM calculation, making the answer weaker.
+
+**🔴 DEFECT 3 — the Interviewer attributed CASE-WORLD text to the candidate, in 2 of 4 probes.**
+
+Probe 4: *"You said you would focus on a TV-native product line and sports rights"*. Sports rights
+was never said. It comes from `app/cases/youtube.json` **line 43, an `option`**: *"Prioritize the
+living-room, long-form business: lean further into connected TV, live sports rights..."* — the
+candidate's answer matched the option's first half, so `generate_probe` attributed **the whole
+option** to them, then pressure-tested it with the matching `constraint` at line 49.
+
+Probe 1 is the same mechanism from **line 40, the `tension`**: *"shifting ad inventory from Shorts
+to long-form"*, which the candidate never proposed and which the world's Shorts-versus-long-form
+framing supplies.
+
+This is the 2026-08-08 misattribution family with a **new and more specific mechanism**: not a
+clarifying question stored as a position (that was fixed by carrying `kind`), but **world text
+laundered into the candidate's mouth**. Probes 2 and 3 quoted accurately, so it is 2 of 4, not
+systematic.
+
+**🔴 OBSERVATION — the Evaluator returned `4` for all 17 dimension scores across 4 answers.**
+
+Not one 3, not one 5, on a 0-4 scale where 4 is the ceiling. Four different answers, five
+dimensions, `not_assessed` working correctly (turn 7 scored 3 dimensions, turn 3 scored 4). **A
+rubric emitting a constant is not discriminating**, and this is the second time the Evaluator's
+discrimination has been questioned. It also means every dimension carried a score, so
+`unevidenced_dimensions` was empty and **zero `gap` improvements were generated** — the `gap` path
+did not run in this sit, and the padding question is therefore only half answered.
+
+**🟡 The Evaluator error at 06:14:32 is NOT classified, and is recorded as unclassified.**
+
+`agent_events` stores status and summary but **no error text**, so the DB cannot settle it. Duration
+was 63s between `started` and `error`, which fits both a 429 with retry-after backoff and the known
+intermittent `failed_generation=''` fault open since 2026-08-11. The UI's "Show details" text was
+never captured. **Do not record it as either.** If a live sit hits this again, capture that text
+first.
 
 **🟢 2026-08-11 (session 19) · THE FOLLOW-UP MATCHED PAIR RAN LIVE AND BOTH HALVES PASSED. THE
 2026-08-10 `decision_quality` DEFECT IS CLOSED, AND THE FIX DID NOT OVER-CORRECT.**
