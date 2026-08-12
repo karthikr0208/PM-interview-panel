@@ -956,3 +956,66 @@ async def test_await_candidate_does_not_redo_the_clarification_call_amid_a_probe
             f"{calls_after_real_answer}, which means either the clarification call "
             "re-fired or the next probe call did not happen"
         )
+
+
+@pytest.mark.live
+async def test_coach_report_produces_exactly_one_llm_call_per_session(
+    checkpointer: AsyncPostgresSaver,
+    loop_sessions: Callable[[], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Story 5.3's own single-call assertion, same shape as
+    `test_await_candidate_produces_exactly_one_llm_call_per_probe_turn`
+    (the interviewer's) and story 4.3's evaluator equivalent:
+    `coach_report` sits on `decide_next`'s ONE-TIME "exit" edge, never on
+    `await_candidate` (which LangGraph re-runs from the top on every
+    resume) and never on the "probe" branch that fires for every turn
+    before the last. A full interview -- one question, `_PROBES_THIS_PHASE`
+    probed answers, then the answer that crosses the boundary -- must log
+    exactly ONE `outcome=ok` record tagged `agent=coach`: zero would mean
+    the exit edge never reached the Coach, more than one would mean it fired
+    on a turn it should not have. `falsify_coach_single_call.py` proves this
+    assertion CAN fail, against a graph where the coach call sits above an
+    `interrupt()` in the same node -- the exact bug CLAUDE.md's rule about
+    `interrupt()`-only nodes exists to prevent.
+
+    Filtered on `agent="coach"` specifically, never a total or a bare
+    `len(...) >= 1` -- story 4.3's near-miss is on record for exactly this
+    reason: doubling the expected count instead of filtering by agent would
+    leave this assertion unable to say WHICH agent fired twice, on a session
+    that also logs `_PROBES_THIS_PHASE` interviewer calls and
+    `_PROBES_THIS_PHASE + 1` evaluator calls (one per answer, including the
+    final one -- story 4.3's own placement).
+
+    🔴 Costs a FULL interview's worth of `fast` tokens (interviewer +
+    evaluator + coach, ~10 LLM calls total) -- the most expensive single
+    live test in this file. Written per the story 5.3 brief; run
+    deliberately, not as part of routine iteration.
+    """
+    session_id = loop_sessions()
+    graph = build_graph(checkpointer, interviewer_role="fast")
+    config = _config(session_id)
+
+    with caplog.at_level(logging.INFO, logger="app.llm"):
+        await _start_at_the_loop(graph, config, session_id)
+        assert len(_ok_llm_calls(caplog, agent="coach")) == 0, (
+            "the coach must not fire before the loop exits"
+        )
+
+        for probe_number in range(1, _PROBES_THIS_PHASE + 1):
+            result = await _paced(graph,
+                Command(resume={"type": "answer", "text": f"Answer number {probe_number}."}), config
+            )
+            assert "__interrupt__" in result, f"expected a probe to follow answer {probe_number}"
+            assert len(_ok_llm_calls(caplog, agent="coach")) == 0, (
+                f"the coach fired before the loop exited, after probe turn {probe_number}"
+            )
+
+        final = await _paced(graph, Command(resume={"type": "answer", "text": "Final answer."}), config)
+        assert "__interrupt__" not in final, "the loop should have exited at the probe count boundary"
+
+        coach_calls = _ok_llm_calls(caplog, agent="coach")
+        assert len(coach_calls) == 1, (
+            f"expected exactly 1 agent=coach outcome=ok record for the whole session, got "
+            f"{len(coach_calls)}: {coach_calls}"
+        )
